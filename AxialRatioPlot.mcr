@@ -49,26 +49,26 @@ Sub Main ()
     End If
 
     Dim InformationStr As String
-    InformationStr = "ÇëÊäÈëÒª¼ÆËãµÄÆµÂÊ·¶Î§£¨"+CStr(FarfieldFreq(0))+"GHzµ½"+CStr(FarfieldFreq(m-1))+"GHzÖ®¼ä£©:"
-	Begin Dialog UserDialog 410,182,"Öá±È-ÆµÂÊ×÷Í¼",.DialogFunction ' %GRID:10,7,1,1
+    InformationStr = "è¯·è¾“å…¥è¦è®¡ç®—çš„é¢‘ç‡èŒƒå›´ï¼ˆ"+CStr(FarfieldFreq(0))+"GHzåˆ°"+CStr(FarfieldFreq(m-1))+"GHzä¹‹é—´ï¼‰:"
+	Begin Dialog UserDialog 410,182,"è½´æ¯”-é¢‘ç‡ä½œå›¾",.DialogFunction ' %GRID:10,7,1,1
 		Text 20,7,390,14,InformationStr,.Text1
 		TextBox 50,28,40,21,.Fmin
 		TextBox 170,28,40,21,.Fmax
 		OKButton 60,154,90,21
 		CancelButton 190,154,90,21
-		Text 20,84,40,14,"²½³¤",.Text3
+		Text 20,84,40,14,"æ­¥é•¿",.Text3
 		TextBox 60,77,50,21,.Fstep
-		Text 20,105,220,14,"ÇëÊäÈëÒª¼ÆËãµÄÔ¶³¡·½Ïò£º",.Text4
-		Text 20,133,20,14,"¦È=",.Text5
+		Text 20,105,220,14,"è¯·è¾“å…¥è¦è®¡ç®—çš„è¿œåœºæ–¹å‘ï¼š",.Text4
+		Text 20,133,20,14,"Î¸=",.Text5
 		TextBox 50,126,40,21,.Theta
-		Text 100,133,20,14,"¦Õ=",.Text6
+		Text 100,133,20,14,"Ï†=",.Text6
 		TextBox 130,126,40,21,.Phi
-		Text 20,35,20,14,"´Ó",.Text2
+		Text 20,35,20,14,"ä»",.Text2
 		Text 120,84,40,14,"GHz",.Text8
-		Text 100,35,50,14,"GHz µ½",.Text9
+		Text 100,35,50,14,"GHz åˆ°",.Text9
 		Text 220,35,30,14,"GHz",.Text10
-		Text 20,56,110,14,"ÇëÑ¡Ôñ¶Ë¿Ú£º",.Text7
-		TextBox 120,56,30,14,.PortNum
+		Text 20,56,110,14,"è¯·é€‰æ‹©ç«¯å£ï¼š",.Text7
+		TextBox 120,56,30,21,.PortNum
 	End Dialog
 	Dim dlg As UserDialog
 
@@ -102,7 +102,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			Dim FreqMin As Double, FreqMax As Double, FreqStep As Double
 		    Dim Theta As Integer
 		    Dim Phi As Integer
-		    Dim PortNum As Integer
+		    Dim PortNum As String
 
 		    FreqMin = Evaluate(DlgText("Fmin"))
 		    FreqMax = Evaluate(DlgText("Fmax"))
@@ -110,12 +110,12 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 
 		    Theta = Evaluate(DlgText("Theta"))
 		    Phi = Evaluate(DlgText("Phi"))
-		    PortNum = Evaluate(DlgText("PortNum"))
+		    PortNum = DlgText("PortNum")
 
 
 
 		    If FreqMin < FarfieldFreq(0) Or FreqMax > FarfieldFreq(m-1) Then
-		    	MsgBox("ÊäÈëµÄÆµÂÊ³¬³ö¿É¼ÆËã·¶Î§£¬ÇëÖØĞÂÊäÈë",1,"¾¯¸æ")
+		    	MsgBox("è¾“å…¥çš„é¢‘ç‡è¶…å‡ºå¯è®¡ç®—èŒƒå›´ï¼Œè¯·é‡æ–°è¾“å…¥",1,"è­¦å‘Š")
 		    	Exit All
 		    End If
 
@@ -144,7 +144,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 
 		    	If FarfieldFreq(i) >= FreqMin And FarfieldFreq(i) <= FreqMax Then
 		    		Dim FarfieldName As String
-		    		FarfieldName = "farfield (f="+ CStr(FarfieldFreq(i))+") ["+CStr(PortNum)+"]"
+		    		FarfieldName = "farfield (f="+ CStr(FarfieldFreq(i))+") ["+PortNum+"]"
 			    	SelectTreeItem("Farfields\"+ FarfieldName)
 			    	'Dim MidValue As Double
 
@@ -178,14 +178,14 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 
 		    o.xlabel("Frequency/GHz")
 
-			o.Save("AxialRatio@Theta="+CStr(Theta)+"_Phi="+CStr(Phi)+".sig")
+			o.Save("AxialRatio@Port="+PortNum+"_Theta="+CStr(Theta)+"_Phi="+CStr(Phi)+".sig")
 
-			'o.AddToTree("1D Results\AxialRatio\AR_Freq("+CStr(FreqMin)+"GHz_to_"+CStr(FreqMax)+"GHz")_¦È="+CStr(Theta)+"deg_¦Õ="+CStr(Phi)+"deg")
+			'o.AddToTree("1D Results\AxialRatio\AR_Freq("+CStr(FreqMin)+"GHz_to_"+CStr(FreqMax)+"GHz")_Î¸="+CStr(Theta)+"deg_Ï†="+CStr(Phi)+"deg")
 			'Dim ResultItem As String
-			'ResultItem = "1D Results\AxialRatio\AR_Freq_¦È="+CStr(Theta)+"deg_¦Õ="+CStr(Phi)+"deg"
-			o.AddToTree("1D Results\AxialRatio\AR_¦È="+CStr(Theta)+"deg_¦Õ="+CStr(Phi)+"deg")
+			'ResultItem = "1D Results\AxialRatio\AR_Freq_Î¸="+CStr(Theta)+"deg_Ï†="+CStr(Phi)+"deg"
+			o.AddToTree("1D Results\AxialRatio\AR_Port["+PortNum+"]_Î¸="+CStr(Theta)+"deg_Ï†="+CStr(Phi)+"deg")
 
-			SelectTreeItem("1D Results\AxialRatio\AR_¦È="+CStr(Theta)+"deg_¦Õ="+CStr(Phi)+"deg")
+			SelectTreeItem("1D Results\AxialRatio\AR_Port["+PortNum+"]_Î¸="+CStr(Theta)+"deg_Ï†="+CStr(Phi)+"deg")
 
 		End Select
 
