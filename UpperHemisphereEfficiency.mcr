@@ -6,6 +6,8 @@ Sub Main ()
     'Get current farfield plot mode
     Dim CurrentPlotMode As String
 
+    MsgBox("Please make sure the axis W in current WCS coordinated system point to the Zenith",vbInformation,"Information")
+
     CurrentPlotMode = FarfieldPlot.GetPlotMode
 
     'Farfield plot settings
@@ -14,6 +16,8 @@ Sub Main ()
     FarfieldPlot.Distance(1)
 
     FarfieldPlot.SetScaleLinear("True")
+
+    FarfieldPlot.SetAxesType("currentwcs")
 
     FarfieldPlot.StoreSettings
 
@@ -84,32 +88,34 @@ Sub Main ()
 
         For n = 0 To UBound(UHPower)
 
-            'Theta step is 5 in default
+            'Theta and phi step is 5deg in default
 
              If position_theta(n) = 0 Then
 
-                 UHTRP = UHTRP + UHPower(n)*pi/72*sinD(2.5)*pi/72
+                 UHTRP = UHTRP + UHPower(n)*(1-cosD(2.5))*pi/36
 
-                 UHRHCPTRP = UHRHCPTRP + UHRHCPPower(n)*pi/72*sinD(2.5)*pi/72
+                 UHRHCPTRP = UHRHCPTRP + UHRHCPPower(n)*(1-cosD(2.5))*pi/36
 
-                 UHLHCPTRP = UHLHCPTRP + UHLHCPPower(n)*pi/72*sinD(2.5)*pi/72
+
+                 UHLHCPTRP = UHLHCPTRP + UHLHCPPower(n)*(1-cosD(2.5))*pi/36
+
 
              ElseIf position_theta(n) = 90 Then
 
-                 UHTRP = UHTRP + UHPower(n)*pi/72*sinD(position_theta(n))*pi/36
+                 UHTRP = UHTRP + UHPower(n)*(CosD(87.5)-CosD(90))*pi/36
 
-                 UHRHCPTRP = UHRHCPTRP + UHRHCPPower(n)*pi/72*sinD(position_theta(n))*pi/36
+                 UHRHCPTRP = UHRHCPTRP + UHRHCPPower(n)*(CosD(87.5)-CosD(90))*pi/36
 
-                 UHLHCPTRP = UHLHCPTRP + UHLHCPPower(n)*pi/72*sinD(position_theta(n))*pi/36
+                 UHLHCPTRP = UHLHCPTRP + UHLHCPPower(n)*(CosD(87.5)-CosD(90))*pi/36
 
 
             ElseIf (position_theta(n) <> 0 And position_theta(n) <> 90) Then
 
-                 UHTRP = UHTRP + UHPower(n)*pi/36*sinD(position_theta(n))*pi/36
+                 UHTRP = UHTRP + UHPower(n)*(CosD(position_theta(n)-2.5)-CosD(position_theta(n)+2.5))*pi/36
 
-                 UHRHCPTRP = UHRHCPTRP + UHRHCPPower(n)*pi/36*sinD(position_theta(n))*pi/36
+                 UHRHCPTRP = UHRHCPTRP + UHRHCPPower(n)*(CosD(position_theta(n)-2.5)-CosD(position_theta(n)+2.5))*pi/36
 
-                 UHLHCPTRP = UHLHCPTRP + UHLHCPPower(n)*pi/36*sinD(position_theta(n))*pi/36
+                 UHLHCPTRP = UHLHCPTRP + UHLHCPPower(n)*(CosD(position_theta(n)-2.5)-CosD(position_theta(n)+2.5))*pi/36
 
             'Total = Total + Power_am(n)*pi/36*(sinD(position_theta(n))+sinD(position_theta(n-1)))/2*pi/36
 
@@ -166,9 +172,9 @@ Sub Main ()
         'Print information to the message window
 
         ReportInformationToWindow( _
-        "上半球总效率@"+FrequencyStr+"GHz: "+Left(Cstr(UHTotEffi*100),InStr(Cstr(UHTotEffi*100),".")+2)+"% ("+Left(Cstr(dBTotal),InStr(Cstr(dBTotal),".")+2)+ "dB)"+vbCrLf+ _
-        "上半球右旋效率@"+FrequencyStr+"GHz: "+Left(Cstr(UHRHCPEffi*100),InStr(Cstr(UHRHCPEffi*100),".")+2)+"% ("+Left(Cstr(dBRight),InStr(Cstr(dBRight),".")+2)+ "dB)"+ vbCrLf+ _
-        "上半球左旋效率@"+FrequencyStr+"GHz: "+Left(Cstr(UHLHCPEffi*100),InStr(Cstr(UHLHCPEffi*100),".")+2)+"% ("+Left(Cstr(dBLeft),InStr(Cstr(dBLeft),".")+2)+ "dB)")
+        "涓婂崐鐞冩�绘晥鐜嘆"+FrequencyStr+"GHz: "+Left(Cstr(UHTotEffi*100),InStr(Cstr(UHTotEffi*100),".")+2)+"% ("+Left(Cstr(dBTotal),InStr(Cstr(dBTotal),".")+2)+ "dB)"+vbCrLf+ _
+        "涓婂崐鐞冨彸鏃嬫晥鐜嘆"+FrequencyStr+"GHz: "+Left(Cstr(UHRHCPEffi*100),InStr(Cstr(UHRHCPEffi*100),".")+2)+"% ("+Left(Cstr(dBRight),InStr(Cstr(dBRight),".")+2)+ "dB)"+ vbCrLf+ _
+        "涓婂崐鐞冨乏鏃嬫晥鐜嘆"+FrequencyStr+"GHz: "+Left(Cstr(UHLHCPEffi*100),InStr(Cstr(UHLHCPEffi*100),".")+2)+"% ("+Left(Cstr(dBLeft),InStr(Cstr(dBLeft),".")+2)+ "dB)")
 
     End If
 
