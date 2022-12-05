@@ -42,14 +42,14 @@ Sub Main ()
 
     Else
 
-        'Get the frequency of the selected item
+        'Get the frequency and port of the selected item
 
         FrequencyStr = Mid$(SelectedItem$,InStr(SelectedItem,"=")+1,InStr(SelectedItem,")")-InStr(SelectedItem,"=")-1)
         PortStr  = Mid$(SelectedItem$,InStr(SelectedItem,"[")+1,InStr(SelectedItem,"]")-InStr(SelectedItem,"[")-1)
         Frequency = CDbl(FrequencyStr)
 
         FarfieldPlot.Reset
-        '==============Upper Hemisphere TRP Calculation===============
+        '==============Upper Hemisphere RHCP and LHCP gain abstraction===============
 
         Dim UHPower() As Double, UHRHCPPower() As Double, UHLHCPPower() As Double
 
@@ -85,14 +85,16 @@ Sub Main ()
 
         ReDim RHCPGain(13,13)
         ReDim LHCPGain(13,13)
+        'EIRP of an isotropic antenna
         AVGPower = 0.5/(4*pi)
 
         For n = 0 To UBound(UHPower)
 
+        	'linear to dB, Log(UHRHCPEffi)/Log(10)*10
              RHCPGain(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = Log(UHRHCPPower(n)/AVGPower)/Log(10)*10
              LHCPGain(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = Log(UHLHCPPower(n)/AVGPower)/Log(10)*10
 
-            'linear to dB, Log(UHRHCPEffi)/Log(10)*10
+
 
         Next n
 
@@ -101,8 +103,8 @@ Sub Main ()
 		DataFile = PrjPath+"\CircularlyPolarizedGain.xlsx"
 		Columns = "BCDEFGHIJKLMN"
 
-		NoticeInformation = "…˙≥…µƒ‘ˆ“Ê ˝æ›Œƒº˛∑≈‘⁄π§≥Ãƒø¬ºœ¬£®"+PrjPath+"\£©"
-	    MsgBox(NoticeInformation,vbInformation,"◊¢“‚")
+		NoticeInformation = "ÁîüÊàêÁöÑÂ¢ûÁõäÊï∞ÊçÆÊñá‰ª∂ÊîæÂú®Â∑•Á®ãÁõÆÂΩï‰∏ãÔºà"+PrjPath+"\Ôºâ"
+	    MsgBox(NoticeInformation,vbInformation,"Ê≥®ÊÑè")
 
 		Dim IsFileExist As String
 	    Set O = CreateObject("Excel.Application")
@@ -117,7 +119,14 @@ Sub Main ()
 		Else
 			Set wBook = O.Workbooks.Open(DataFile)
 		End If
-		Set wSheet = wBook.Sheets(1)
+
+
+		'Add a sheet and rename it
+
+		wBook.Sheets.Add.Name = FrequencyStr+"GHz"
+		Set wSheet = wBook.Sheets(FrequencyStr+"GHz")
+
+
 		wSheet.Range("A1").value = "Polarization"
 		wSheet.Range("B1").value = "RHCP"
 		wSheet.Range("C1").value = "Frequency"
@@ -125,11 +134,14 @@ Sub Main ()
 		wSheet.Range("E1").value = "Port"
 		wSheet.Range("F1").value = PortStr
 		wSheet.Range("A2").value = "Phi\Theta"
+
 		For n = 0 To Len(Columns)-1
 			wSheet.Range(Mid(Columns,n+1,1)+"2").value = n*15
 			wSheet.Range("A"+Cstr(n+3)) = n*30
 		Next
+
 		Dim i As Integer, j As Integer
+
 		For i  = 0 To 12
 			For j = 0 To 12
 				wSheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).value = Round(RHCPGain(i,j),2)
@@ -143,6 +155,7 @@ Sub Main ()
 		wSheet.Range("E18").value = "Port"
 		wSheet.Range("F18").value = PortStr
 		wSheet.Range("A19").value = "Phi\Theta"
+
 		For n = 0 To Len(Columns)-1
 			wSheet.Range(Mid(Columns,n+1,1)+"19").value = n*15
 			wSheet.Range("A"+Cstr(n+20)) = n*30
