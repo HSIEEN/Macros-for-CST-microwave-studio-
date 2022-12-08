@@ -1,11 +1,11 @@
 'Assign materials for shapes according to the Material.xlsx
-'2022-06-04
+'2022-12-08
 
 Option Explicit
 
 Sub Main
 
-	Dim n As Double, i As Double
+	Dim  i As Integer, j As Integer, n As Integer
 	Dim sName As String, sMaterial As String
 	Dim O As Object
 	Dim wBook As Object
@@ -20,8 +20,8 @@ Sub Main
 	PrjPath = GetProjectPath("Project")
 	DataFile = PrjPath+"\Materials.xlsx"
 	BeginHide
-	NoticeInformation = "Çë°ÑÎïÁÏ±íÎÄ¼şMaterials.xlsx·ÅÔÚ¹¤³ÌÄ¿Â¼ÏÂ£¨"+PrjPath+"\£©"
-    MsgBox(NoticeInformation,vbInformation,"×¢Òâ")
+	NoticeInformation = "è¯·æŠŠç‰©æ–™è¡¨æ–‡ä»¶Materials.xlsxæ”¾åœ¨å·¥ç¨‹ç›®å½•ä¸‹ï¼ˆ"+PrjPath+"\ï¼‰"
+    MsgBox(NoticeInformation,vbInformation,"æ³¨æ„")
     EndHide
 	Set O = CreateObject("Excel.Application")
 	Set wBook  = O.Workbooks.Open(DataFile)
@@ -38,6 +38,17 @@ Sub Main
 		'TmpName = ssName(i)
 		ssMaterial(i) = wSheet.Range(MaterialIndex).Value
 	Next i
+
+	For i = 0 To TotRow-2 STEP 1
+		For j = 0 To Material.GetNumberOfMaterials() STEP 1
+
+			If InStr(Material.GetNameOfMaterialFromIndex(j),ssMaterial(i)) Then
+				ssMaterial(i) = Material.GetNameOfMaterialFromIndex(j)
+				Exit For
+			End If
+		Next
+	Next
+
 	O.ActiveWorkbook.Close
 	O.quit
 
@@ -48,7 +59,6 @@ Sub Main
 		Dim SolidName As String
 		SolidName = Right(sName,Len(sName)-InStr(sName,":"))
 		sMaterial = Solid.GetMaterialNameForShape(sName)
-		Dim j As Integer
 		For j = 0 To TotRow-2 STEP 1
             If ssName(j) = SolidName And sMaterial <> ssMaterial(j) Then
 				Solid.ChangeMaterial(sName,ssMaterial(j))
