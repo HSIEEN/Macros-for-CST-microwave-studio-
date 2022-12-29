@@ -50,7 +50,7 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
 		Steps =  CInt((xmax-xmin)/sStep)
 		xcut = xmin
 		WCS.SetNormal(1,0,0)
-		If Steps > 0 Then
+		If Steps > 1 Then
 			For n = 1 To Steps STEP 1
 				xcut = xcut + sStep
 				WCS.SetOrigin(xcut,ymin,zmin)
@@ -62,7 +62,7 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
 		Steps =  CInt((ymax-ymin)/sStep)
 		ycut = ymin
 		WCS.SetNormal(0,1,0)
-		If Steps > 0 Then
+		If Steps > 1 Then
 			For n = 1 To Steps STEP 1
 				ycut = ycut + sStep
 				WCS.SetOrigin(xmin,ycut,zmin)
@@ -74,7 +74,7 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
 		Steps =  CInt((zmax-zmin)/sStep)
 		zcut = zmin
 		WCS.SetNormal(0,0,1)
-		If Steps > 0 Then
+		If Steps > 1 Then
 			For n = 1 To Steps STEP 1
 				zcut = zcut + sStep
 				WCS.SetOrigin(xmin,ymin,zcut)
