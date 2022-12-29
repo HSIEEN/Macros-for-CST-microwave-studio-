@@ -7,3 +7,4 @@ functions are as follows:
 *Automatically assign materials for solids
 *calculate losses of all materials
 *calculate and plot axial ratio vs frequency at specified angles
+*Automatically slice solids with specified steps or angles
