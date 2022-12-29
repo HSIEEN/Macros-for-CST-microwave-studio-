@@ -4,9 +4,9 @@ Option Explicit
 
 Sub Main
 
-    MsgBox("Çë½«ÒªÇĞÆ¬µÄÎïÌåÏÈ¿½±´µ½ĞÂ¹¤³ÌÀïÈ»ºóÔËĞĞ´Ë½Å±¾£¬ÇĞÎğÔÚÔ­¹¤³ÌÀïÔËĞĞ´Ë½Å±¾£¡£¡£¡",vbInformation,"Notice")
+    MsgBox("è¯·å°†è¦åˆ‡ç‰‡çš„ç‰©ä½“å…ˆæ‹·è´åˆ°æ–°å·¥ç¨‹é‡Œç„¶åè¿è¡Œæ­¤è„šæœ¬ï¼Œåˆ‡å‹¿åœ¨åŸå·¥ç¨‹é‡Œè¿è¡Œæ­¤è„šæœ¬ï¼ï¼ï¼",vbInformation,"Notice")
 	Begin Dialog UserDialog 410,175,"Step input:",.DialogFunction ' %GRID:10,7,1,1
-		Text 20,7,270,14,"ÇëÊäÈëÇĞÆ¬³ß´ç£¨ÊÊÓÃÈÎÒâ½á¹¹£©£º",.Text1
+		Text 20,7,270,14,"è¯·è¾“å…¥åˆ‡ç‰‡å°ºå¯¸ï¼ˆé€‚ç”¨ä»»æ„ç»“æ„ï¼‰ï¼š",.Text1
 		Text 20,28,90,14,"xStep:",.Text2
 		Text 20,49,90,14,"yStep:",.Text3
 		Text 20,70,90,14,"zStep:",.Text4
@@ -15,7 +15,7 @@ Sub Main
 		TextBox 70,70,50,14,.zStep
 		OKButton 30,140,90,21
 		CancelButton 140,140,90,21
-		Text 20,91,280,14,"»òÕßÊäÈëÇĞÆ¬½Ç¶È£¨ÊÊÓÃ»·ĞÎ½á¹¹£©£º",.Text5
+		Text 20,91,280,14,"æˆ–è€…è¾“å…¥åˆ‡ç‰‡è§’åº¦ï¼ˆé€‚ç”¨ç¯å½¢ç»“æ„ï¼‰ï¼š",.Text5
 		Text 20,112,90,14,"anStep:",.Text6
 		TextBox 80,112,50,14,.anStep
 	End Dialog
@@ -131,7 +131,7 @@ Function AutoSliceByAngle(anStep As Double)
 	'Initialize the total rotated angle, this angle should be less than 180 degree
 	Angle = 0
 	WCS.RotateWCS("u",90)
-	While Angle <= 180
+	While Angle < 180
 		sn = Solid.GetNumberOfShapes
 		For i = 0 To sn-1 STEP 1
 			fName = Solid.GetNameOfShapeFromIndex(i)
@@ -266,10 +266,10 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 		    wStep = 8
 		    'Parse input parameters
 		    If xStep = 0 And yStep = 0 And zStep = 0 And anStep =0 Then
-		    	MsgBox("Î´ÊäÈëÓĞĞ§²ÎÊı£¬ÇëÖØĞÂÔËĞĞ½Å±¾²¢ÊäÈëÓĞĞ§²ÎÊı£¡£¡",vbCritical,"´íÎó")
+		    	MsgBox("æœªè¾“å…¥æœ‰æ•ˆå‚æ•°ï¼Œè¯·é‡æ–°è¿è¡Œè„šæœ¬å¹¶è¾“å…¥æœ‰æ•ˆå‚æ•°ï¼ï¼",vbCritical,"é”™è¯¯")
 		    	Exit All
 		    ElseIf (xStep <> 0 Or yStep <> 0 Or zStep <> 0) And (anStep <> 0) Then
-		    	MsgBox("ÊäÈë²ÎÊıÓĞ³åÍ»£¬ÇëÖØĞÂÔËĞĞ½Å±¾²¢Ñ¡ÔñÇĞÆ¬³ß´ç»òÕßÇĞÆ¬½Ç¶È²ÎÊıÖ®Ò»½øĞĞÊäÈë£¡£¡",vbCritical,"´íÎó")
+		    	MsgBox("è¾“å…¥å‚æ•°æœ‰å†²çªï¼Œè¯·é‡æ–°è¿è¡Œè„šæœ¬å¹¶é€‰æ‹©åˆ‡ç‰‡å°ºå¯¸æˆ–è€…åˆ‡ç‰‡è§’åº¦å‚æ•°ä¹‹ä¸€è¿›è¡Œè¾“å…¥ï¼ï¼",vbCritical,"é”™è¯¯")
 		    	Exit All
 		    'Slice by dimension steps
 		    ElseIf (xStep <> 0 Or yStep <> 0 Or zStep <> 0) And (anStep = 0) Then
