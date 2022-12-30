@@ -4,9 +4,13 @@ Option Explicit
 
 Sub Main
 
-    MsgBox("请将要切片的物体先拷贝到新工程里然后运行此脚本，切勿在原工程里运行此脚本！！！",vbInformation,"Notice")
-	Begin Dialog UserDialog 410,175,"Step input:",.DialogFunction ' %GRID:10,7,1,1
-		Text 20,7,270,14,"请输入切片尺寸（适用任意结构）：",.Text1
+    If MsgBox("Please copy the target solid to a new project and then run this macro!!!",vbYesNo,"Notice") <> vbYes Then
+    	Exit Sub
+    End If
+
+
+	Begin Dialog UserDialog 410,175,"Slice Parameters",.DialogFunction ' %GRID:10,7,1,1
+		Text 20,7,270,14,"Pleas input slice dimensions:",.Text1
 		Text 20,28,90,14,"xStep:",.Text2
 		Text 20,49,90,14,"yStep:",.Text3
 		Text 20,70,90,14,"zStep:",.Text4
@@ -15,7 +19,7 @@ Sub Main
 		TextBox 70,70,50,14,.zStep
 		OKButton 30,140,90,21
 		CancelButton 140,140,90,21
-		Text 20,91,280,14,"或者输入切片角度（适用环形结构）：",.Text5
+		Text 20,91,280,14,"Or input slice angle for annular structures:",.Text5
 		Text 20,112,90,14,"anStep:",.Text6
 		TextBox 80,112,50,14,.anStep
 	End Dialog
@@ -131,7 +135,7 @@ Function AutoSliceByAngle(anStep As Double)
 	'Initialize the total rotated angle, this angle should be less than 180 degree
 	Angle = 0
 	WCS.RotateWCS("u",90)
-	While Angle < 180
+	While Angle <= 180
 		sn = Solid.GetNumberOfShapes
 		For i = 0 To sn-1 STEP 1
 			fName = Solid.GetNameOfShapeFromIndex(i)
@@ -265,11 +269,11 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 		    'Default slice step or initial slice step
 		    wStep = 8
 		    'Parse input parameters
-		    If xStep = 0 And yStep = 0 And zStep = 0 And anStep =0 Then
-		    	MsgBox("未输入有效参数，请重新运行脚本并输入有效参数！！",vbCritical,"错误")
+		    If xStep = 0 And yStep = 0 And zStep = 0 And anStep = 0 Then
+		    	MsgBox("Invalid parameters, please re-run this macro and input valid parameters!!",vbCritical,"Error")
 		    	Exit All
 		    ElseIf (xStep <> 0 Or yStep <> 0 Or zStep <> 0) And (anStep <> 0) Then
-		    	MsgBox("输入参数有冲突，请重新运行脚本并选择切片尺寸或者切片角度参数之一进行输入！！",vbCritical,"错误")
+		    	MsgBox("Too many parameters, please re-run this macro and input valid parameters!!",vbCritical,"Error")
 		    	Exit All
 		    'Slice by dimension steps
 		    ElseIf (xStep <> 0 Or yStep <> 0 Or zStep <> 0) And (anStep = 0) Then
@@ -278,6 +282,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 		    ElseIf (anStep <> 0) And (xStep = 0  And yStep = 0  And zStep = 0) Then
 		    	AutoSliceByAngle(anStep)
 		    End If
+		    WCS.ActivateWCS("global")
 
 		End Select
 
