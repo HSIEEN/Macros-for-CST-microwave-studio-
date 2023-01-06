@@ -9,7 +9,7 @@ Sub Main
     End If
 
 
-	Begin Dialog UserDialog 410,175,"Slice Parameters",.DialogFunction ' %GRID:10,7,1,1
+	Begin Dialog UserDialog 410,175,"Slice Parameters"' %GRID:10,7,1,1
 		Text 20,7,270,14,"Pleas input slice dimensions:",.Text1
 		Text 20,28,90,14,"xStep:",.Text2
 		Text 20,49,90,14,"yStep:",.Text3
@@ -33,6 +33,36 @@ Sub Main
 	If Dialog(dlg,-2) = 0 Then
 		Exit All
 	End If
+
+	Dim sn As Integer
+	Dim sName As String,fullName As String, ComponentName As String
+	Dim i As Integer
+	Dim wStep As Double
+	Dim Axis As Integer
+	Dim xStep As Double, yStep As Double, zStep As Double
+	Dim anStep As Double
+
+	xStep = Evaluate(dlg.xStep)
+    yStep = Evaluate(dlg.yStep)
+    zStep = Evaluate(dlg.zStep)
+    anStep = Evaluate(dlg.anStep)
+    'Default slice step or initial slice step
+    wStep = 8
+    'Parse input parameters
+    If xStep = 0 And yStep = 0 And zStep = 0 And anStep = 0 Then
+    	MsgBox("Invalid parameters, please re-run this macro and input valid parameters!!",vbCritical,"Error")
+    	Exit All
+    ElseIf (xStep <> 0 Or yStep <> 0 Or zStep <> 0) And (anStep <> 0) Then
+    	MsgBox("Too many parameters, please re-run this macro and input valid parameters!!",vbCritical,"Error")
+    	Exit All
+    'Slice by dimension steps
+    ElseIf (xStep <> 0 Or yStep <> 0 Or zStep <> 0) And (anStep = 0) Then
+    	AutoSliceBySteps(xStep,yStep,zStep,wStep)
+    'Slice by angles
+    ElseIf (anStep <> 0) And (xStep = 0  And yStep = 0  And zStep = 0) Then
+    	AutoSliceByAngle(anStep)
+    End If
+    WCS.ActivateWCS("global")
 
 
 	
@@ -240,60 +270,3 @@ Function AutoSliceBySteps(xStep As Double,yStep As Double,zStep As Double,wStep 
 
 End Function
 
-
-Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
-
-	Select Case Action
-	Case 1 ' Dialog box initialization
-	Case 2 ' Value changing or button pressed
-		Rem DialogFunction = True ' Prevent button press from closing the dialog box
-
-		Select Case DlgItem
-		Case "Cancle"
-			Exit All
-		Case "OK"
-			DialogFunction = False
-
-			Dim sn As Integer
-			Dim sName As String,fullName As String, ComponentName As String
-			Dim i As Integer
-			Dim wStep As Double
-			Dim Axis As Integer
-			Dim xStep As Double, yStep As Double, zStep As Double
-			Dim anStep As Double
-
-			xStep = Evaluate(DlgText("xStep"))
-		    yStep = Evaluate(DlgText("yStep"))
-		    zStep = Evaluate(DlgText("zStep"))
-		    anStep = Evaluate(DlgText("anStep"))
-		    'Default slice step or initial slice step
-		    wStep = 8
-		    'Parse input parameters
-		    If xStep = 0 And yStep = 0 And zStep = 0 And anStep = 0 Then
-		    	MsgBox("Invalid parameters, please re-run this macro and input valid parameters!!",vbCritical,"Error")
-		    	Exit All
-		    ElseIf (xStep <> 0 Or yStep <> 0 Or zStep <> 0) And (anStep <> 0) Then
-		    	MsgBox("Too many parameters, please re-run this macro and input valid parameters!!",vbCritical,"Error")
-		    	Exit All
-		    'Slice by dimension steps
-		    ElseIf (xStep <> 0 Or yStep <> 0 Or zStep <> 0) And (anStep = 0) Then
-		    	AutoSliceBySteps(xStep,yStep,zStep,wStep)
-		    'Slice by angles
-		    ElseIf (anStep <> 0) And (xStep = 0  And yStep = 0  And zStep = 0) Then
-		    	AutoSliceByAngle(anStep)
-		    End If
-		    WCS.ActivateWCS("global")
-
-		End Select
-
-	Case 3 ' TextBox or ComboBox text changed
-	Case 4 ' Focus changed
-	Case 5 ' Idle
-		Rem Wait .1 : DialogFunction = True ' Continue getting idle actions
-	Case 6 ' Function key
-
-	End Select
-
-
-
-End Function
