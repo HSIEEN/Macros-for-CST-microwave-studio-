@@ -1,12 +1,15 @@
 ' Upper hemisphere efficiencies with RHCP and LHCP characteristics are supported
 '2022-05-05 by Shawn Shi
 'Option Explicit
+'#include "vba_globals_all.lib"
 
 Sub Main ()
     'Get current farfield plot mode
     Dim CurrentPlotMode As String
 
-    MsgBox("Please make sure the axis W in current WCS coordinated system point to the Zenith",vbInformation,"Information")
+    If MsgBox("Please make sure the axis W in current WCS coordinated system point to the Zenith",vbYesNo,"Information") <> vbYes Then
+    	Exit Sub
+    End If
 
     CurrentPlotMode = FarfieldPlot.GetPlotMode
 
@@ -91,8 +94,8 @@ Sub Main ()
         For n = 0 To UBound(UHPower)
 
         	'linear to dB, Log(UHRHCPEffi)/Log(10)*10
-             RHCPGain(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = Log(UHRHCPPower(n)/AVGPower)/Log(10)*10
-             LHCPGain(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = Log(UHLHCPPower(n)/AVGPower)/Log(10)*10
+             RHCPGain(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) =10*CST_Log10(UHRHCPPower(n)/AVGPower) 'Log(UHRHCPPower(n)/AVGPower)/Log(10)*10
+             LHCPGain(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = 10*CST_Log10(UHLHCPPower(n)/AVGPower)'Log(UHLHCPPower(n)/AVGPower)/Log(10)*10
 
 
 
@@ -104,8 +107,7 @@ Sub Main ()
 		Columns = "BCDEFGHIJKLMN"
 
 		NoticeInformation = "生成的增益数据文件放在工程目录下（"+PrjPath+"\）"
-	    MsgBox(NoticeInformation,vbInformation,"注意")
-
+	    ReportInformationToWindow(NoticeInformation)
 		Dim IsFileExist As String
 	    Set O = CreateObject("Excel.Application")
 		IsFileExist = Dir(DataFile)
