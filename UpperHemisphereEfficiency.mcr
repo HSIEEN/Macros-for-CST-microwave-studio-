@@ -1,12 +1,17 @@
 ' Upper hemisphere efficiencies with RHCP and LHCP characteristics are supported
 '2022-05-05 by Shawn Shi
 'Option Explicit
+'#include "vba_globals_all.lib"
 
 Sub Main ()
     'Get current farfield plot mode
     Dim CurrentPlotMode As String
 
-    MsgBox("Please make sure the axis W in current WCS coordinated system point to the Zenith",vbInformation,"Information")
+     If MsgBox("Please make sure the axis W in current WCS coordinated system point to the Zenith",vbYesNo,"Information") <> vbYes Then
+		Exit Sub
+     End If
+    'MsgBoxTimer("Please make sure the axis W in current WCS coordinated system point to the Zenith",1,"Attention:",64)
+    'MessageBoxTimeout(0, "Hello World", "Tips", vbOkCancel, 0, 10000)
 
     CurrentPlotMode = FarfieldPlot.GetPlotMode
 
@@ -31,15 +36,21 @@ Sub Main ()
 
     Dim Frequency As Double, FrequencyStr As String
 
+    Dim PortStr As String
+
     SelectedItem = GetSelectedTreeItem
 
     If (InStr(SelectedItem,"farfield (") = 0) Then
 
         MsgBox("Please select a farfield result before runing this macro.",vbCritical,"Warning")
+        'MsgBoxTimer("Please select a farfield result before runing this macro.",1,"Warning:",16)
 
         Exit All
 
     Else
+    	'Get Port number in string
+
+    	PortStr = Mid$(SelectedItem$,InStr(SelectedItem,"[")+1,InStr(SelectedItem,"]")-InStr(SelectedItem,"[")-1)
 
         'Get the frequency of the selected item
 
@@ -136,7 +147,7 @@ Sub Main ()
         SysTotEffi = FarfieldPlot.GetSystemTotalEfficiency
         'If system total/radiation efficiency is available, which means combined results may be available, use system total/radiation efficiency to calculate.
 
-        '!!Attention: when aperture tuning happends, the calculated results are not accurate sin the radiation pattern differs
+        '!!Attention: when aperture tuning happends, the calculated results are not accurate since the radiation pattern differs
 
         If SysTotEffi > -100 Then
         	StimPower = TRP/SysTotEffi
@@ -158,23 +169,23 @@ Sub Main ()
 
         UHTotEffi = UHTRP/StimPower
 
-        dBTotal = Log(UHTotEffi)/Log(10)*10
+        dBTotal = 10*CST_Log10(UHTotEffi)'Log(UHTotEffi)/Log(10)*10
 
         UHRHCPEffi = UHRHCPTRP/StimPower
 
-        dBRight = Log(UHRHCPEffi)/Log(10)*10
+        dBRight = 10*CST_Log10(UHRHCPEffi)'Log(UHRHCPEffi)/Log(10)*10
 
         UHLHCPEffi = UHLHCPTRP/StimPower
 
-        dBLeft = Log(UHLHCPEffi)/Log(10)*10
+        dBLeft = 10*CST_Log10(UHLHCPEffi)'Log(UHLHCPEffi)/Log(10)*10
 
 
         'Print information to the message window
 
         ReportInformationToWindow( _
-        "上半球总效率@"+FrequencyStr+"GHz: "+Left(Cstr(UHTotEffi*100),InStr(Cstr(UHTotEffi*100),".")+2)+"% ("+Left(Cstr(dBTotal),InStr(Cstr(dBTotal),".")+2)+ "dB)"+vbCrLf+ _
-        "上半球右旋效率@"+FrequencyStr+"GHz: "+Left(Cstr(UHRHCPEffi*100),InStr(Cstr(UHRHCPEffi*100),".")+2)+"% ("+Left(Cstr(dBRight),InStr(Cstr(dBRight),".")+2)+ "dB)"+ vbCrLf+ _
-        "上半球左旋效率@"+FrequencyStr+"GHz: "+Left(Cstr(UHLHCPEffi*100),InStr(Cstr(UHLHCPEffi*100),".")+2)+"% ("+Left(Cstr(dBLeft),InStr(Cstr(dBLeft),".")+2)+ "dB)")
+        "上半球总效率f="+FrequencyStr+"GHz@Port"+PortStr+": "+Left(Cstr(UHTotEffi*100),InStr(Cstr(UHTotEffi*100),".")+2)+"% ("+Left(Cstr(dBTotal),InStr(Cstr(dBTotal),".")+2)+ "dB)"+vbCrLf+ _
+        "上半球右旋效率f="+FrequencyStr+"GHz@Port"+PortStr+": "+Left(Cstr(UHRHCPEffi*100),InStr(Cstr(UHRHCPEffi*100),".")+2)+"% ("+Left(Cstr(dBRight),InStr(Cstr(dBRight),".")+2)+ "dB)"+ vbCrLf+ _
+        "上半球左旋效率f="+FrequencyStr+"GHz@Port"+PortStr+": "+Left(Cstr(UHLHCPEffi*100),InStr(Cstr(UHLHCPEffi*100),".")+2)+"% ("+Left(Cstr(dBLeft),InStr(Cstr(dBLeft),".")+2)+ "dB)")
 
     End If
 
@@ -190,3 +201,4 @@ Sub Main ()
 
 
 End Sub
+
