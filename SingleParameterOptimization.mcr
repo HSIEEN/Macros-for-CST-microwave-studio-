@@ -17,8 +17,8 @@ Sub Main ()
 		TextBox 180,231,40,14,.theta2
 		TextBox 260,210,40,14,.phi1
 		TextBox 260,231,40,14,.phi2
-		Text 20,14,220,14,"Please select a parameter:",.Text1
-		ListBox 20,35,240,56,parameterArray(),.parameterList
+		Text 20,7,220,14,"Please select a parameter:",.Text1
+		ListBox 20,28,240,56,parameterArray(),.parameterList
 		Text 20,91,240,14,"Please set the sweep settings:",.Text21
 		Text 20,105,90,14,"Range from",.Text2
 		TextBox 100,105,40,14,.xMin
@@ -33,7 +33,7 @@ Sub Main ()
 		TextBox 140,175,40,14,.f2
 		Text 190,175,40,14,"f3:",.Text11
 		TextBox 220,175,40,14,.f3
-		Text 20,196,320,14,"===============Axial Ratio===============",.Text8
+		Text 20,196,320,14,"==============Axial Ratio==============",.Text8
 		Text 30,210,50,14,"AR1",.Text15
 		TextBox 70,210,40,14,.AR1
 		Text 30,231,60,14,"AR2",.Text16
