@@ -28,13 +28,13 @@ Sub Main
 		MsgBox "No components is selected!!", vbCritical, "Error"
 		Exit All
 	ElseIf HasChildren(sComponent) = False Then
-		MsgBox "The selected item is not a component Or No solids is contained in the selected component!!", vbCritical, "Error"
-		Exit All
-	ElseIf DoChildrenContainComponent(sComponent) = True Then
-		MsgBox "At least one component is contained in the selected componnent!!",vbCritical,"Error"
+		MsgBox "The selected item is not a component Or No shapes is contained in the selected component!!", vbCritical, "Error"
 		Exit All
 	ElseIf Resulttree.GetNextItemName(Resulttree.GetFirstChildName(sComponent)) <> "" Then
 		MsgBox "There are at leat two shapes in the selected component!!",vbCritical,"Error"
+		Exit All
+	ElseIf HasChildren(Resulttree.GetFirstChildName(sComponent)) = True Then
+		MsgBox "At least one component is contained in the selected componnent!!",vbCritical,"Error"
 		Exit All
 	End If
 
@@ -104,7 +104,6 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
 	Dim commandName As String
 	sCommand = ""
     'WCS.ActivateWCS("local")
-    sCommand = sCommand + "WCS.ActivateWCS ""local""" + vbLf
 	sName = Right(fName,Len(fName)-InStr(fName,":"))
 	CompName = Left(fName,InStr(fName,":")-1)
 	Solid.GetLooseBoundingBoxOfShape(fName,xmin,xmax,ymin,ymax,zmin,zmax)
@@ -115,7 +114,7 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
 		Steps =  CInt((xmax-xmin)/sStep)
 		xcut = xmin
 		'WCS.SetNormal(1,0,0)
-		sCommand = sCommand + "WCS.SetNormal ""1"", ""0"", ""0""" + vbLf
+		'sCommand = sCommand + "WCS.SetNormal ""1"", ""0"", ""0""" + vbLf
 		If Steps > 1 Then
 			For n = 1 To Steps STEP 1
 				xcut = xcut + sStep
@@ -124,6 +123,8 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
 				'Solid.SliceShape(sName,CompName)
 				sCommand = sCommand + "Solid.SliceShape """ + sName+""","""+CompName+""""+vbLf
 			Next
+		Else
+			sCommand = ""
 		End If
 
 	Case 1
@@ -131,7 +132,7 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
 		Steps =  CInt((ymax-ymin)/sStep)
 		ycut = ymin
 		'WCS.SetNormal(0,1,0)
-		sCommand = sCommand + "WCS.SetNormal ""0"", ""1"", ""0""" + vbLf
+		'sCommand = sCommand + "WCS.SetNormal ""0"", ""1"", ""0""" + vbLf
 		If Steps > 1 Then
 			For n = 1 To Steps STEP 1
 				ycut = ycut + sStep
@@ -140,6 +141,8 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
 				Solid.SliceShape(sName,CompName)
 				sCommand = sCommand + "Solid.SliceShape """ + sName+""","""+CompName+""""+vbLf
 			Next
+		Else
+			sCommand = ""
 		End If
 
 	Case 2
@@ -147,7 +150,7 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
 		Steps =  CInt((zmax-zmin)/sStep)
 		zcut = zmin
 		'WCS.SetNormal(0,0,1)
-		sCommand = sCommand + "WCS.SetNormal ""0"", ""0"", ""1""" + vbLf
+		'sCommand = sCommand + "WCS.SetNormal ""0"", ""0"", ""1""" + vbLf
 		If Steps > 1 Then
 			For n = 1 To Steps STEP 1
 				zcut = zcut + sStep
@@ -156,6 +159,8 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
 				'Solid.SliceShape(sName,CompName)
 				sCommand = sCommand + "Solid.SliceShape """ + sName+""","""+CompName+""""+vbLf
 			Next
+		Else
+			sCommand = ""
 		End If
 
 	Case Else
@@ -167,140 +172,238 @@ End Function
 Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,zStep As Double,wStep As Double)
 	Dim fullName As String
 	Dim pth As String
-	Dim sn As Integer, i As Integer
-	Dim sCommand As String, commandName As String
+	Dim sn As Integer, I As Integer
+	Dim sCommand As String, commandName As String, tCommand As String
+	Dim isSliced As Boolean
+	isSliced = False
 	sCommand = ""
+	If WCS.IsWCSActive() = "global" Then
+		commandName = "Set loacal WCS"
+		sCommand = sCommand + "WCS.ActivateWCS ""local""" + vbLf
+		AddToHistory(commandName,sCommand)
+		sCommand = ""
+	End If
+
 	'commandName = "Slice Shape in " +sComponent+" with xStep of "+Cstr(xStep)+", ystep of "+CStr(yStep)+" and zStep of "+ CStr(zStep)
-	'When xStep is not less than wStep, slice once with step of wStep
+	'When xStep is not less than wStep, slice once with step of xStep
 	If xStep <> 0 And xStep >= wStep Then
 		commandName = "Slice Shape in " +sComponent+" with xStep of "+Cstr(xStep)
+		sCommand = sCommand + "WCS.SetNormal ""1"", ""0"", ""0""" + vbLf
 		sn =  Solid.GetNumberOfShapes
 	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
+	    	For I = 0 To sn-1 STEP 1
+				fullName = Solid.GetNameOfShapeFromIndex(I)
+				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
 				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If InStr(sComponent,pth) <> 0 Then
-					sCommand = sCommand + AutoSliceAlongAxis(fullName,xStep,0)
+				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+					tCommand = AutoSliceAlongAxis(fullName,xStep,0)
+					If tCommand <>""Then
+						sCommand = sCommand + tCommand
+						isSliced = True
+					End If
 				End If
 
-	    	Next i
+	    	Next I
 	    End If
-	    AddToHistory(commandName,sCommand)
+	    If isSliced = True Then
+			AddToHistory(commandName,sCommand)
+		    sCommand = ""
+		    isSliced = False
+	    End If
+
 	'When xStep is less than wStep, slice twice
     ElseIf xStep <> 0 And xStep < wStep Then
+    	sCommand = sCommand + "WCS.SetNormal ""1"", ""0"", ""0""" + vbLf
     	'First slice is done with step of wStep
     	commandName = "Slice Shape in " +sComponent+" with xStep of "+Cstr(wStep)
 		sn =  Solid.GetNumberOfShapes
 	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
+	    	For I = 0 To sn-1 STEP 1
+				fullName = Solid.GetNameOfShapeFromIndex(I)
 				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If InStr(sComponent,pth) <> 0 Then
-					sCommand = sCommand + AutoSliceAlongAxis(fullName,wStep,0)
-					Debug.Print sCommand
+				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
+				'pth = Right(pth,InStrRev(pth,"\"))
+				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+					tCommand = AutoSliceAlongAxis(fullName,wStep,0)
+					If tCommand <>""Then
+						sCommand = sCommand + tCommand
+						isSliced = True
+					End If
 				End If
-	    	Next i
+	    	Next
 	    End If
-	    AddToHistory(commandName,sCommand)
+	    If isSliced = True Then
+			AddToHistory(commandName,sCommand)
+		    sCommand = ""
+		    isSliced = False
+	    End If
 	    'second slice is done with step of xStep
 	    commandName = "Slice Shape in " +sComponent+" with xStep of "+Cstr(xStep)
 		sn =  Solid.GetNumberOfShapes
 		If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
+	    	For I = 0 To sn-1 STEP 1
+				fullName = Solid.GetNameOfShapeFromIndex(I)
 				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If InStr(sComponent,pth) <> 0 Then
-					sCommand = sCommand + AutoSliceAlongAxis(fullName,xStep,0)
+				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
+				'pth = Right(pth,InStrRev(pth,"\"))
+				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+					tCommand = AutoSliceAlongAxis(fullName,xStep,0)
+					If tCommand <>""Then
+						sCommand = sCommand + tCommand
+						isSliced = True
+					End If
 				End If
-	    	Next i
+	    	Next I
 	    End If
-	    AddToHistory(commandName,sCommand)
+	    If isSliced = True Then
+			AddToHistory(commandName,sCommand)
+		    sCommand = ""
+		    isSliced = False
+	    End If
 	End If
-	'When yStep is not less than wStep, slice once with step of wStep
+	'When yStep is not less than wStep, slice once with step of yStep
 	If yStep <> 0 And yStep >= wStep Then
+		sCommand = sCommand + "WCS.SetNormal ""0"", ""1"", ""0""" + vbLf
 		sn =  Solid.GetNumberOfShapes
 		commandName = "Slice Shape in " +sComponent+" with yStep of "+Cstr(yStep)
 	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
+	    	For I = 0 To sn-1 STEP 1
+				fullName = Solid.GetNameOfShapeFromIndex(I)
+				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
 				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If InStr(sComponent,pth) <> 0 Then
-					sCommand = sCommand + AutoSliceAlongAxis(fullName,yStep,1)
+				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+					tCommand = AutoSliceAlongAxis(fullName,yStep,1)
+					If tCommand <>""Then
+						sCommand = sCommand + tCommand
+						isSliced = True
+					End If
 				End If
-	    	Next i
+	    	Next I
 	    End If
-	    AddToHistory(commandName,sCommand)
+	    If isSliced = True Then
+			AddToHistory(commandName,sCommand)
+		    sCommand = ""
+		    isSliced = False
+	    End If
 	'When yStep is less than wStep, slice twice
     ElseIf yStep <> 0 And yStep < wStep Then
+    	sCommand = sCommand + "WCS.SetNormal ""0"", ""1"", ""0""" + vbLf
     	'First slice is done with step of wStep
 		sn =  Solid.GetNumberOfShapes
 		commandName = "Slice Shape in " +sComponent+" with yStep of "+Cstr(wStep)
 	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
+	    	For I = 0 To sn-1 STEP 1
+				fullName = Solid.GetNameOfShapeFromIndex(I)
+				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
 				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If InStr(sComponent,pth) <> 0 Then
-					sCommand = sCommand + AutoSliceAlongAxis(fullName,wStep,1)
+				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+					tCommand = AutoSliceAlongAxis(fullName,wStep,1)
+					If tCommand <>""Then
+						sCommand = sCommand + tCommand
+						isSliced = True
+					End If
 				End If
-	    	Next i
+	    	Next I
 	    End If
-	    AddToHistory(commandName,sCommand)
+	    If isSliced = True Then
+			AddToHistory(commandName,sCommand)
+		    sCommand = ""
+		    isSliced = False
+	    End If
 	    'second slice is done with step of yStep
 	    commandName = "Slice Shape in " +sComponent+" with yStep of "+Cstr(yStep)
 		sn =  Solid.GetNumberOfShapes
 		If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
+	    	For I = 0 To sn-1 STEP 1
+				fullName = Solid.GetNameOfShapeFromIndex(I)
+				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
 				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If InStr(sComponent,pth) <> 0 Then
-					sCommand = sCommand + AutoSliceAlongAxis(fullName,yStep,1)
+				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+					tCommand = AutoSliceAlongAxis(fullName,wStep,1)
+					If tCommand <>""Then
+						sCommand = sCommand + tCommand
+						isSliced = True
+					End If
 				End If
-	    	Next i
+	    	Next I
 	    End If
-	    AddToHistory(commandName,sCommand)
+	    If isSliced = True Then
+			AddToHistory(commandName,sCommand)
+		    sCommand = ""
+		    isSliced = False
+	    End If
 	End If
-	'When zStep is not less than wStep, slice once with step of wStep
+	'When zStep is not less than wStep, slice once with step of zStep
 	If zStep <> 0 And zStep >= wStep Then
+		sCommand = sCommand + "WCS.SetNormal ""0"", ""0"", ""1""" + vbLf
 		sn =  Solid.GetNumberOfShapes
 		commandName = "Slice Shape in " +sComponent+" with zStep of "+Cstr(zStep)
 	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
+	    	For I = 0 To sn-1 STEP 1
+				fullName = Solid.GetNameOfShapeFromIndex(I)
+				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
 				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If InStr(sComponent,pth) <> 0 Then
-					sCommand = sCommand + AutoSliceAlongAxis(fullName,zStep,2)
+				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+					tCommand = AutoSliceAlongAxis(fullName,zStep,2)
+					If tCommand <>""Then
+						sCommand = sCommand + tCommand
+						isSliced = True
+					End If
 				End If
-	    	Next i
+	    	Next I
 	    End If
-	    AddToHistory(commandName,sCommand)
+	    If isSliced = True Then
+			AddToHistory(commandName,sCommand)
+		    sCommand = ""
+		    isSliced = False
+	    End If
 	'When zStep is less than wStep, slice twice
     ElseIf zStep <> 0 And zStep < wStep Then
+    	sCommand = sCommand + "WCS.SetNormal ""0"", ""0"", ""1""" + vbLf
     	'First slice is done with step of wStep
 		sn =  Solid.GetNumberOfShapes
 		commandName = "Slice Shape in " +sComponent+" with zStep of "+Cstr(wStep)
 	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
+	    	For I = 0 To sn-1 STEP 1
+				fullName = Solid.GetNameOfShapeFromIndex(I)
+				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
 				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If InStr(sComponent,pth) <> 0 Then
-					sCommand = sCommand + AutoSliceAlongAxis(fullName,wStep,2)
+				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+					tCommand = AutoSliceAlongAxis(fullName,wStep,2)
+					If tCommand <>""Then
+						sCommand = sCommand + tCommand
+						isSliced = True
+					End If
 				End If
-	    	Next i
+	    	Next I
 	    End If
-	    AddToHistory(commandName,sCommand)
+	    If isSliced = True Then
+			AddToHistory(commandName,sCommand)
+		    sCommand = ""
+		    isSliced = False
+	    End If
 	    'second slice is done with step of zStep
 	    commandName = "Slice Shape in " +sComponent+" with zStep of "+Cstr(zStep)
 		sn =  Solid.GetNumberOfShapes
 		If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
+	    	For I = 0 To sn-1 STEP 1
+				fullName = Solid.GetNameOfShapeFromIndex(I)
+				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
 				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If InStr(sComponent,pth) <> 0 Then
-					sCommand = sCommand + AutoSliceAlongAxis(fullName,zStep,2)
+				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+					tCommand = AutoSliceAlongAxis(fullName,zStep,2)
+					If tCommand <>""Then
+						sCommand = sCommand + tCommand
+						isSliced = True
+					End If
 				End If
-	    	Next i
+	    	Next I
 	    End If
-	    AddToHistory(commandName,sCommand)
+	    If isSliced = True Then
+			AddToHistory(commandName,sCommand)
+		    sCommand = ""
+		    isSliced = False
+	    End If
 	End If
 End Function
 
@@ -312,7 +415,7 @@ Function AutoSliceByAngle(sComponent As String, anStep As Double)
 	Dim Axis As String
 	Dim Angle As Double
 	Dim xcenter As Double,ycenter As Double,zcenter As Double
-	Dim sn As Integer, i As Integer
+	Dim sn As Integer, I As Integer
 	Dim pth As String
 	Dim sCommand As String, commandName As String
 	sCommand = ""
@@ -399,18 +502,18 @@ Function HasChildren( Item As String ) As Boolean
 	End If
 
 End Function
-Function DoChildrenContainComponent( Item As String ) As Boolean
+'Function DoChildrenContainComponent( Item As String ) As Boolean
+'
+'	Dim Name As String
+'	Dim sChild As String
+'	DoChildrenContainComponent = False
+'	Name = Item
+'	sChild = Resulttree.GetFirstChildName ( Name )
+'	While sChild <> ""
+'		If HasChildren(sChild) = True Then
+'			DoChildrenContainComponent = True
+'		End If
+'		sChild = Resulttree.GetNextItemName(sChild)
+'	Wend
 
-	Dim Name As String
-	Dim sChild As String
-	DoChildrenContainComponent = False
-	Name = Item
-	sChild = Resulttree.GetFirstChildName ( Name )
-	While sChild <> ""
-		If HasChildren(sChild) = True Then
-			DoChildrenContainComponent = True
-		End If
-		sChild = Resulttree.GetNextItemName(sChild)
-	Wend
-
-End Function
+'End Function
