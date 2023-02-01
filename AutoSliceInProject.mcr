@@ -325,9 +325,9 @@ Function AutoSliceByAngle(sComponent As String, anStep As Double)
 		sn = Solid.GetNumberOfShapes
 		For i = 0 To sn-1 STEP 1
 			fName = Solid.GetNameOfShapeFromIndex(i)
-			'commandName = "slice shape"+fName+" by dimensions along z axis with step of" + Cstr(sStep)
+			'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
 			pth = Replace(Left(fName,InStr(fName,":")-1),"/","\")
-			If InStr(sComponent,pth) <> 0 Then
+			If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
 				sName = Right(fName,Len(fName)-InStr(fName,":"))
 				CompName = Left(fName,InStr(fName,":")-1)
 				'Solid.SliceShape(sName,CompName)
