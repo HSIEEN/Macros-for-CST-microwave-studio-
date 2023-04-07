@@ -94,9 +94,8 @@ Sub Main
 	
 End Sub
 
-Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
+Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer, xMin As Double, xMax As Double, yMin As Double, yMax As Double, zMin As Double, zMax As Double)
 	Dim sName As String, CompName As String
-	Dim xmin As Double, xmax As Double, ymin As Double, ymax As Double, zmin As Double, zmax As Double
 	Dim xcut As Double, ycut As Double,zcut As Double
 	Dim Steps As Integer
 	Dim n As Integer
@@ -106,20 +105,19 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
     'WCS.ActivateWCS("local")
 	sName = Right(fName,Len(fName)-InStr(fName,":"))
 	CompName = Left(fName,InStr(fName,":")-1)
-	Solid.GetLooseBoundingBoxOfShape(fName,xmin,xmax,ymin,ymax,zmin,zmax)
 
 	Select Case sAxis
 	Case 0
 		'commandName = "slice shape"+fName+" by dimensions along x axis with step of" + Cstr(sStep)
-		Steps =  CInt((xmax-xmin)/sStep)
-		xcut = xmin
+		Steps =  CInt((xMax-xMin)/sStep)
+		xcut = xMin
 		'WCS.SetNormal(1,0,0)
 		'sCommand = sCommand + "WCS.SetNormal ""1"", ""0"", ""0""" + vbLf
 		If Steps > 1 Then
 			For n = 1 To Steps STEP 1
 				xcut = xcut + sStep
 				'WCS.SetOrigin(xcut,ymin,zmin)
-				sCommand = sCommand + "WCS.SetOrigin """+CStr(xcut)+""","""+CStr(ymin)+""","""+Cstr(zmin)+""""+vbLf
+				sCommand = sCommand + "WCS.SetOrigin """+CStr(xcut)+""","""+CStr(yMin)+""","""+Cstr(zMin)+""""+vbLf
 				'Solid.SliceShape(sName,CompName)
 				sCommand = sCommand + "Solid.SliceShape """ + sName+""","""+CompName+""""+vbLf
 			Next
@@ -129,15 +127,15 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
 
 	Case 1
 		'commandName = "slice shape"+fName+" by dimensions along y axis with step of" + Cstr(sStep)
-		Steps =  CInt((ymax-ymin)/sStep)
-		ycut = ymin
+		Steps =  CInt((yMax-yMin)/sStep)
+		ycut = yMin
 		'WCS.SetNormal(0,1,0)
 		'sCommand = sCommand + "WCS.SetNormal ""0"", ""1"", ""0""" + vbLf
 		If Steps > 1 Then
 			For n = 1 To Steps STEP 1
 				ycut = ycut + sStep
 				'WCS.SetOrigin(xmin,ycut,zmin)
-				sCommand = sCommand + "WCS.SetOrigin """+CStr(xmin)+""","""+CStr(ycut)+""","""+Cstr(zmin)+""""+vbLf
+				sCommand = sCommand + "WCS.SetOrigin """+CStr(xMin)+""","""+CStr(ycut)+""","""+Cstr(zMin)+""""+vbLf
 				Solid.SliceShape(sName,CompName)
 				sCommand = sCommand + "Solid.SliceShape """ + sName+""","""+CompName+""""+vbLf
 			Next
@@ -147,15 +145,15 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
 
 	Case 2
 		'commandName = "slice shape"+fName+" by dimensions along z axis with step of" + Cstr(sStep)
-		Steps =  CInt((zmax-zmin)/sStep)
-		zcut = zmin
+		Steps =  CInt((zMax-zMin)/sStep)
+		zcut = zMin
 		'WCS.SetNormal(0,0,1)
 		'sCommand = sCommand + "WCS.SetNormal ""0"", ""0"", ""1""" + vbLf
 		If Steps > 1 Then
 			For n = 1 To Steps STEP 1
 				zcut = zcut + sStep
 				'WCS.SetOrigin(xmin,ymin,zcut)
-				sCommand = sCommand + "WCS.SetOrigin """+CStr(xmin)+""","""+CStr(ymin)+""","""+Cstr(zcut)+""""+vbLf
+				sCommand = sCommand + "WCS.SetOrigin """+CStr(xMin)+""","""+CStr(yMin)+""","""+Cstr(zcut)+""""+vbLf
 				'Solid.SliceShape(sName,CompName)
 				sCommand = sCommand + "Solid.SliceShape """ + sName+""","""+CompName+""""+vbLf
 			Next
@@ -175,6 +173,39 @@ Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,
 	Dim sn As Integer, i As Integer
 	Dim sCommand As String, commandName As String, tCommand As String
 	Dim isSliced As Boolean
+	Dim xMin As Double, xMax As Double, yMin As Double, yMax As Double, zMin As Double, zMax As Double
+	Dim gxMin As Double, gxMax As Double, gyMin As Double, gyMax As Double, gzMin As Double, gzMax As Double
+	gxMin = 1e200
+	gxMax = -1e200
+	gyMin = 1e200
+	gyMax = -1e200
+	gzMin = 1e200
+	gzMax = -1e200
+	'When xStep is not less than wStep, slice once with step of wStep
+	sn = Solid.GetNumberOfShapes
+	For i = 0 To sn-1 STEP 1
+		fullName = Solid.GetNameOfShapeFromIndex(i)
+		Solid.GetLooseBoundingBoxOfShape(fullName,xMin,xMax,yMin,yMax,zMin,zMax)
+		If xMin < gxMin Then
+			gxMin = xMin
+		End If
+		If xMax > gxMax Then
+			gxMax = xMax
+		End If
+		If yMin < gyMin Then
+			gyMin = yMin
+		End If
+		If yMax > gyMax Then
+			gyMax = yMax
+		End If
+		If zMin < gzMin Then
+			gzMin = zMin
+		End If
+		If zMax > gzMax Then
+			gzMax = zMax
+		End If
+	Next
+
 	isSliced = False
 	sCommand = ""
 	If WCS.IsWCSActive() = "global" Then
@@ -196,7 +227,7 @@ Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,
 				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
 				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
 				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
-					tCommand = AutoSliceAlongAxis(fullName,xStep,0)
+					tCommand = AutoSliceAlongAxis(fullName,xStep,0,gxMin, gxMax, gyMin, gyMax, gzMin, gzMax)
 					If tCommand <>""Then
 						sCommand = sCommand + tCommand
 						isSliced = True
@@ -223,7 +254,7 @@ Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,
 				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
 				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
 				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
-					tCommand = AutoSliceAlongAxis(fullName,yStep,1)
+					tCommand = AutoSliceAlongAxis(fullName,yStep,1,gxMin, gxMax, gyMin, gyMax, gzMin, gzMax)
 					If tCommand <>""Then
 						sCommand = sCommand + tCommand
 						isSliced = True
@@ -249,7 +280,7 @@ Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,
 				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
 				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
 				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
-					tCommand = AutoSliceAlongAxis(fullName,zStep,2)
+					tCommand = AutoSliceAlongAxis(fullName,zStep,2,gxMin, gxMax, gyMin, gyMax, gzMin, gzMax)
 					If tCommand <>""Then
 						sCommand = sCommand + tCommand
 						isSliced = True
@@ -269,7 +300,7 @@ End Function
 Function AutoSliceByAngle(sComponent As String, anStep As Double)
 
 	Dim sName As String, CompName As String, fName As String
-	Dim xmin As Double, xmax As Double, ymin As Double, ymax As Double, zmin As Double, zmax As Double
+	Dim xMin As Double, xMax As Double, yMin As Double, yMax As Double, zMin As Double, zMax As Double
 	Dim deltaxy As Double,deltayz As Double,deltaxz As Double
 	Dim Axis As String
 	Dim Angle As Double
@@ -285,9 +316,9 @@ Function AutoSliceByAngle(sComponent As String, anStep As Double)
 	sCommand = sCommand + "WCS.ActivateWCS ""local""" + vbLf
 	sName = Right(fName,Len(fName)-InStr(fName,":"))
 	CompName = Left(fName,InStr(fName,":")-1)
-	Solid.GetLooseBoundingBoxOfShape(fName,xmin,xmax,ymin,ymax,zmin,zmax)
+	Solid.GetLooseBoundingBoxOfShape(fName,xMin,xMax,yMin,yMax,zMin,zMax)
 
-	deltaxy = Abs(Abs(xmax-xmin)-Abs(ymax-ymin))
+	deltaxy = Abs(Abs(xMax-xMin)-Abs(yMax-yMin))
 	deltaxz = Abs(Abs(xmax-xmin)-Abs(zmax-zmin))
 	deltayz = Abs(Abs(ymax-ymin)-Abs(zmax-zmin))
 
