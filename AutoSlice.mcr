@@ -46,8 +46,6 @@ Sub Main
     yStep = Evaluate(dlg.yStep)
     zStep = Evaluate(dlg.zStep)
     anStep = Evaluate(dlg.anStep)
-    'Default slice step or initial slice step
-    wStep = 8
     'Parse input parameters
     If xStep = 0 And yStep = 0 And zStep = 0 And anStep = 0 Then
     	MsgBox("Invalid parameters, please re-run this macro and input valid parameters!!",vbCritical,"Error")
@@ -57,7 +55,7 @@ Sub Main
     	Exit All
     'Slice by dimension steps
     ElseIf (xStep <> 0 Or yStep <> 0 Or zStep <> 0) And (anStep = 0) Then
-    	AutoSliceBySteps(xStep,yStep,zStep,wStep)
+    	AutoSliceBySteps(xStep,yStep,zStep)
     'Slice by angles
     ElseIf (anStep <> 0) And (xStep = 0  And yStep = 0  And zStep = 0) Then
     	AutoSliceByAngle(anStep)
@@ -68,50 +66,47 @@ Sub Main
 	
 End Sub
 
-Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
+Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer, xMin As Double, xMax As Double, yMin As Double, yMax As Double, zMin As Double, zMax As Double)
 	Dim sName As String, CompName As String
-	Dim xmin As Double, xmax As Double, ymin As Double, ymax As Double, zmin As Double, zmax As Double
 	Dim xcut As Double, ycut As Double,zcut As Double
 	Dim Steps As Integer
 	Dim n As Integer
     WCS.ActivateWCS("local")
 	sName = Right(fName,Len(fName)-InStr(fName,":"))
 	CompName = Left(fName,InStr(fName,":")-1)
-	Solid.GetLooseBoundingBoxOfShape(fName,xmin,xmax,ymin,ymax,zmin,zmax)
-
 	Select Case sAxis
 	Case 0
-		Steps =  CInt((xmax-xmin)/sStep)
-		xcut = xmin
+		Steps =  CInt((xMax-xMin)/sStep)
+		xcut = xMin
 		WCS.SetNormal(1,0,0)
 		If Steps > 1 Then
 			For n = 1 To Steps STEP 1
 				xcut = xcut + sStep
-				WCS.SetOrigin(xcut,ymin,zmin)
+				WCS.SetOrigin(xcut,yMin,zMin)
 				Solid.SliceShape(sName,CompName)
 			Next
 		End If
 
 	Case 1
-		Steps =  CInt((ymax-ymin)/sStep)
-		ycut = ymin
+		Steps =  CInt((yMax-yMin)/sStep)
+		ycut = yMin
 		WCS.SetNormal(0,1,0)
 		If Steps > 1 Then
 			For n = 1 To Steps STEP 1
 				ycut = ycut + sStep
-				WCS.SetOrigin(xmin,ycut,zmin)
+				WCS.SetOrigin(xMin,ycut,zMin)
 				Solid.SliceShape(sName,CompName)
 			Next
 		End If
 
 	Case 2
-		Steps =  CInt((zmax-zmin)/sStep)
-		zcut = zmin
+		Steps =  CInt((zMax-zMin)/sStep)
+		zcut = zMin
 		WCS.SetNormal(0,0,1)
 		If Steps > 1 Then
 			For n = 1 To Steps STEP 1
 				zcut = zcut + sStep
-				WCS.SetOrigin(xmin,ymin,zcut)
+				WCS.SetOrigin(xMin,yMin,zcut)
 				Solid.SliceShape(sName,CompName)
 			Next
 		End If
@@ -120,11 +115,77 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer)
 		Exit Function
 	End Select
 End Function
+Function AutoSliceBySteps(xStep As Double,yStep As Double,zStep As Double)
+	Dim fullName As String
+	Dim sn As Integer, i As Integer
+	Dim xMin As Double, xMax As Double, yMin As Double, yMax As Double, zMin As Double, zMax As Double
+	Dim gxMin As Double, gxMax As Double, gyMin As Double, gyMax As Double, gzMin As Double, gzMax As Double
+	gxMin = 1e200
+	gxMax = -1e200
+	gyMin = 1e200
+	gyMax = -1e200
+	gzMin = 1e200
+	gzMax = -1e200
+	'When xStep is not less than wStep, slice once with step of wStep
+	sn = Solid.GetNumberOfShapes
+	For i = 0 To sn-1 STEP 1
+		fullName = Solid.GetNameOfShapeFromIndex(i)
+		Solid.GetLooseBoundingBoxOfShape(fullName,xMin,xMax,yMin,yMax,zMin,zMax)
+		If xMin < gxMin Then
+			gxMin = xMin
+		End If
+		If xMax > gxMax Then
+			gxMax = xMax
+		End If
+		If yMin < gyMin Then
+			gyMin = yMin
+		End If
+		If yMax > gyMax Then
+			gyMax = yMax
+		End If
+		If zMin < gzMin Then
+			gzMin = zMin
+		End If
+		If zMax > gzMax Then
+			gzMax = zMax
+		End If
+	Next
+	If xStep <> 0 Then
+		sn =  Solid.GetNumberOfShapes
+	    If sn > 0 Then
+	    	For i = 0 To sn-1 STEP 1
+				fullName = Solid.GetNameOfShapeFromIndex(i)
+			    AutoSliceAlongAxis(fullName,xStep,0,xMin, gxMax, gyMin, gyMax, gzMin, gzMax)
+	    	Next i
+	    End If
+	End If
+	'When yStep is not less than wStep, slice once with step of wStep
+	If yStep <> 0 Then
+		sn =  Solid.GetNumberOfShapes
+	    If sn > 0 Then
+	    	For i = 0 To sn-1 STEP 1
+				fullName = Solid.GetNameOfShapeFromIndex(i)
+			    AutoSliceAlongAxis(fullName,xStep,1,xMin, gxMax, gyMin, gyMax, gzMin, gzMax)
+	    	Next i
+	    End If
+	End If
+	'When zStep is not less than wStep, slice once with step of wStep
+	If zStep <> 0 Then
+		sn =  Solid.GetNumberOfShapes
+	    If sn > 0 Then
+	    	For i = 0 To sn-1 STEP 1
+				fullName = Solid.GetNameOfShapeFromIndex(i)
+			    AutoSliceAlongAxis(fullName,xStep,2,xMin, gxMax, gyMin, gyMax, gzMin, gzMax)
+	    	Next i
+	    End If
+	End If
+
+End Function
 
 Function AutoSliceByAngle(anStep As Double)
 
 	Dim sName As String, CompName As String, fName As String
-	Dim xmin As Double, xmax As Double, ymin As Double, ymax As Double, zmin As Double, zmax As Double
+	Dim xMin As Double, xMax As Double, yMin As Double, yMax As Double, zMin As Double, zMax As Double
 	Dim deltaxy As Double,deltayz As Double,deltaxz As Double
 	Dim Axis As String
 	Dim Angle As Double
@@ -136,31 +197,31 @@ Function AutoSliceByAngle(anStep As Double)
 	WCS.ActivateWCS("local")
 	sName = Right(fName,Len(fName)-InStr(fName,":"))
 	CompName = Left(fName,InStr(fName,":")-1)
-	Solid.GetLooseBoundingBoxOfShape(fName,xmin,xmax,ymin,ymax,zmin,zmax)
+	Solid.GetLooseBoundingBoxOfShape(fName,xMin,xMax,yMin,yMax,zMin,zMax)
 
-	deltaxy = Abs(Abs(xmax-xmin)-Abs(ymax-ymin))
-	deltaxz = Abs(Abs(xmax-xmin)-Abs(zmax-zmin))
-	deltayz = Abs(Abs(ymax-ymin)-Abs(zmax-zmin))
+	deltaxy = Abs(Abs(xMax-xMin)-Abs(yMax-yMin))
+	deltaxz = Abs(Abs(xMax-xMin)-Abs(zMax-zMin))
+	deltayz = Abs(Abs(yMax-yMin)-Abs(zMax-zMin))
 
 	If deltaxy < deltayz And deltaxy < deltaxz Then
 		Axis = "z"
-		xcenter = (xmax+xmin)/2
-		ycenter = (ymax+ymin)/2
+		xcenter = (xMax+xMin)/2
+		ycenter = (yMax+yMin)/2
 		WCS.SetNormal(0,0,1)
-		WCS.SetOrigin(xcenter,ycenter,zmin)
+		WCS.SetOrigin(xcenter,ycenter,zMin)
 
 	ElseIf deltaxz < deltayz And deltaxz < deltaxy Then
 		Axis = "y"
-		xcenter = (xmax+xmin)/2
-		zcenter = (zmax+zmin)/2
+		xcenter = (xMax+xMin)/2
+		zcenter = (zMax+zMin)/2
 		WCS.SetNormal(0,1,0)
-		WCS.SetOrigin(xcenter,ymin,zcenter)
+		WCS.SetOrigin(xcenter,yMin,zcenter)
 	ElseIf deltayz < deltaxy And deltayz < deltaxz Then
 		Axis = "x"
-		ycenter = (ymax+ymin)/2
-		zcenter = (zmax+zmin)/2
+		ycenter = (yMax+yMin)/2
+		zcenter = (zMax+zMin)/2
 		WCS.SetNormal(1,0,0)
-		WCS.SetOrigin(xmin,ycenter,zcenter)
+		WCS.SetOrigin(xMin,ycenter,zcenter)
 	End If
 	'Initialize the total rotated angle, this angle should be less than 180 degree
 	Angle = 0
@@ -179,94 +240,3 @@ Function AutoSliceByAngle(anStep As Double)
 	Wend
 
 End Function
-
-Function AutoSliceBySteps(xStep As Double,yStep As Double,zStep As Double,wStep As Double)
-	Dim fullName As String
-	Dim sn As Integer, i As Integer
-	'When xStep is not less than wStep, slice once with step of wStep
-	If xStep <> 0 And xStep >= wStep Then
-		sn =  Solid.GetNumberOfShapes
-	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
-			    AutoSliceAlongAxis(fullName,wStep,0)
-	    	Next i
-	    End If
-	'When xStep is less than wStep, slice twice
-    ElseIf xStep <> 0 And xStep < wStep Then
-    	'First slice is done with step of wStep
-		sn =  Solid.GetNumberOfShapes
-	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
-			    AutoSliceAlongAxis(fullName,wStep,0)
-	    	Next i
-	    End If
-	    'second slice is done with step of xStep
-		sn =  Solid.GetNumberOfShapes
-		If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
-			    AutoSliceAlongAxis(fullName,xStep,0)
-	    	Next i
-	    End If
-	End If
-	'When yStep is not less than wStep, slice once with step of wStep
-	If yStep <> 0 And yStep >= wStep Then
-		sn =  Solid.GetNumberOfShapes
-	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
-			    AutoSliceAlongAxis(fullName,wStep,1)
-	    	Next i
-	    End If
-	'When yStep is less than wStep, slice twice
-    ElseIf yStep <> 0 And yStep < wStep Then
-    	'First slice is done with step of wStep
-		sn =  Solid.GetNumberOfShapes
-	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
-			    AutoSliceAlongAxis(fullName,wStep,1)
-	    	Next i
-	    End If
-	    'second slice is done with step of yStep
-		sn =  Solid.GetNumberOfShapes
-		If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
-			    AutoSliceAlongAxis(fullName,yStep,1)
-	    	Next i
-	    End If
-	End If
-	'When zStep is not less than wStep, slice once with step of wStep
-	If zStep <> 0 And zStep >= wStep Then
-		sn =  Solid.GetNumberOfShapes
-	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
-			    AutoSliceAlongAxis(fullName,wStep,2)
-	    	Next i
-	    End If
-	'When zStep is less than wStep, slice twice
-    ElseIf zStep <> 0 And zStep < wStep Then
-    	'First slice is done with step of wStep
-		sn =  Solid.GetNumberOfShapes
-	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
-			    AutoSliceAlongAxis(fullName,wStep,2)
-	    	Next i
-	    End If
-	    'second slice is done with step of zStep
-		sn =  Solid.GetNumberOfShapes
-		If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
-			    AutoSliceAlongAxis(fullName,zStep,2)
-	    	Next i
-	    End If
-	End If
-
-End Function
-
