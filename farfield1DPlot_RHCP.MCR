@@ -109,17 +109,32 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			End If
 
 			FarfieldPlot.Plot
-			FarfieldPlot.CopyFarfieldTo1DResults("farfield1D_CP_"+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Abs")
+			Dim DirName As String
+			Dim ChildItem As String
+			DirName = "farfield 1D plot @"
+			If Resulttree.DoesTreeItemExist("1D Results\"+DirName+FrequencyStr+"GHz") Then
+				ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName+FrequencyStr+"GHz")
+
+				While ChildItem <> ""
+					With Resulttree
+						.Name ChildItem
+						.Delete
+					End With
+					ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName+FrequencyStr+"GHz")
+				Wend
+
+			End If
+			FarfieldPlot.CopyFarfieldTo1DResults(DirName+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Abs")
 			FarfieldPlot.SelectComponent("Right")
 			'FarfieldPlot.PlotType("polar")
 			FarfieldPlot.Plot
-			FarfieldPlot.CopyFarfieldTo1DResults("farfield1D_CP_"+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Right")
+			FarfieldPlot.CopyFarfieldTo1DResults(DirName+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Right")
 			FarfieldPlot.SelectComponent("Left")
 			'FarfieldPlot.PlotType("polar")
 			FarfieldPlot.Plot
-			FarfieldPlot.CopyFarfieldTo1DResults("farfield1D_CP_"+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Left")
+			FarfieldPlot.CopyFarfieldTo1DResults(DirName+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Left")
 
-			SelectTreeItem("1D Results\farfield1D_CP_"+FrequencyStr+"GHz")
+			SelectTreeItem("1D Results\"+DirName+FrequencyStr+"GHz")
 
             CurrentItem = FirstChildItem
 
