@@ -17,3 +17,7 @@ Some functions are as follows:
 *calculate and plot axial ratio vs frequency at specified angles
 
 *Automatically slice solids with specified steps or angles
+
+*Automatically optimize single parameter for frequency tunning. Binary search methods are applied
+
+*Automatically sweep single parameter for antenna radiation characteristics check and generate logs to record key information
