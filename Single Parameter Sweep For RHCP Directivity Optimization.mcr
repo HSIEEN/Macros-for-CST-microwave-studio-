@@ -12,36 +12,35 @@ Sub Main ()
 		parameterArray(ii) = sPara
 	Next ii
 
-	Begin Dialog UserDialog 730,350,"Single parameter sweep for RHCP directivity" ' %GRID:10,7,1,1
-		GroupBox 500,7,230,56,"Select a parameter:",.GroupBox1
-		GroupBox 500,63,230,63,"Sweep settings:",.GroupBox2
-		OKButton 510,322,90,21
-		CancelButton 630,322,90,21
-		Text 510,84,80,14,"Sweep from",.Text1
-		Text 660,84,20,14,"to",.Text2
-		Text 520,105,100,14,"with step size:",.Text3
-		TextBox 600,84,50,14,.xMin
-		TextBox 680,84,40,14,.xMax
-		TextBox 630,105,50,14,.stepSize
-		GroupBox 500,133,230,56,"Frequency settings:",.GroupBox3
-		Text 530,147,80,14,"Frequency1:",.Text5
-		Text 530,168,80,14,"Frequency2:",.Text7
-		TextBox 620,147,40,14,.f1
-		TextBox 620,168,40,14,.f2
-		GroupBox 500,196,230,63,"Cut angle settings:",.GroupBox4
+	Begin Dialog UserDialog 810,434,"Single parameter sweep for RHCP gain comparison" ' %GRID:10,7,1,1
+		GroupBox 600,7,210,56,"Select a parameter:",.GroupBox1
+		GroupBox 600,63,210,63,"Parameter sweep settings:",.GroupBox2
+		OKButton 610,378,90,21
+		CancelButton 710,378,90,21
+		Text 620,84,40,14,"From",.Text1
+		Text 720,84,20,14,"to",.Text2
+		Text 630,105,100,14,"with step size:",.Text3
+		TextBox 670,84,40,14,.xMin
+		TextBox 750,84,40,14,.xMax
+		TextBox 740,105,50,14,.stepSize
+		GroupBox 600,126,210,63,"Frequency settings:",.GroupBox3
+		Text 630,147,80,14,"Frequency1:",.Text5
+		Text 630,168,80,14,"Frequency2:",.Text7
+		TextBox 720,147,40,14,.f1
+		TextBox 720,168,40,14,.f2
+		GroupBox 600,189,210,91,"Cut angle settings:",.GroupBox4
 		OptionGroup .Group1
-			OptionButton 550,217,40,14,"¦È",.OptionButton1
-			OptionButton 620,217,40,14,"¦Õ",.OptionButton2
-		Text 520,238,90,14,"with angle of",.Text6
-		TextBox 620,238,60,14,.Angle
-		GroupBox 500,259,230,56,"Calculate point settings:",.GroupBox5
-		Text 530,287,30,14,"¦È0",.Text8
-		TextBox 560,287,50,14,.theta0
-		Text 640,287,30,14,"¦Õ0",.Text11
-		TextBox 670,287,50,14,.phi0
-		Text 600,217,20,14,"or",.Text4
-		DropListBox 520,28,200,21,parameterArray(),.parameterIndex
-		Picture 0,7,500,343,GetInstallPath + "\Library\Macros\Coros\Simulation\Single parameter sweep instructions For RHCP optimization.bmp",0,.Picture1
+			OptionButton 660,210,40,14,"Î¸",.OptionButton1
+			OptionButton 660,238,40,14,"Ï†",.OptionButton2
+		Text 630,259,90,14,"with angle of",.Text6
+		TextBox 720,259,40,14,.Angle
+		GroupBox 600,287,210,70,"Calculate point settings:",.GroupBox5
+		Text 650,308,30,14,"Î¸0:",.Text8
+		TextBox 690,308,50,14,.theta0
+		Text 650,336,30,14,"Ï†0:",.Text11
+		TextBox 690,336,50,14,.phi0
+		DropListBox 620,28,180,21,parameterArray(),.parameterIndex
+		Picture 0,7,600,399,GetInstallPath + "\Library\Macros\Coros\Simulation\Single parameter sweep instructions For RHCP optimization.bmp",0,.Picture1
 	End Dialog
 	Dim dlg As UserDialog
 	dlg.xMin = "0"
@@ -145,24 +144,19 @@ Sub Main ()
 		Print #2, "% Step "+CStr(n+1)+" simulation is done."
 		If f1 <> 0 Then
 			directivity = Copy1DFarfieldResult(groupValue, cutAngle, theta0, phi0, rotateAngle, f1)
-			Print #2, "% Directivity at frequency "+ CStr(f1)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dB."
+			Print #2, "% RHCP Directivity at frequency "+ CStr(f1)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dB."
 		End If
 
 		If f2 <> 0 Then
 			directivity = Copy1DFarfieldResult(groupValue, cutAngle, theta0, phi0, rotateAngle, f2)
-			Print #2, "% Directivity at frequency "+ CStr(f2)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dB."
+			Print #2, "% RHCP Directivity at frequency "+ CStr(f2)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dB."
 		End If
 		Print #2, " "
 		n = n+1
-		If stepSize <> 0 Then
-			rotateAngle = xMin + n*stepSize
-		Else
-			rotateAngle = xMax+1
-		End If
-
+		rotateAngle = xMin + n*stepSize
 	Wend
 	Close #2
-	MsgBox("Maximum rotate angle reached, exit the sweep progress",vbInformation, "Attention")
+	MsgBox("Maximum rotate angle reached, the sweep progress finished.",vbInformation, "Attention")
 
 End Sub
 Sub runWithParameter(para As String, value As Double)
@@ -205,7 +199,7 @@ Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, theta0 
 		'FarfieldPlot.Plot
 		Dim DirName As String
 
-		DirName = "CP directivity\Theta0="+CStr(theta0)+", Phi0="+CStr(phi0)+" and Rotate_angle="+CStr(rotateAngle)+ " @"
+		DirName = "CP directivity\Theta0="+CStr(theta0)+", Phi0="+CStr(phi0)+" and rotateAngle="+CStr(rotateAngle)+ " @"
 		Dim ChildItem As String
 			If Resulttree.DoesTreeItemExist("1D Results\"+DirName+FrequencyStr+"GHz") Then
 				ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName+FrequencyStr+"GHz")
