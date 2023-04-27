@@ -1,6 +1,5 @@
 'sweep single parameter to meet the target
 '2023-01-10 By Shawn
-Const macrofile = "C:\Users\Simulation-1\AppData\Roaming\Dassault Systemes\CST STUDIO SUITE\Library\Macros\Coros\PostProcess\StoreResonantFrequencyAndQ.mcr"
 '#include "vba_globals_all.lib"
 
 Sub Main ()
@@ -13,39 +12,35 @@ Sub Main ()
 		parameterArray(ii) = sPara
 	Next ii
 
-	Begin Dialog UserDialog 340,287,"Single parameter optimization" ' %GRID:10,7,1,1
-		TextBox 180,231,40,14,.theta2
-		TextBox 260,210,40,14,.phi1
-		TextBox 260,231,40,14,.phi2
-		Text 20,7,220,14,"Please select a parameter:",.Text1
-		ListBox 20,28,240,56,parameterArray(),.parameterList
-		Text 20,91,240,14,"Please set the sweep settings:",.Text21
-		Text 20,105,90,14,"Range from",.Text2
-		TextBox 100,105,40,14,.xMin
-		TextBox 200,126,40,14,.nSim
-		Text 150,105,20,14,"to",.Text4
-		TextBox 170,105,40,14,.xMax
-		Text 20,147,180,14,"Setting goals:",.Text6
-		Text 20,161,260,14,"========Resonance frequency=======",.Text3
-		Text 30,175,30,14,"f1:",.Text9
-		TextBox 60,175,40,14,.f1
-		Text 110,175,30,14,"f2:",.Text10
-		TextBox 140,175,40,14,.f2
-		Text 190,175,40,14,"f3:",.Text11
-		TextBox 220,175,40,14,.f3
-		Text 20,196,320,14,"==============Axial Ratio==============",.Text8
-		Text 30,210,50,14,"AR1",.Text15
-		TextBox 70,210,40,14,.AR1
-		Text 30,231,60,14,"AR2",.Text16
-		TextBox 70,231,40,14,.AR2
-		TextBox 180,210,40,14,.theta1
-		Text 110,210,70,14,"dB at ¦È1=",.Text17
-		Text 230,210,30,14,"¦Õ1=",.Text19
-		Text 230,231,30,14,"¦Õ2=",.Text20
-		Text 110,231,70,14,"dB at ¦È2=",.Text18
-		OKButton 70,259,90,21
-		CancelButton 180,259,90,21
-		Text 20,126,180,14,"Max.Number of evaluations:",.Text23
+	Begin Dialog UserDialog 810,434,"Single parameter sweep for RHCP gain comparison" ' %GRID:10,7,1,1
+		GroupBox 600,7,210,56,"Select a parameter:",.GroupBox1
+		GroupBox 600,63,210,63,"Parameter sweep settings:",.GroupBox2
+		OKButton 610,378,90,21
+		CancelButton 710,378,90,21
+		Text 620,84,40,14,"From",.Text1
+		Text 720,84,20,14,"to",.Text2
+		Text 630,105,100,14,"with step size:",.Text3
+		TextBox 670,84,40,14,.xMin
+		TextBox 750,84,40,14,.xMax
+		TextBox 740,105,50,14,.stepSize
+		GroupBox 600,126,210,63,"Frequency settings:",.GroupBox3
+		Text 630,147,80,14,"Frequency1:",.Text5
+		Text 630,168,80,14,"Frequency2:",.Text7
+		TextBox 720,147,40,14,.f1
+		TextBox 720,168,40,14,.f2
+		GroupBox 600,189,210,91,"Cut angle settings:",.GroupBox4
+		OptionGroup .Group1
+			OptionButton 660,210,40,14,"Î¸",.OptionButton1
+			OptionButton 660,238,40,14,"Ï†",.OptionButton2
+		Text 630,259,90,14,"with angle of",.Text6
+		TextBox 720,259,40,14,.Angle
+		GroupBox 600,287,210,70,"Calculate point settings:",.GroupBox5
+		Text 650,308,30,14,"Î¸0:",.Text8
+		TextBox 690,308,50,14,.theta0
+		Text 650,336,30,14,"Ï†0:",.Text11
+		TextBox 690,336,50,14,.phi0
+		DropListBox 620,28,180,21,parameterArray(),.parameterIndex
+		Picture 0,7,600,399,GetInstallPath + "\Library\Macros\Coros\Simulation\Single parameter sweep instructions For RHCP optimization.bmp",0,.Picture1
 	End Dialog
 	Dim dlg As UserDialog
 	dlg.xMin = "0"
@@ -53,130 +48,115 @@ Sub Main ()
 	'dlg.Mono = "0"
 	dlg.f1 = "0"
 	dlg.f2 = "0"
-	dlg.f3 = "0"
+	dlg.theta0 = "0"
+	dlg.phi0 = "0"
+	dlg.Group1 = 0
+	dlg.Angle = "90"
+	'dlg.f3 = "0"
 	'dlg.Q1 = "0"
 	'dlg.Q2 = "0"
 	'dlg.Q3 = "0"
-	dlg.AR1 = "0"
-	dlg.AR2 = "0"
-	dlg.theta1 = "0"
-	dlg.theta2 = "0"
-	dlg.phi1 = "0"
-	dlg.phi2 = "0"
-	dlg.nSim = "10"
+	'dlg.AR1 = "0"
+	'dlg.AR2 = "0"
+	'dlg.theta1 = "0"
+	'dlg.theta2 = "0"
+	'dlg.phi1 = "0"
+	'dlg.phi2 = "0"
+	dlg.stepSize = "0"
 	If Dialog(dlg,-2) = 0 Then
 		Exit All
 	End If
 
 
 	Dim parameter As String
-	Dim xMin As Double, xMax As Double, Mono As Boolean
+	Dim xMin As Double, xMax As Double, theta0 As Double, phi0 As Double, directivity As Double
 	Dim xSim As Double
-	Dim fo As Double, fcur As Double, fmin As Double, fmax As Double
-	Dim sfmin As Double, sfmax As Double
-	Dim nSim As Integer
+	Dim stepWidth As Double
 
-	sfmin = Solver.GetFmin
-	sfmax = Solver.GetFmax
-
-	parameter = parameterArray(dlg.parameterList)
+	parameter = parameterArray(dlg.parameterIndex)
 	If DoesParameterExist(parameter) = False Then
-		MsgBox("Input paramter does not exist!!",vbCritical,"Error")
+		MsgBox("The input paramter does not exist!!",vbCritical,"Error")
 		Exit All
     End If
     xMin = Evaluate(dlg.xMin)
     xMax = Evaluate(dlg.xMax)
+    theta0 = Evaluate(dlg.theta0)
+    phi0 = Evaluate(dlg.phi0)
     'Mono = Evaluate(dlg.Mono)
     'xSim = xMin
-    fo = Evaluate(dlg.f1)
-    If fo < sfmin Or fo > sfmax Then
-    	MsgBox("Target frequency is out of sover's frequency range!!",vbCritical,"Error")
-    	Exit All
-    End If
-    nSim = Evaluate(dlg.nSim)
+    f1 = Evaluate(dlg.f1)
+    f2 = Evaluate(dlg.f2)
 
-    Dim prjPath As String
-	Dim dataFile As String
-	prjPath = GetProjectPath("Project")
-   	dataFile = prjPath + "\optlog.txt"
-   	Open dataFile For Output As #2
-   	Print #2, "Optimizing of " + parameter + " is in progress..."
-   	Print #2, "% Calculating the target function when "+parameter+"="+Cstr(xMin)
-	'run with specified value of xMin
-	runWithParameter(parameter,xMin)
-	'store resonant frequency and Q value
-	MacroRun(macrofile)
-	'get fmin
-	fmin = GetFrequencyValue()(0)
-	Print #2, "% Value of target function is "+ Cstr(fmin)
+	'Check validity of frequency
+	Dim monitorNumber As Integer, i As Integer
+	Dim flag1 As Boolean, flag2 As Boolean
 
-	'run with specified value of xMax
-	Print #2, "% Calculating the target function when "+parameter+"="+Cstr(xMax)
-	runWithParameter(parameter,xMax)
-	'store resonant frequency and Q value
-	MacroRun(macrofile)
-	'get fmax
-	fmax = GetFrequencyValue()(0)
-	Print #2, "% Value of target function is "+ Cstr(fmax)
-	Print #2, "% Running iteration..."
-	If fo < fmin Or fo > fmax Then
-			MsgBox("Target frequency is may Not in search range !!",vbCritical,"Error")
-			Exit All
+	flag1 = False
+	flag2 = False
+	monitorNumber = Monitor.GetNumberOfMonitors()
+	For i = 0 To monitorNumber-1 STEP 1
+		If Monitor.GetMonitorTypeFromIndex(i)="Farfield" Then
+			If Monitor.GetMonitorFrequencyFromIndex(i) = f1 Then
+				flag1 = True
+			End If
+			If Monitor.GetMonitorFrequencyFromIndex(i) = f2 Then
+				flag2 = True
+			End If
+		End If
+	Next
+	If (f1 <> 0  And flag1 = False) Or (f2 <> 0 And flag2 = False) Then
+		MsgBox("The input frequencies do not exist!!",vbCritical,"Error")
+		Exit All
 	End If
+
+    stepSize = Evaluate(dlg.stepSize)
+
 	Dim n As Integer
-	n = 1
-    Do
-    	Print #2, "% Iteration turn "+ Cstr(n) + ":"
-		xSim = xMin+(fo-fmin)/(fmax-fmin)*(xMax-xMin)
-		Print #2, "% Attempting to calculate the target function when "+parameter+"="+Cstr(Round(xSim,2))
+	Dim rotateAngle As Double
+	'rotateAngle = xMin
+	n = 0
+	rotateAngle = xMin
 
+	Dim prjPath As String
+	Dim dataFile As String
+	Dim groupValue As Integer, cutAngle As Double
+	Dim fieldComponent As String
+	groupValue = dlg.Group1
+	cutAngle = Evaluate(dlg.Angle)
 
-
-		Debug.Print CStr(xSim)
-		Debug.Print CStr(n)
-
-    	Dim SimNotice As String
-    	SimNotice = "Time domain simulation is ongoing with "+parameter+"="+Cstr(xSim)+"..."
-    	'MsgBox(SimNotice,vbOkOnly,"Information")
-
-
+	prjPath = GetProjectPath("Project")
+   	dataFile = prjPath + "\sweeplog.txt"
+   	Open dataFile For Output As #2
+   	Print #2, "##########Sweep of " + parameter + " is in progress###########."
+   	Print #2, " "
+	'run with specified value of xMin
+	FarfieldPlot.Reset
+	'FarfieldPlot.SetAntennaType("directional_linear")
+	'FarfieldPlot.Plot
+	FarfieldPlot.SetAntennaType("directional_circular")
+	'FarfieldPlot.Plot
+	FarfieldPlot.SetPlotMode("directivity")
+	fieldComponent = "ludwig3 circular right abs"
+    While rotateAngle <= xMax And rotateAngle < xMin+360
+		Print #2, "% On step "+CStr(n+1)+": "+parameter+"="+Cstr(rotateAngle)+"."
 		'run with specified value of xSim
-		runWithParameter(parameter,xSim)
-		'store resonant frequency and Q value
-		MacroRun(macrofile)
-		'get fcur
-		fcur = GetFrequencyValue()(0)
-		Print #2, "% Value of target function is "+ Cstr(fcur)
-
-		Dim isMet As Boolean
-		isMet = False
-		If Abs(fcur-fo)/fo < 0.01 Then
-			Print #2, "% Target is Met when " + parameter + "=" + CStr(Round(xSim,2)) + " and the target function value is "+ Cstr(fcur)
-			isMet = True
-			Exit Do
-		ElseIf fcur<fo Then
-			Print #2, "% Target is not met yet... "
-
-			fmin = fcur
-			xMin = xSim
-		ElseIf fcur>fo Then
-			Print #2, "% Target is not met yet... "
-
-			fmax = fcur
-			xMax = xSim
+		runWithParameter(parameter,rotateAngle)
+		Print #2, "% Step "+CStr(n+1)+" simulation is done."
+		If f1 <> 0 Then
+			directivity = Copy1DFarfieldResult(groupValue, cutAngle, theta0, phi0, rotateAngle, f1)
+			Print #2, "% RHCP Directivity at frequency "+ CStr(f1)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dB."
 		End If
 
+		If f2 <> 0 Then
+			directivity = Copy1DFarfieldResult(groupValue, cutAngle, theta0, phi0, rotateAngle, f2)
+			Print #2, "% RHCP Directivity at frequency "+ CStr(f2)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dB."
+		End If
+		Print #2, " "
 		n = n+1
-    Loop Until nm > nSim
-    If isMet = True Then
-    	ReportInformationToWindow "Target is Met when " + parameter + "=" + CStr(Round(xSim,3)) + " and the resonant frequency is "+ Cstr(fcur)
-    Else
-    	ReportInformationToWindow "Sweep has been done and the target is not met."
-    	Print #2, "% Max Iterations exceeded. Optimization did NOT converge" +vbNewLine+ "The current "+ parameter + "=" + CStr(Round(xSim,3)) + " and the target function value is  "+ Cstr(fcur)
-    End If
-
-    Debug.Clear
+		rotateAngle = xMin + n*stepSize
+	Wend
 	Close #2
+	MsgBox("Maximum rotate angle reached, the sweep progress finished.",vbInformation, "Attention")
 
 End Sub
 Sub runWithParameter(para As String, value As Double)
@@ -186,35 +166,105 @@ Sub runWithParameter(para As String, value As Double)
 	Solver.SteadyStateLimit(-40)
 	Solver.Start
 End Sub
-Function GetFrequencyValue() As Variant
-    Dim prjPath As String
-	Dim dataFile As String
-	Dim freq() As Double
-	Dim resStr As String
-	Dim n As Integer
-	Dim lineRead As String
-	prjPath = GetProjectPath("Project")
-   	dataFile = prjPath + "\freq_Q.txt"
-   	n = 1
-	Open dataFile For Input As #1
-	While Not EOF(1)
-		Line Input #1, lineRead
-		While Not EOF(1) And Left(lineRead,1)<>"F"
-			Line Input #1, lineRead
-		Wend
 
-		If Left(lineRead,1) = "F" Then
-			ReDim Preserve freq(n)
-			resStr = Split(lineRead, "=")(1)
-			freq(n-1) = CDbl(resStr) 'realized resonance frequency
+Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, theta0 As Double, phi0 As Double, rotateAngle As Double, freq As Double)
+	'parameters: groupValue denotes the cutting plane,0->theta, 1->phi; cutAngle denotes the angle in the plane specified by groupvalue; theta0 and phi0
+	'denote the angle where the directivity is estimated; rotateAngle is the rotate angle of the ham; freq is the operation frequency we take care
+		Dim SelectedItem As String, PortStr As String, FrequencyStr As String
+
+		PortStr = "1"
+		FrequencyStr = CStr(freq)
+
+		SelectTreeItem("Farfields\farfield (f="+FrequencyStr+") [" +PortStr+"]")
+
+		FarfieldPlot.Reset
+		FarfieldPlot.SetAntennaType("directional_circular")
+		FarfieldPlot.SetPlotMode("directivity")
+		FarfieldPlot.PlotType("polar")
+		FarfieldPlot.SelectComponent("Axial Ratio")
+		FarfieldPlot.Plot
+
+		If groupValue = 0 Then
+
+			FarfieldPlot.Vary("angle2")
+			FarfieldPlot.Theta(cutAngle)
+
+		Else
+
+			FarfieldPlot.Vary("angle1")
+			FarfieldPlot.Phi(cutAngle)
 
 		End If
-		n = n+1
-	Wend
-	GetFrequencyValue = freq
-	Close #1
+
+		'FarfieldPlot.Plot
+		Dim DirName As String
+
+		DirName = "CP directivity\Theta0="+CStr(theta0)+", Phi0="+CStr(phi0)+" and rotateAngle="+CStr(rotateAngle)+ " @"
+		Dim ChildItem As String
+			If Resulttree.DoesTreeItemExist("1D Results\"+DirName+FrequencyStr+"GHz") Then
+				ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName+FrequencyStr+"GHz")
+				While ChildItem <> ""
+					With Resulttree
+						.Name ChildItem
+						.Delete
+					End With
+					ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName+FrequencyStr+"GHz")
+				Wend
+
+			End If
+		FarfieldPlot.SelectComponent("Abs")
+		FarfieldPlot.Plot
+		FarfieldPlot.CopyFarfieldTo1DResults(DirName+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Abs")
+		FarfieldPlot.SelectComponent("Right")
+		'FarfieldPlot.PlotType("polar")
+		FarfieldPlot.Plot
+		FarfieldPlot.CopyFarfieldTo1DResults(DirName+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Right")
+		FarfieldPlot.SelectComponent("Left")
+		'FarfieldPlot.PlotType("polar")
+		FarfieldPlot.Plot
+		FarfieldPlot.CopyFarfieldTo1DResults(DirName+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Left")
+
+        'CurrentItem = FirstChildItem
+        Copy1DFarfieldResult = getDirectivity(groupValue, cutAngle, theta0, phi0, rotateAngle, freq)
+        SelectTreeItem("1D Results\"+DirName+FrequencyStr+"GHz")
 End Function
 
+Function getDirectivity(groupValue As Integer, cutAngle As Double, theta0 As Double, phi0 As Double, rotateAngle As Double, frequency As Double)
+	Dim calTheta As Double, calPhi As Double, totAngle As Double
+	Dim farfieldComponent As String
+	Dim directivity As Double
+
+	farfieldComponent = "ludwig3 circular right abs"
+	totAngle = theta0 + rotateAngle
+	diffAngle = theta0 - rotateAngle
+	If groupValue = 1 And phi0 = 0 Then
+		If totAngle < 180 Then
+			calTheta = totAngle
+			calPhi = 0
+		ElseIf totAngle > 180 And totAngle < 360 Then
+			calTheta = 360-totAngle
+			calPhi = 180
+		ElseIf totAngle > 360 Then
+			calTheta = totAngle - 360
+			calPhi = 0
+		End If
+	ElseIf groupValue = 1 And phi0 = 180 Then
+		If diffAngle > 0 Then
+			calTheta = diffAngle
+			calPhi = 180
+		ElseIf diffAngle < 0 And diffAngle > -180 Then
+			calTheta = -diffAngle
+			calPhi = 0
+		ElseIf diffAngle > -360 And diffAngle < -180 Then
+			calTheta = -diffAngle - 180
+			calPhi = 180
+		End If
+
+	End If
+	'SelectTreeItem
+	directivity = FarfieldPlot.CalculatePoint(calTheta, calPhi, farfieldComponent, "")
+	getDirectivity = directivity
+End Function
 
 
 
