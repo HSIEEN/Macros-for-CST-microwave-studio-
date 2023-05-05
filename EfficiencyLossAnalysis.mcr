@@ -74,35 +74,34 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			filename = Resulttree.GetFileFromTreeItem("1D Results\S-Parameters\S"+PortNum+","+PortNum)
 			'DSfilename = DSResultTree.GetFileFromTreeItem("Tasks\SPara1\S-Parameters\S")
 
-			'Calculate other powers
             For n = 0 To nResults-1
             	Dim m As Long
-
+				'Record power Stimulated
         		If InStr(paths(n),"Power Stimulated") <> 0 Then
             		'Dim EffiType As String, FileName As String
-            		Dim nPoints As Long, losPoints As Long,radPoints As Long, X() As Double, Ypsti() As Double
+            		Dim nPoints As Long, losPoints As Long,radPoints As Long, X() As Double, Psti() As Double
             		'power stimulated object
             		Dim oPStim As Object
 
             		Set oPStim = Result1DComplex(files(n))
             		nPoints = oPStim.GetN
             		ReDim X(nPoints) As Double
-            		ReDim Ypsti(nPoints) As Double
+            		ReDim Psti(nPoints) As Double
         			For m = 0 To nPoints-1
         				X(m) = oPStim.GetX(m)
-        				Ypsti(m) = oPStim.GetYRe(m)
+        				Psti(m) = oPStim.GetYRe(m)
             		Next
-            	'Record Coupling power
+            	'get Coupling power
             	ElseIf InStr(paths(n),"Power Outgoing all Ports") <> 0 Then
             		'Dim EffiType As String, FileName As String
-                    Dim Ypcou() As Double
+                    Dim Pcoulp() As Double
             		Dim oPCoup As Object
             		Set oPCoup = Result1DComplex(files(n))
             		nPoints = oPCoup.GetN
-            		ReDim Ypcou(nPoints) As Double
+            		ReDim Pcoulp(nPoints) As Double
         			For m = 0 To nPoints-1
-        				'Ypcou(m) = oPCoup.GetYRe(m) - Ypref(m)
-        				Ypcou(m) = oPCoup.GetYRe(m)
+        				'Pcoulp(m) = oPCoup.GetYRe(m) - Ypref(m)
+        				Pcoulp(m) = oPCoup.GetYRe(m)
             		Next
             	'Record Accepted power
             	ElseIf  (filename <> "" And Right(paths(n),Len(paths(n))-InStrRev(paths(n),"\")) = "Power Accepted") _
@@ -177,15 +176,15 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
             If filename <> "" Then
 				Dim oPRef As Object
 				Set oPRef = Result1DComplex(filename)
-				Dim YRe() As Double, YIm() As Double, Yabs() As Double
+				Dim YRe() As Double, YIm() As Double, Pref() As Double
 				ReDim YRe(nPoints) As Double
 				ReDim YIm(nPoints) As Double
-				ReDim Yabs(nPoints) As Double
+				ReDim Pref(nPoints) As Double
 				'ReDim Yref(nPoints) As Double
 				For n = 0 To nPoints-1
 					YRe(n) = oPRef.GetYRe(n)
 					YIm(n) = oPRef.GetYIm(n)
-					Yabs(n) = (YRe(n)^2+YIm(n)^2)*Ypsti(n)
+					Pref(n) = (YRe(n)^2+YIm(n)^2)*Psti(n)
 
 				Next
 			'Else 'This port is postprocessing port, no sparameters
@@ -251,16 +250,20 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
             If filename <> "" Then
 	            'Plot reflection and coupling loss as well as total metal and dielectric loss
 	    		For n = 0 To nPoints-1
-					oPlotRefLoss.AppendXY(X(n),Log((Ypsti(n)-Yabs(n))/Ypsti(n))/Log(10)*10)
-					oPlotCouLoss.AppendXY(X(n),Log((Ypsti(n)-Ypcou(n)+Yabs(n))/Ypsti(n))/Log(10)*10)
+	    			If (Psti(n)-Pref(n))<=0 Then
+	    				Psti(n) = Pref(n) + 1e-3
+
+	    			End If
+					oPlotRefLoss.AppendXY(X(n),Log((Psti(n)-Pref(n))/Psti(n))/Log(10)*10)
+					oPlotCouLoss.AppendXY(X(n),Log((Psti(n)-Pcoulp(n)+Pref(n))/Psti(n))/Log(10)*10)
 	                If X(n) >= Xmtl(0) Then
 	                	For m = 0 To losPoints-1
 	                		If Xmtl(m) <= X(n) And Xmtl(m)> (X(n-1)+X(n))/2 Then
-	                			oPlotMetLoss.AppendXY(X(n),Log((Ypsti(n)-Ypmtl(m))/Ypsti(n))/Log(10)*10)
-								oPlotDieLoss.AppendXY(X(n),Log((Ypsti(n)-Ypdll(m))/Ypsti(n))/Log(10)*10)
+	                			oPlotMetLoss.AppendXY(X(n),Log((Psti(n)-Ypmtl(m))/Psti(n))/Log(10)*10)
+								oPlotDieLoss.AppendXY(X(n),Log((Psti(n)-Ypdll(m))/Psti(n))/Log(10)*10)
 							ElseIf Xmtl(m) >= X(n-1) And Xmtl(m)< (X(n-1)+X(n))/2 Then
-								oPlotMetLoss.AppendXY(X(n-1),Log((Ypsti(n-1)-Ypmtl(m))/Ypsti(n-1))/Log(10)*10)
-								oPlotDieLoss.AppendXY(X(n-1),Log((Ypsti(n-1)-Ypdll(m))/Ypsti(n-1))/Log(10)*10)
+								oPlotMetLoss.AppendXY(X(n-1),Log((Psti(n-1)-Ypmtl(m))/Psti(n-1))/Log(10)*10)
+								oPlotDieLoss.AppendXY(X(n-1),Log((Psti(n-1)-Ypdll(m))/Psti(n-1))/Log(10)*10)
 							End If
 	               		 Next
 	               	End If
