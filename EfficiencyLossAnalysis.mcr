@@ -9,18 +9,22 @@ Sub Main ()
   'Efficiency results parent path
 
    PowerPath = "1D Results\Power"
+   Dim portArray(100) As String
+   Dim ii As Integer
+
+   For ii = 1 To Port.StartPortNumberIteration
+   		portArray(ii-1) = CStr(Port.GetNextPortNumber)
+   Next
 
     Dim InformationStr As String
     'InformationStr = "请输入要计算的频段（eg L1 L5 W2 W5）："
-	Begin Dialog UserDialog 410,63,"效率损失分析" ' %GRID:10,7,1,1
-		OKButton 10,35,90,21
-		CancelButton 110,35,90,21
-		Text 10,7,110,14,"请选择端口：",.Text10
-		TextBox 100,7,40,14,.PortNum
+	Begin Dialog UserDialog 200,91,"效率损失分析" ' %GRID:10,7,1,1
+		OKButton 10,63,90,21
+		CancelButton 110,63,90,21
+		GroupBox 10,7,180,49,"Please select a port",.GroupBox1
+		DropListBox 50,28,90,14,portArray(),.portNum
 	End Dialog
 	Dim dlg As UserDialog
-
-	dlg.PortNum = "1"
 
 	If Dialog(dlg,-2) = 0 Then
 		Exit All
@@ -28,7 +32,7 @@ Sub Main ()
     Dim PortNum As String
     'Dim CurrentItem As String
     Dim paths As Variant, types As Variant, files As Variant, info As Variant, nResults As Long
-    PortNum = dlg.portNum
+    PortNum = portArray(dlg.portNum)
 
     PowerPath = PowerPath + "\Excitation [" + PortNum + "]"
     nResults = Resulttree.GetTreeResults(PowerPath,"0D/1D recursive","",paths,types,files,info)
