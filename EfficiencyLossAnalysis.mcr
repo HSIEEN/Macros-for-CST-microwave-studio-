@@ -81,109 +81,110 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
             		'Dim EffiType As String, FileName As String
             		Dim nPoints As Long, losPoints As Long,radPoints As Long, X() As Double, Psti() As Double
             		'power stimulated object
-            		Dim oPStim As Object
+            		Dim oPstim As Object
 
-            		Set oPStim = Result1DComplex(files(n))
-            		nPoints = oPStim.GetN
+            		Set oPstim = Result1DComplex(files(n))
+            		nPoints = oPstim.GetN
             		ReDim X(nPoints) As Double
             		ReDim Psti(nPoints) As Double
         			For m = 0 To nPoints-1
-        				X(m) = oPStim.GetX(m)
-        				Psti(m) = oPStim.GetYRe(m)
+        				X(m) = oPstim.GetX(m)
+        				Psti(m) = oPstim.GetYRe(m)
             		Next
             	'get Coupling power
             	ElseIf InStr(paths(n),"Power Outgoing all Ports") <> 0 Then
             		'Dim EffiType As String, FileName As String
-                    Dim Pcoulp() As Double
-            		Dim oPCoup As Object
-            		Set oPCoup = Result1DComplex(files(n))
-            		nPoints = oPCoup.GetN
-            		ReDim Pcoulp(nPoints) As Double
+                    Dim Pcoup() As Double
+            		Dim oPcoup As Object
+            		Set oPcoup = Result1DComplex(files(n))
+            		nPoints = oPcoup.GetN
+            		ReDim Pcoup(nPoints) As Double
         			For m = 0 To nPoints-1
-        				'Pcoulp(m) = oPCoup.GetYRe(m) - Ypref(m)
-        				Pcoulp(m) = oPCoup.GetYRe(m)
+        				'Pcoup(m) = oPcoup.GetYRe(m) - Ypref(m)
+        				Pcoup(m) = oPcoup.GetYRe(m)
             		Next
             	'Record Accepted power
             	ElseIf  (filename <> "" And Right(paths(n),Len(paths(n))-InStrRev(paths(n),"\")) = "Power Accepted") _
             	Or (filename = "" And Right(paths(n),Len(paths(n))-InStrRev(paths(n),"\")) = "Power Accepted (DS)") Then
 	            		'Dim Xacp() As Double
-	                    Dim Ypacp() As Double
+	                    Dim Pacc() As Double
 	                    Dim Xacp() As Double
-	            		Dim oPAcpt As Object
+	            		Dim oPacc As Object
 	            		Dim acpPoints As Long
-	            		Set oPAcpt = Result1DComplex(files(n))
-	            		acpPoints = oPAcpt.GetN
-	            		ReDim Ypacp(acpPoints) As Double
+	            		Set oPacc = Result1DComplex(files(n))
+	            		acpPoints = oPacc.GetN
+	            		ReDim Pacc(acpPoints) As Double
 	            		ReDim Xacp(acpPoints)
 	        			For m = 0 To acpPoints-1
-	        				Ypacp(m) = oPAcpt.GetYRe(m)
+	        				Pacc(m) = oPacc.GetYRe(m)
 	        				'Xrad(m) = Oprad.GetX(m)
 	            		Next
 
 
-            	'Record metal loss
+            	'Record metal total loss
         		ElseIf InStr(paths(n),"Loss in Metals") <> 0 Then
             		'Dim EffiType As String, FileName As String
-                    Dim Ypmtl() As Double
+                    Dim lossOfMetal() As Double
                     Dim Xmtl() As Double
-            		Dim oPMtl As Object
-            		Set oPMtl = Result1DComplex(files(n))
-            		losPoints = oPMtl.GetN
-            		ReDim Ypmtl(losPoints) As Double
+            		Dim oPmetalLoss As Object
+            		Set oPmetalLoss = Result1DComplex(files(n))
+            		losPoints = oPmetalLoss.GetN
+            		ReDim lossOfMetal(losPoints) As Double
             		ReDim Xmtl(losPoints) As Double
         			For m = 0 To losPoints-1
-        				Ypmtl(m) = oPMtl.GetYRe(m)
-        				Xmtl(m) = oPMtl.GetX(m)
+        				lossOfMetal(m) = oPmetalLoss.GetYRe(m)
+        				Xmtl(m) = oPmetalLoss.GetX(m)
             		Next
 
-            	'Record dielectric loss
+            	'Record dielectric total loss
         		ElseIf InStr(paths(n),"Loss in Dielectrics") <> 0 Then
             		'Dim EffiType As String, FileName As String
-                    Dim Ypdll() As Double
-            		Dim oPDll As Object
-            		Set oPDll = Result1DComplex(files(n))
-            		losPoints = oPDll.GetN
-            		ReDim Ypdll(losPoints) As Double
+                    Dim lossOfDielectric() As Double
+            		Dim oPdielectricLoss As Object
+            		Set oPdielectricLoss = Result1DComplex(files(n))
+            		losPoints = oPdielectricLoss.GetN
+            		ReDim lossOfDielectric(losPoints) As Double
         			For m = 0 To losPoints-1
-        				Ypdll(m) = oPDll.GetYRe(m)
+        				lossOfDielectric(m) = oPdielectricLoss.GetYRe(m)
             		Next
+            	'Record loss of per metal
             	ElseIf InStr(paths(n),"Metal loss") <> 0 Then
             		MetalList = MetalList + Right(paths(n),Len(paths(n))-InStrRev(paths(n),"\")-14)+"$"
-                    Dim Ymtloss() As Double
-                    Dim oMtLoss As Object
-                    Set oMtLoss = Result1DComplex(files(n))
+                    'Dim Ymtloss() As Double
+                    Dim oMetalLoss As Object
+                    Set oMetalLoss = Result1DComplex(files(n))
                     Dim MetPoints As Long
-                    MetPoints = oMtLoss.GetN
+                    MetPoints = oMetalLoss.GetN
                     For m = 0 To MetPoints-1
-                    	MetalLoss(MetalNum,m) = oMtLoss.GetYRe(m)
+                    	MetalLoss(MetalNum,m) = oMetalLoss.GetYRe(m)
                     Next
             		MetalNum = MetalNum+1
-
+				'Record loss of per dielectric
             	ElseIf InStr(paths(n),"Volume loss") <> 0 Then
             		DielectricList = DielectricList + Right(paths(n),Len(paths(n))-InStrRev(paths(n),"\")-15)+"$"
-                    Dim Ydlloss() As Double
-                    Dim oDlLoss As Object
-                    Set oDlLoss = Result1DComplex(files(n))
+                    'Dim Ydlloss() As Double
+                    Dim oDielectricLoss As Object
+                    Set oDielectricLoss = Result1DComplex(files(n))
                     Dim DiePoints As Long
-                    DiePoints = oDlLoss.GetN
+                    DiePoints = oDielectricLoss.GetN
                     For m = 0 To DiePoints-1
-                    	DielectricLoss(DielectricNum,m) = oDlLoss.GetYRe(m)
+                    	DielectricLoss(DielectricNum,m) = oDielectricLoss.GetYRe(m)
                     Next
             		DielectricNum = DielectricNum+1
             	End If
             Next
              'Calculate reflected power at feeding port
             If filename <> "" Then
-				Dim oPRef As Object
-				Set oPRef = Result1DComplex(filename)
+				Dim oPref As Object
+				Set oPref = Result1DComplex(filename)
 				Dim YRe() As Double, YIm() As Double, Pref() As Double
 				ReDim YRe(nPoints) As Double
 				ReDim YIm(nPoints) As Double
 				ReDim Pref(nPoints) As Double
 				'ReDim Yref(nPoints) As Double
 				For n = 0 To nPoints-1
-					YRe(n) = oPRef.GetYRe(n)
-					YIm(n) = oPRef.GetYIm(n)
+					YRe(n) = oPref.GetYRe(n)
+					YIm(n) = oPref.GetYIm(n)
 					Pref(n) = (YRe(n)^2+YIm(n)^2)*Psti(n)
 
 				Next
@@ -211,9 +212,9 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
     				Dim i As Integer
     				For i = 0 To MetPoints-1
     					If Xmtl(i) <= X(m) And Xmtl(i)> (X(m-1)+X(m))/2 Then
-                			oPlotMaterialLoss(n).AppendXY(X(m),Log((Ypacp(m)-MetalLoss(n,i))/Ypacp(m))/Log(10)*10)
+                			oPlotMaterialLoss(n).AppendXY(X(m),Log((Pacc(m)-MetalLoss(n,i))/Pacc(m))/Log(10)*10)
                 		ElseIf Xmtl(i) >= X(m-1) And Xmtl(i)< (X(m-1)+X(m))/2 Then
-                            oPlotMaterialLoss(n).AppendXY(X(m-1),Log((Ypacp(m-1)-MetalLoss(n,i))/Ypacp(m-1))/Log(10)*10)
+                            oPlotMaterialLoss(n).AppendXY(X(m-1),Log((Pacc(m-1)-MetalLoss(n,i))/Pacc(m-1))/Log(10)*10)
 						End If
 
     				Next
@@ -233,9 +234,9 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 
     				For i = 0 To MetPoints-1
     					If Xmtl(i) <= X(m) And Xmtl(i)> X(m-1) Then
-                			oPlotMaterialLoss(n).AppendXY(X(m),Log((Ypacp(m)-DielectricLoss(n,i))/Ypacp(m))/Log(10)*10)
+                			oPlotMaterialLoss(n).AppendXY(X(m),Log((Pacc(m)-DielectricLoss(n,i))/Pacc(m))/Log(10)*10)
                 		ElseIf Xmtl(i) >= X(m-1) And Xmtl(i)< (X(m-1)+X(m))/2 Then
-                            oPlotMaterialLoss(n).AppendXY(X(m-1),Log((Ypacp(m-1)-DielectricLoss(n,i))/Ypacp(m-1))/Log(10)*10)
+                            oPlotMaterialLoss(n).AppendXY(X(m-1),Log((Pacc(m-1)-DielectricLoss(n,i))/Pacc(m-1))/Log(10)*10)
 						End If
 
     				Next
@@ -255,15 +256,15 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 
 	    			End If
 					oPlotRefLoss.AppendXY(X(n),Log((Psti(n)-Pref(n))/Psti(n))/Log(10)*10)
-					oPlotCouLoss.AppendXY(X(n),Log((Psti(n)-Pcoulp(n)+Pref(n))/Psti(n))/Log(10)*10)
+					oPlotCouLoss.AppendXY(X(n),Log((Psti(n)-Pcoup(n)+Pref(n))/Psti(n))/Log(10)*10)
 	                If X(n) >= Xmtl(0) Then
 	                	For m = 0 To losPoints-1
 	                		If Xmtl(m) <= X(n) And Xmtl(m)> (X(n-1)+X(n))/2 Then
-	                			oPlotMetLoss.AppendXY(X(n),Log((Psti(n)-Ypmtl(m))/Psti(n))/Log(10)*10)
-								oPlotDieLoss.AppendXY(X(n),Log((Psti(n)-Ypdll(m))/Psti(n))/Log(10)*10)
+	                			oPlotMetLoss.AppendXY(X(n),Log((Psti(n)-lossOfMetal(m))/Psti(n))/Log(10)*10)
+								oPlotDieLoss.AppendXY(X(n),Log((Psti(n)-lossOfDielectric(m))/Psti(n))/Log(10)*10)
 							ElseIf Xmtl(m) >= X(n-1) And Xmtl(m)< (X(n-1)+X(n))/2 Then
-								oPlotMetLoss.AppendXY(X(n-1),Log((Psti(n-1)-Ypmtl(m))/Psti(n-1))/Log(10)*10)
-								oPlotDieLoss.AppendXY(X(n-1),Log((Psti(n-1)-Ypdll(m))/Psti(n-1))/Log(10)*10)
+								oPlotMetLoss.AppendXY(X(n-1),Log((Psti(n-1)-lossOfMetal(m))/Psti(n-1))/Log(10)*10)
+								oPlotDieLoss.AppendXY(X(n-1),Log((Psti(n-1)-lossOfDielectric(m))/Psti(n-1))/Log(10)*10)
 							End If
 	               		 Next
 	               	End If
