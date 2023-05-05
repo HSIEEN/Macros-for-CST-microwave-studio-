@@ -221,7 +221,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 				oPlotMaterialLoss(n).xlabel("Frequecy/GHz")
 				oPlotMaterialLoss(n).ylabel("Loss in "+ Left(MetalList,InStr(MetalList,"$")-1)+"/dB" )
 				oPlotMaterialLoss(n).Save("RadiationEfficiencyLossIn"+Left(MetalList,InStr(MetalList,"$")-1)+ "@Port="+PortNum+".sig")
-				oPlotMaterialLoss(n).AddToTree(PowerPath+"\Radiation Efficiency Metallic Loss\Loss in "+Left(MetalList,InStr(MetalList,"$")-1))
+				oPlotMaterialLoss(n).AddToTree(PowerPath+"\Radiation efficiency loss due to metal loss\Loss in "+Left(MetalList,InStr(MetalList,"$")-1))
 				MetalList = Right(MetalList,Len(MetalList)-InStr(MetalList,"$"))
     		Next
 
@@ -243,7 +243,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 				oPlotMaterialLoss(n).xlabel("Frequecy/GHz")
 				oPlotMaterialLoss(n).ylabel("Loss in "+ Left(DielectricList,InStr(DielectricList,"$")-1)+"/dB" )
 				oPlotMaterialLoss(n).Save("RadiationEfficiencyLossIn"+Left(DielectricList,InStr(DielectricList,"$")-1)+ "@Port="+PortNum+".sig")
-				oPlotMaterialLoss(n).AddToTree(PowerPath+"\Radiation Efficiency Dielectric Loss\Loss in "+Left(DielectricList,InStr(DielectricList,"$")-1))
+				oPlotMaterialLoss(n).AddToTree(PowerPath+"\Radiation efficiency loss due to dielectric loss\Loss in "+Left(DielectricList,InStr(DielectricList,"$")-1))
 				DielectricList = Right(DielectricList,Len(DielectricList)-InStr(DielectricList,"$"))
     		Next
 
@@ -292,7 +292,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			Dim SelectedItem As String
 			Dim CurveLabel As String
 			Dim index As Integer
-			SelectedItem = Resulttree.GetFirstChildName(PowerPath+"\Radiation Efficiency Dielectric Loss")
+			SelectedItem = Resulttree.GetFirstChildName(PowerPath+"\Radiation efficiency loss due to dielectric loss")
 			While SelectedItem <> ""
 				SelectTreeItem(SelectedItem)
                 CurveLabel = Right(SelectedItem,Len(SelectedItem)-InStrRev(SelectedItem,"\"))
@@ -308,7 +308,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 
 				SelectedItem = Resulttree.GetNextItemName(SelectedItem)
 			Wend
-			SelectedItem = Resulttree.GetFirstChildName(PowerPath+"\Radiation Efficiency Metallic Loss")
+			SelectedItem = Resulttree.GetFirstChildName(PowerPath+"\Radiation efficiency loss due to metal loss")
 			While SelectedItem <> ""
 				SelectTreeItem(SelectedItem)
                 CurveLabel = Right(SelectedItem,Len(SelectedItem)-InStrRev(SelectedItem,"\"))
