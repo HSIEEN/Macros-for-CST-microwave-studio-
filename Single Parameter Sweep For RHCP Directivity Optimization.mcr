@@ -1,22 +1,19 @@
 'sweep single parameter to meet the target
 '2023-01-10 By Shawn
 '#include "vba_globals_all.lib"
-
 Sub Main ()
-	Dim parameterArray(1000) As String, IndexSelection() As Integer
-	Dim ii As Integer, jj As Integer, jnow As Integer, sArray() As String
+	Dim parameterArray(1000) As String
+	Dim ii As Integer
 	Dim sAllSelectedParaNames As String
-	Dim sPara As String
 	For ii = 0 To GetNumberOfParameters-1
-		sPara = GetParameterName(ii)
-		parameterArray(ii) = sPara
+		parameterArray(ii) = GetParameterName(ii)
 	Next ii
 
-	Begin Dialog UserDialog 810,434,"Single parameter sweep for RHCP gain comparison" ' %GRID:10,7,1,1
+	Begin Dialog UserDialog 810,434,"Single parameter sweep for RHCP directivity comparison" ' %GRID:10,7,1,1
 		GroupBox 600,7,210,56,"Select a parameter:",.GroupBox1
 		GroupBox 600,63,210,63,"Parameter sweep settings:",.GroupBox2
-		OKButton 610,378,90,21
-		CancelButton 710,378,90,21
+		OKButton 660,315,90,21
+		CancelButton 660,364,90,21
 		Text 620,84,40,14,"From",.Text1
 		Text 720,84,20,14,"to",.Text2
 		Text 630,105,100,14,"with step size:",.Text3
@@ -28,17 +25,12 @@ Sub Main ()
 		Text 630,168,80,14,"Frequency2:",.Text7
 		TextBox 720,147,40,14,.f1
 		TextBox 720,168,40,14,.f2
-		GroupBox 600,189,210,91,"Cut angle settings:",.GroupBox4
+		GroupBox 600,189,210,91,"Cut angle settings in 1D plot:",.GroupBox4
 		OptionGroup .Group1
 			OptionButton 660,210,40,14,"θ",.OptionButton1
 			OptionButton 660,238,40,14,"φ",.OptionButton2
 		Text 630,259,90,14,"with angle of",.Text6
 		TextBox 720,259,40,14,.Angle
-		GroupBox 600,287,210,70,"Calculate point settings:",.GroupBox5
-		Text 650,308,30,14,"θ0:",.Text8
-		TextBox 690,308,50,14,.theta0
-		Text 650,336,30,14,"φ0:",.Text11
-		TextBox 690,336,50,14,.phi0
 		DropListBox 620,28,180,21,parameterArray(),.parameterIndex
 		Picture 0,7,600,399,GetInstallPath + "\Library\Macros\Coros\Simulation\Single parameter sweep instructions For RHCP optimization.bmp",0,.Picture1
 	End Dialog
@@ -48,8 +40,7 @@ Sub Main ()
 	'dlg.Mono = "0"
 	dlg.f1 = "0"
 	dlg.f2 = "0"
-	dlg.theta0 = "0"
-	dlg.phi0 = "0"
+
 	dlg.Group1 = 0
 	dlg.Angle = "90"
 	'dlg.f3 = "0"
@@ -80,8 +71,7 @@ Sub Main ()
     End If
     xMin = Evaluate(dlg.xMin)
     xMax = Evaluate(dlg.xMax)
-    theta0 = Evaluate(dlg.theta0)
-    phi0 = Evaluate(dlg.phi0)
+
     'Mono = Evaluate(dlg.Mono)
     'xSim = xMin
     f1 = Evaluate(dlg.f1)
@@ -117,44 +107,44 @@ Sub Main ()
 	n = 0
 	rotateAngle = xMin
 
-	Dim prjPath As String
+	Dim projectPath As String
 	Dim dataFile As String
 	Dim groupValue As Integer, cutAngle As Double
 	Dim fieldComponent As String
 	groupValue = dlg.Group1
 	cutAngle = Evaluate(dlg.Angle)
 
-	prjPath = GetProjectPath("Project")
-   	dataFile = prjPath + "\sweeplog.txt"
+	projectPath = GetProjectPath("Project")
+   	dataFile = projectPath + "\sweeplog.txt"
    	Open dataFile For Output As #2
-   	Print #2, "##########Sweep of " + parameter + " is in progress###########."
+   	Print #2, "##########Sweep of " + parameter + " begins at " + CStr(Now) +"'###########."
    	Print #2, " "
-	'run with specified value of xMin
-	FarfieldPlot.Reset
-	'FarfieldPlot.SetAntennaType("directional_linear")
-	'FarfieldPlot.Plot
-	FarfieldPlot.SetAntennaType("directional_circular")
-	'FarfieldPlot.Plot
+
 	FarfieldPlot.SetPlotMode("directivity")
-	fieldComponent = "ludwig3 circular right abs"
     While rotateAngle <= xMax And rotateAngle < xMin+360
-		Print #2, "% On step "+CStr(n+1)+": "+parameter+"="+Cstr(rotateAngle)+"."
+		Print #2, "%-%-% On step "+CStr(n+1)+": "+parameter+"="+Cstr(rotateAngle)+"."
+		Print #2, "%-%-% Start time: " + CStr(Now) +"."
 		'run with specified value of xSim
 		runWithParameter(parameter,rotateAngle)
 		Print #2, "% Step "+CStr(n+1)+" simulation is done."
 		If f1 <> 0 Then
-			directivity = Copy1DFarfieldResult(groupValue, cutAngle, theta0, phi0, rotateAngle, f1)
-			Print #2, "% RHCP Directivity at frequency "+ CStr(f1)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dB."
+			directivity = Copy1DFarfieldResult(groupValue, cutAngle, rotateAngle, f1)
+			Print #2, "%-%-% RHCP Directivity at frequency "+ CStr(f1)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
 		End If
 
 		If f2 <> 0 Then
-			directivity = Copy1DFarfieldResult(groupValue, cutAngle, theta0, phi0, rotateAngle, f2)
-			Print #2, "% RHCP Directivity at frequency "+ CStr(f2)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dB."
+			directivity = Copy1DFarfieldResult(groupValue, cutAngle, rotateAngle, f2)
+			Print #2, "%-%-% RHCP Directivity at frequency "+ CStr(f2)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
 		End If
+		Print #2, "%-%-% Finish time: " + CStr(Now) +"."
 		Print #2, " "
 		n = n+1
+		If stepSize = 0 Then
+			Exit While
+		End If
 		rotateAngle = xMin + n*stepSize
 	Wend
+	Print #2, "##########Sweep of " + parameter + " ends at " + CStr(Now) +"'###########."
 	Close #2
 	MsgBox("Maximum rotate angle reached, the sweep progress finished.",vbInformation, "Attention")
 
@@ -167,7 +157,7 @@ Sub runWithParameter(para As String, value As Double)
 	Solver.Start
 End Sub
 
-Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, theta0 As Double, phi0 As Double, rotateAngle As Double, freq As Double)
+Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateAngle As Double, freq As Double)
 	'parameters: groupValue denotes the cutting plane,0->theta, 1->phi; cutAngle denotes the angle in the plane specified by groupvalue; theta0 and phi0
 	'denote the angle where the directivity is estimated; rotateAngle is the rotate angle of the ham; freq is the operation frequency we take care
 		Dim SelectedItem As String, PortStr As String, FrequencyStr As String
@@ -178,12 +168,10 @@ Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, theta0 
 		SelectTreeItem("Farfields\farfield (f="+FrequencyStr+") [" +PortStr+"]")
 
 		FarfieldPlot.Reset
-		FarfieldPlot.SetAntennaType("directional_circular")
-		FarfieldPlot.SetPlotMode("directivity")
-		FarfieldPlot.PlotType("polar")
-		FarfieldPlot.SelectComponent("Axial Ratio")
-		FarfieldPlot.Plot
 
+		'FarfieldPlot.Plot
+		FarfieldPlot.SelectComponent("Abs")
+		FarfieldPlot.PlotType("polar")
 		If groupValue = 0 Then
 
 			FarfieldPlot.Vary("angle2")
@@ -196,76 +184,197 @@ Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, theta0 
 
 		End If
 
+		FarfieldPlot.SetAxesType("currentwcs")
+		FarfieldPlot.SetAntennaType("unknown")
+		FarfieldPlot.SetPlotMode("Directivity")
+		'FarfieldPlot.SetAntennaType("directional_linear")
+		'FarfieldPlot.SetAntennaType("directional_circular")
+		FarfieldPlot.SetCoordinateSystemType("ludwig3")
+		FarfieldPlot.SetAutomaticCoordinateSystem("True")
+		FarfieldPlot.SetPolarizationType("Circular")
+
+		FarfieldPlot.StoreSettings
+
+		FarfieldPlot.Plot
+
 		'FarfieldPlot.Plot
 		Dim DirName As String
 
-		DirName = "CP directivity\Theta0="+CStr(theta0)+", Phi0="+CStr(phi0)+" and rotateAngle="+CStr(rotateAngle)+ " @"
+		DirName = "CP directivity\rotateAngle="+CStr(rotateAngle)+ "@"+FrequencyStr+"GHz"
 		Dim ChildItem As String
-			If Resulttree.DoesTreeItemExist("1D Results\"+DirName+FrequencyStr+"GHz") Then
-				ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName+FrequencyStr+"GHz")
+			If Resulttree.DoesTreeItemExist("1D Results\"+DirName) Then
+				ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName)
 				While ChildItem <> ""
 					With Resulttree
 						.Name ChildItem
 						.Delete
 					End With
-					ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName+FrequencyStr+"GHz")
+					ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName)
 				Wend
 
 			End If
 		FarfieldPlot.SelectComponent("Abs")
 		FarfieldPlot.Plot
-		FarfieldPlot.CopyFarfieldTo1DResults(DirName+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Abs")
+		FarfieldPlot.CopyFarfieldTo1DResults(DirName,"farfield (f="+FrequencyStr+")["+PortStr+"]_Abs")
 		FarfieldPlot.SelectComponent("Right")
 		'FarfieldPlot.PlotType("polar")
 		FarfieldPlot.Plot
-		FarfieldPlot.CopyFarfieldTo1DResults(DirName+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Right")
+		FarfieldPlot.CopyFarfieldTo1DResults(DirName,"farfield (f="+FrequencyStr+")["+PortStr+"]_Right")
 		FarfieldPlot.SelectComponent("Left")
 		'FarfieldPlot.PlotType("polar")
 		FarfieldPlot.Plot
-		FarfieldPlot.CopyFarfieldTo1DResults(DirName+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Left")
+		FarfieldPlot.CopyFarfieldTo1DResults(DirName,"farfield (f="+FrequencyStr+")["+PortStr+"]_Left")
 
+		saveCircularDirectivity(rotateAngle, freq)
         'CurrentItem = FirstChildItem
-        Copy1DFarfieldResult = getDirectivity(groupValue, cutAngle, theta0, phi0, rotateAngle, freq)
-        SelectTreeItem("1D Results\"+DirName+FrequencyStr+"GHz")
+        Copy1DFarfieldResult = getDirectivity()
+        SelectTreeItem("1D Results\"+DirName)
 End Function
 
-Function getDirectivity(groupValue As Integer, cutAngle As Double, theta0 As Double, phi0 As Double, rotateAngle As Double, frequency As Double)
-	Dim calTheta As Double, calPhi As Double, totAngle As Double
+Function getDirectivity()
+
 	Dim farfieldComponent As String
 	Dim directivity As Double
 
 	farfieldComponent = "ludwig3 circular right abs"
-	totAngle = theta0 + rotateAngle
-	diffAngle = theta0 - rotateAngle
-	If groupValue = 1 And phi0 = 0 Then
-		If totAngle < 180 Then
-			calTheta = totAngle
-			calPhi = 0
-		ElseIf totAngle > 180 And totAngle < 360 Then
-			calTheta = 360-totAngle
-			calPhi = 180
-		ElseIf totAngle > 360 Then
-			calTheta = totAngle - 360
-			calPhi = 0
-		End If
-	ElseIf groupValue = 1 And phi0 = 180 Then
-		If diffAngle > 0 Then
-			calTheta = diffAngle
-			calPhi = 180
-		ElseIf diffAngle < 0 And diffAngle > -180 Then
-			calTheta = -diffAngle
-			calPhi = 0
-		ElseIf diffAngle > -360 And diffAngle < -180 Then
-			calTheta = -diffAngle - 180
-			calPhi = 180
-		End If
-
-	End If
 	'SelectTreeItem
-	directivity = FarfieldPlot.CalculatePoint(calTheta, calPhi, farfieldComponent, "")
+	directivity = FarfieldPlot.CalculatePoint(0, 0, farfieldComponent, "")
 	getDirectivity = directivity
 End Function
+Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double)
 
+    Dim SelectedItem As String
+
+    Dim n As Integer
+
+    Dim FrequencyStr As String
+    Dim PortStr As String
+
+
+	PortStr = "1"
+	FrequencyStr = CStr(frequency)
+
+	SelectTreeItem("Farfields\farfield (f="+FrequencyStr+") [" +PortStr+"]")
+    '==============Upper Hemisphere rhcp directivity and rhcp directivity estimation===============
+
+    Dim  upperHemisphereRHCPdirectivity() As Double, upperHemisphereLHCPdirectivity() As Double
+
+    Dim rhcpDirectivity() As Double, lhcpDirectivity() As Double
+
+    Dim Theta As Double, Phi As Double
+
+    Dim position_theta() As Double, position_phi() As Double
+    Dim Columns As String
+    Dim dataFile As String
+    Dim projectPath As String
+
+    For Phi=0 To 360 STEP 30
+
+         For Theta = 0 To 180 STEP 15
+
+             FarfieldPlot.AddListEvaluationPoint(Theta, Phi, 0, "spherical", "frequency", frequency)
+
+         Next Theta
+
+    Next Phi
+
+    FarfieldPlot.CalculateList("")
+
+    'UHPower = FarfieldPlot.GetList("Spherical  abs")
+
+    upperHemisphereRHCPdirectivity = FarfieldPlot.GetList("Spherical circular right abs")
+
+    upperHemisphereLHCPdirectivity = FarfieldPlot.GetList("Spherical circular left abs")
+
+    position_theta = FarfieldPlot.GetList("Point_T")
+
+    position_phi = FarfieldPlot.GetList("Point_P")
+
+    ReDim rhcpDirectivity(13,13)
+    ReDim lhcpDirectivity(13,13)
+    'EIRP of an isotropic antenna
+    For n = 0 To UBound(upperHemisphereRHCPdirectivity)
+
+    	'linear to dB, Log(UHRHCPEffi)/Log(10)*10
+         rhcpDirectivity(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = upperHemisphereRHCPdirectivity(n)'10*CST_Log10(upperHemisphereRHCPdirectivity(n)) 'Log(upperHemisphereRHCPdirectivity(n)/AVGPower)/Log(10)*10
+         lhcpDirectivity(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = upperHemisphereLHCPdirectivity(n)'10*CST_Log10(upperHemisphereLHCPdirectivity(n))'Log(upperHemisphereLHCPdirectivity(n)/AVGPower)/Log(10)*10
+    Next n
+
+	projectPath = GetProjectPath("Project")
+	dataFile = projectPath+"\Circularly polarized directivity @"+FrequencyStr+"GHz and Port "+PortStr+".xlsx"
+	Columns = "BCDEFGHIJKLMN"
+
+	NoticeInformation = "The directivity data is under（"+projectPath+"\）"
+    ReportInformationToWindow(NoticeInformation)
+	Dim IsFileExist As String
+    Set O = CreateObject("Excel.Application")
+	IsFileExist = Dir(dataFile)
+	If IsFileExist = "" Then
+		Set wBook  = O.Workbooks.Add
+		With wBook
+			.Title = "Title"
+			.Subject = "Subject"
+			.SaveAs Filename:= dataFile
+		End With
+	Else
+		Set wBook = O.Workbooks.Open(dataFile)
+	End If
+
+
+	'Add a sheet and rename it
+
+	wBook.Sheets.Add.Name = CStr(rotateAngle)
+	Set wSheet = wBook.Sheets(CStr(rotateAngle))
+
+	'write rhcp directivity
+	wSheet.Range("A1").value = "Polarization"
+	wSheet.Range("B1").value = "RHCP"
+	wSheet.Range("C1").value = "Frequency"
+	wSheet.Range("D1").value = FrequencyStr+"GHz"
+	wSheet.Range("E1").value = "Port"
+	wSheet.Range("F1").value = PortStr
+	wSheet.Range("A2").value = "Phi\Theta"
+
+	For n = 0 To Len(Columns)-1
+		wSheet.Range(Mid(Columns,n+1,1)+"2").value = n*15
+		wSheet.Range("A"+Cstr(n+3)) = n*30
+	Next
+
+	Dim i As Integer, j As Integer
+
+	For i  = 0 To 12
+		For j = 0 To 12
+			wSheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).value = Round(rhcpDirectivity(i,j),2)
+		Next
+	Next
+	'write lhcp directivity
+	wSheet.Range("A18").value = "Polarization"
+	wSheet.Range("B18").value = "LHCP"
+	wSheet.Range("C18").value = "Frequency"
+	wSheet.Range("D18").value = FrequencyStr+"GHz"
+	wSheet.Range("E18").value = "Port"
+	wSheet.Range("F18").value = PortStr
+	wSheet.Range("A19").value = "Phi\Theta"
+
+	For n = 0 To Len(Columns)-1
+		wSheet.Range(Mid(Columns,n+1,1)+"19").value = n*15
+		wSheet.Range("A"+Cstr(n+20)) = n*30
+	Next
+
+	For i  = 0 To 12
+		For j = 0 To 12
+			wSheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).value = Round(lhcpDirectivity(i,j),2)
+		Next
+	Next
+	'estimate axial ratio
+	'coloring
+	'scores?
+
+	wBook.Save
+	O.ActiveWorkbook.Close
+	O.quit
+
+End Sub
 
 
 
