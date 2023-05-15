@@ -200,7 +200,7 @@ Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateA
 		'FarfieldPlot.Plot
 		Dim DirName As String
 
-		DirName = "CP directivity\rotateAngle="+CStr(rotateAngle)+ "@"+FrequencyStr+"GHz"
+		DirName = "CP directivity\Rotation angle="+CStr(rotateAngle)+ "@"+FrequencyStr+"GHz"
 		Dim ChildItem As String
 			If Resulttree.DoesTreeItemExist("1D Results\"+DirName) Then
 				ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName)
@@ -296,28 +296,30 @@ Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double)
     For n = 0 To UBound(upperHemisphereRHCPdirectivity)
 
     	'linear to dB, Log(UHRHCPEffi)/Log(10)*10
-         rhcpDirectivity(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = upperHemisphereRHCPdirectivity(n)'10*CST_Log10(upperHemisphereRHCPdirectivity(n)) 'Log(upperHemisphereRHCPdirectivity(n)/AVGPower)/Log(10)*10
-         lhcpDirectivity(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = upperHemisphereLHCPdirectivity(n)'10*CST_Log10(upperHemisphereLHCPdirectivity(n))'Log(upperHemisphereLHCPdirectivity(n)/AVGPower)/Log(10)*10
+         rhcpDirectivity(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = upperHemisphereRHCPdirectivity(n)
+         '10*CST_Log10(upperHemisphereRHCPdirectivity(n)) 'Log(upperHemisphereRHCPdirectivity(n)/AVGPower)/Log(10)*10
+         lhcpDirectivity(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = upperHemisphereLHCPdirectivity(n)
+         '10*CST_Log10(upperHemisphereLHCPdirectivity(n))'Log(upperHemisphereLHCPdirectivity(n)/AVGPower)/Log(10)*10
     Next n
-
+	 '==============================write directivity data============================
 	projectPath = GetProjectPath("Project")
 	dataFile = projectPath+"\Circularly polarized directivity @"+FrequencyStr+"GHz and Port "+PortStr+".xlsx"
 	Columns = "BCDEFGHIJKLMN"
 
 	NoticeInformation = "The directivity data is under（"+projectPath+"\）"
     ReportInformationToWindow(NoticeInformation)
-	Dim IsFileExist As String
+
     Set O = CreateObject("Excel.Application")
-	IsFileExist = Dir(dataFile)
-	If IsFileExist = "" Then
-		Set wBook  = O.Workbooks.Add
-		With wBook
-			.Title = "Title"
-			.Subject = "Subject"
-			.SaveAs Filename:= dataFile
+	If Dir(dataFile) = "" Then
+	    Dim wBook As Object
+	    Set wBook = O.Workbooks.Add
+	    With wBook
+	        .Title = "Title"
+	        .Subject = "Subject"
+	        .SaveAs Filename:= dataFile
 		End With
 	Else
-		Set wBook = O.Workbooks.Open(dataFile)
+	    Set wBook = O.Workbooks.Open(dataFile)
 	End If
 
 
@@ -366,15 +368,188 @@ Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double)
 			wSheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).value = Round(lhcpDirectivity(i,j),2)
 		Next
 	Next
-	'estimate axial ratio
-	'coloring
-	'scores?
 
+	Dim sheet As Object
+	For Each sheet In wBook.Sheets
+	    If sheet.Name Like "Sheet*" Then
+	        sheet.Delete
+	    End If
+	Next
+	'process sheet data, axial ratio, coloring, scoring and so on
+	processDirectivityData(wBook, Columns)
 	wBook.Save
 	O.ActiveWorkbook.Close
 	O.quit
 
 End Sub
+
+Sub processDirectivityData(wBook As Object, Columns As String)
+
+	Dim sheetCount As Integer, i As Integer
+	Dim sheet As Object
+	Dim j As Integer
+
+	For Each sheet In wBook.Sheets
+	    If sheet.Name Like "Sheet*" Then
+	        sheet.Delete
+	    End If
+	    If sheet.Name Like "*0" Then
+	    	sheet.Range("A35").value = "Polarization"
+			sheet.Range("B35").value = "AR"
+			sheet.Range("C35").value = "Frequency"
+			sheet.Range("D35").value = sheet.Range("D1").Value
+			sheet.Range("E35").value = "Port"
+			sheet.Range("F35").value = sheet.Range("F1").Value
+			sheet.Range("A36").value = "Phi\Theta"
+			For i = 0 To Len(Columns)-1
+				sheet.Range(Mid(Columns,i+1,1)+"36").value = i*15
+				sheet.Range("A"+Cstr(i+37)) = i*30
+			Next
+
+	    	'hide lhcp directivity data
+	    	sheet.Rows("17:33").Hidden = True
+			Dim Dvalue As Double, deltaDirectivity As Double, axialRatio As Double
+			'coloring and resizing cells
+			sheet.Columns("A").ColumnWidth = 18
+
+			sheet.Rows("1").RowHeight = 25
+			sheet.Rows("35").RowHeight = 25
+			'sheet.Range("A1:Z100").HorizontalAlignment = xlCenter
+
+
+	    	For i  = 0 To 12
+				For j = 0 To 12
+
+					'=======================Axial ratio estimating and coloring============================
+					deltaDirectivity = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value - sheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).Value
+					axialRatio = Sgn(deltaDirectivity)*20*CST_Log10((10^(deltaDirectivity/20)+1)/(Abs(10^(deltaDirectivity/20)-1)+0.01))
+					sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).value = Round(axialRatio,2)
+					If axialRatio >= 0 And axialRatio < 3 Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(0, 130, 0)
+					ElseIf axialRatio < 6 And axialRatio >= 3 Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(0, 180, 0)
+					ElseIf axialRatio < 10 And axialRatio >= 6 Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(145, 218, 0)
+					ElseIf axialRatio < 18 And axialRatio >= 10 Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(216, 254, 154)
+					ElseIf axialRatio >= 18 Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 255, 0)
+					ElseIf axialRatio < -14 Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 200, 0)
+					ElseIf axialRatio < -6 And axialRatio >= -14 Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 0, 0)
+					ElseIf axialRatio < 0 And axialRatio >= -6  Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(150, 0, 0)
+					End If
+					'color = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color
+					'========================Coloring rhcp directvity data===================================
+					'reference total efficiency -8dB
+					Dvalue = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value
+					If Dvalue >= 2 Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(0, 130, 0)
+					ElseIf Dvalue < 2 And Dvalue >= 0 Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(0, 180, 0)
+					ElseIf Dvalue < 0 And Dvalue >= -2 Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(145, 218, 0)
+					ElseIf Dvalue < -2 And Dvalue >= -4 Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(216, 254, 154)
+					ElseIf Dvalue < -4 And Dvalue >= -6 Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 255, 0)
+					ElseIf Dvalue < -6 And Dvalue >= -8 Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 200, 0)
+					ElseIf Dvalue < -8 And Dvalue >= -10 Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 0, 0)
+					ElseIf Dvalue < -10  Then
+						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(150, 0, 0)
+					End If
+
+				Next
+			Next
+			'======================================UH/Tot===============================
+			'sheet.Range("A51") = "UHPower ratio"
+			'sheet.Range("B51") = Round(10*CST_Log10(getUpperHemisphereRatio(sheet, columns)),2)
+			'sheet.Range("C51") = "dB"
+			writeAverageDirectivity(sheet, Columns)
+
+	    End If
+	Next
+	wBook.Save
+	O.ActiveWorkbook.Close
+	O.quit
+
+End Sub
+Function getUpperHemisphereRatio(sheet As Object, Columns As String)
+	Dim totalPower As Double, upperPower As Double
+	Dim itheta As Integer, iphi As Integer
+	Dim theta As Integer
+
+	totalPower = 0
+	upperPower = 0
+
+	For itheta = 0 To 12
+		For iphi = 0 To 12
+			If sheet.Range(Mid(Columns,itheta+1,1) + CStr(2)).Value = 0  Then
+
+				totalPower = totalPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(1-cosD(15/2))*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(1-cosD(15/2))*pi/6
+				upperPower = upperPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(1-cosD(15/2))*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(1-cosD(15/2))*pi/6
+
+			ElseIf sheet.Range(Mid(Columns,itheta+1,1) + CStr(2)).Value = 90 Then
+
+				totalPower = totalPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(cosD(90-15/2)-cosD(90+15/2))*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(cosD(90-15/2)-cosD(90+15/2))*pi/6
+				upperPower = upperPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(cosD(90-15/2))*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(cosD(90-15/2))*pi/6
+
+			ElseIf sheet.Range(Mid(Columns,itheta+1,1) + CStr(2)).Value < 90 And sheet.Range(Mid(Columns,itheta+1,1) + CStr(2)).Value > 0 Then
+
+				theta = sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+2)).Value
+				totalPower = totalPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(cosD(theta-15/2)-cosD(theta+15/2))*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(cosD(theta-15/2)-cosD(theta+15/2))*pi/6
+				upperPower = upperPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(cosD(theta-15/2)-cosD(theta+15/2))*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(cosD(theta-15/2)-cosD(theta+15/2))*pi/6
+
+			ElseIf sheet.Range(Mid(Columns,itheta+1,1) + CStr(2)).Value > 90 And sheet.Range(Mid(Columns,itheta+1,1) + CStr(2)).Value < 180 Then
+
+				theta = sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+2)).Value
+				totalPower = totalPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(cosD(theta-15/2)-cosD(theta+15/2))*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(cosD(theta-15/2)-cosD(theta+15/2))*pi/6
+
+			ElseIf sheet.Range(Mid(Columns,itheta+1,1) + CStr(2)).Value = 180 Then
+
+				totalPower = totalPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(cosD(345/2)+1)*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(345/2+1)*pi/6
+
+			End If
+		Next
+	Next
+	getUpperHemisphereRatio = Round(upperPower/totalPower,2)
+End Function
+Sub writeAverageDirectivity(sheet As Object, Columns As String)
+
+	sheet.Columns("P").ColumnWidth = 15
+	sheet.Range("P2").Interior.Color = RGB(221, 235, 247)
+	sheet.Range("P3:P7").Interior.Color = RGB(0, 176, 240)
+	sheet.Range("Q2").Interior.Color = RGB(221, 235, 247)
+	sheet.Range("Q3:Q7").Interior.Color = RGB(255, 217, 102)
+	sheet.Columns("Q").ColumnWidth = 25
+	sheet.Range("P2:Q7").Font.Bold = True
+
+	sheet.Range("P2").Value = "Within theta"
+	sheet.Range("Q2").Value = "Weighted Average direcitivy"
+
+	sheet.Range("P3").Value = "30"
+	sheet.Range("P4").Value = "45"
+	sheet.Range("P5").Value = "60"
+	sheet.Range("P6").Value = "90"
+	sheet.Range("P7").Value = "120"
+
+	sheet.Range("Q3").Value = Round(10*CST_Log10(((10^(sheet.Range("B3").Value/10)+10^(sheet.Range("B4").Value/10)+10^(sheet.Range("B5").Value/10)+10^(sheet.Range("B6").Value/10)+10^(sheet.Range("B7").Value/10)+10^(sheet.Range("B8").Value/10)+10^(sheet.Range("B9").Value/10)+10^(sheet.Range("B10").Value/10)+10^(sheet.Range("B11").Value/10)+10^(sheet.Range("B12").Value/10)+10^(sheet.Range("B13").Value/10)+10^(sheet.Range("B14").Value/10))*(1-Cos(pi/24))*pi/6+(10^(sheet.Range("C3").Value/10)+10^(sheet.Range("C4").Value/10)+10^(sheet.Range("C5").Value/10)+10^(sheet.Range("C6").Value/10)+10^(sheet.Range("C7").Value/10)+10^(sheet.Range("C8").Value/10)+10^(sheet.Range("C9").Value/10)+10^(sheet.Range("C10").Value/10)+10^(sheet.Range("C11").Value/10)+10^(sheet.Range("C12").Value/10)+10^(sheet.Range("C13").Value/10)+10^(sheet.Range("C14").Value/10))*(Cos(pi/24)-Cos(pi/8))*pi/6+(10^(sheet.Range("D3").Value/10)+10^(sheet.Range("D4").Value/10)+10^(sheet.Range("D5").Value/10)+10^(sheet.Range("D6").Value/10)+10^(sheet.Range("D7").Value/10)+10^(sheet.Range("D8").Value/10)+10^(sheet.Range("D9").Value/10)+10^(sheet.Range("D10").Value/10)+10^(sheet.Range("D11").Value/10)+10^(sheet.Range("D12").Value/10)+10^(sheet.Range("D13").Value/10)+10^(sheet.Range("D14").Value/10))*(Cos(pi/8)-Cos(pi/6))*pi/6)/(2*pi*(1-Cos(pi/6)))),2)
+
+	sheet.Range("Q4").Value = Round(10*CST_Log10(((10^(sheet.Range("Q3").Value/10)*(2*pi*(1-Cos(pi/6)))+(10^(sheet.Range("D3").Value/10)+10^(sheet.Range("D4").Value/10)+10^(sheet.Range("D5").Value/10)+10^(sheet.Range("D6").Value/10)+10^(sheet.Range("D7").Value/10)+10^(sheet.Range("D8").Value/10)+10^(sheet.Range("D9").Value/10)+10^(sheet.Range("D10").Value/10)+10^(sheet.Range("D11").Value/10)+10^(sheet.Range("D12").Value/10)+10^(sheet.Range("D13").Value/10)+10^(sheet.Range("D14").Value/10))*(Cos(pi/6)-Cos(5*pi/24))*pi/6+(10^(sheet.Range("E3").Value/10)+10^(sheet.Range("E4").Value/10)+10^(sheet.Range("E5").Value/10)+10^(sheet.Range("E6").Value/10)+10^(sheet.Range("E7").Value/10)+10^(sheet.Range("E8").Value/10)+10^(sheet.Range("E9").Value/10)+10^(sheet.Range("E10").Value/10)+10^(sheet.Range("E11").Value/10)+10^(sheet.Range("E12").Value/10)+10^(sheet.Range("E13").Value/10)+10^(sheet.Range("E14").Value/10))*(Cos(5*pi/24)-Cos(pi/4))*pi/6)/(2*pi*(1-Cos(pi/4))))),2)
+
+	sheet.Range("Q5").Value = Round(10*CST_Log10(((10^(sheet.Range("Q4").Value/10)*(2*pi*(1-Cos(pi/4)))+(10^(sheet.Range("E3").Value/10)+10^(sheet.Range("E4").Value/10)+10^(sheet.Range("E5").Value/10)+10^(sheet.Range("E6").Value/10)+10^(sheet.Range("E7").Value/10)+10^(sheet.Range("E8").Value/10)+10^(sheet.Range("E9").Value/10)+10^(sheet.Range("E10").Value/10)+10^(sheet.Range("E11").Value/10)+10^(sheet.Range("E12").Value/10)+10^(sheet.Range("E13").Value/10)+10^(sheet.Range("E14").Value/10))*(Cos(pi/4)-Cos(7*pi/24))*pi/6+((10^(sheet.Range("F3").Value/10)+10^(sheet.Range("F4").Value/10)+10^(sheet.Range("F5").Value/10)+10^(sheet.Range("F6").Value/10)+10^(sheet.Range("F7").Value/10)+10^(sheet.Range("F8").Value/10)+10^(sheet.Range("F9").Value/10)+10^(sheet.Range("F10").Value/10)+10^(sheet.Range("F11").Value/10)+10^(sheet.Range("F12").Value/10)+10^(sheet.Range("F13").Value/10)+10^(sheet.Range("F14").Value/10))*(Cos(7*pi/24)-Cos(pi/3))*pi/6))/(2*pi*(1-Cos(pi/3))))),2)
+
+	sheet.Range("Q6").Value = Round(10*CST_Log10(((10^(sheet.Range("Q5").Value/10)*2*pi*(1-Cos(pi/3))+(10^(sheet.Range("F3").Value/10)+10^(sheet.Range("F4").Value/10)+10^(sheet.Range("F5").Value/10)+10^(sheet.Range("F6").Value/10)+10^(sheet.Range("F7").Value/10)+10^(sheet.Range("F8").Value/10)+10^(sheet.Range("F9").Value/10)+10^(sheet.Range("F10").Value/10)+10^(sheet.Range("F11").Value/10)+10^(sheet.Range("F12").Value/10)+10^(sheet.Range("F13").Value/10)+10^(sheet.Range("F14").Value/10))*(Cos(8*pi/24)-Cos(9*pi/24))*pi/6+(10^(sheet.Range("G3").Value/10)+10^(sheet.Range("G4").Value/10)+10^(sheet.Range("G5").Value/10)+10^(sheet.Range("G6").Value/10)+10^(sheet.Range("G7").Value/10)+10^(sheet.Range("G8").Value/10)+10^(sheet.Range("G9").Value/10)+10^(sheet.Range("G10").Value/10)+10^(sheet.Range("G11").Value/10)+10^(sheet.Range("G12").Value/10)+10^(sheet.Range("G13").Value/10)+10^(sheet.Range("G14").Value/10))*(Cos(9*pi/24)-Cos(11*pi/24))*pi/6+(10^(sheet.Range("H3").Value/10)+10^(sheet.Range("H4").Value/10)+10^(sheet.Range("H5").Value/10)+10^(sheet.Range("H6").Value/10)+10^(sheet.Range("H7").Value/10)+10^(sheet.Range("H8").Value/10)+10^(sheet.Range("H9").Value/10)+10^(sheet.Range("H10").Value/10)+10^(sheet.Range("H11").Value/10)+10^(sheet.Range("H12").Value/10)+10^(sheet.Range("H13").Value/10)+10^(sheet.Range("H14").Value/10))*(Cos(11*pi/24)-Cos(pi/2))*pi/6))/(2*pi*(1-Cos(pi/2)))),2)
+
+	sheet.Range("Q7").Value = Round(10*CST_Log10((10^(sheet.Range("Q6").Value/10)*2*pi*(1-Cos(pi/2))+(10^(sheet.Range("H3").Value/10)+10^(sheet.Range("H4").Value/10)+10^(sheet.Range("H5").Value/10)+10^(sheet.Range("H6").Value/10)+10^(sheet.Range("H7").Value/10)+10^(sheet.Range("H8").Value/10)+10^(sheet.Range("H9").Value/10)+10^(sheet.Range("H10").Value/10)+10^(sheet.Range("H11").Value/10)+10^(sheet.Range("H12").Value/10)+10^(sheet.Range("H13").Value/10)+10^(sheet.Range("H14").Value/10))*(Cos(pi/2)-Cos(13*pi/24))*pi/6+(10^(sheet.Range("I3").Value/10)+10^(sheet.Range("I4").Value/10)+10^(sheet.Range("I5").Value/10)+10^(sheet.Range("I6").Value/10)+10^(sheet.Range("I7").Value/10)+10^(sheet.Range("I8").Value/10)+10^(sheet.Range("I9").Value/10)+10^(sheet.Range("I10").Value/10)+10^(sheet.Range("I11").Value/10)+10^(sheet.Range("I12").Value/10)+10^(sheet.Range("I13").Value/10)+10^(sheet.Range("I14").Value/10))*(Cos(13*pi/24)-Cos(15*pi/24))*pi/6+(10^(sheet.Range("J3").Value/10)+10^(sheet.Range("J4").Value/10)+10^(sheet.Range("J5").Value/10)+10^(sheet.Range("J6").Value/10)+10^(sheet.Range("J7").Value/10)+10^(sheet.Range("J8").Value/10)+10^(sheet.Range("J9").Value/10)+10^(sheet.Range("J10").Value/10)+10^(sheet.Range("J11").Value/10)+10^(sheet.Range("J12").Value/10)+10^(sheet.Range("J13").Value/10)+10^(sheet.Range("J14").Value/10))*(Cos(15*pi/24)-Cos(16*pi/24))*pi/6)/(2*pi*(1-Cos(2*pi/3)))),2)
+
+
+End Sub
+
 
 
 
