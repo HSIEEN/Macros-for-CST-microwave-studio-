@@ -376,148 +376,96 @@ Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double)
 	    End If
 	Next
 	'process sheet data, axial ratio, coloring, scoring and so on
-	processDirectivityData(wBook, Columns)
+	processDirectivityData(wSheet, Columns)
 	wBook.Save
 	O.ActiveWorkbook.Close
 	O.quit
 
 End Sub
 
-Sub processDirectivityData(wBook As Object, Columns As String)
+Sub processDirectivityData(sheet As Object, Columns As String)
 
-	Dim sheetCount As Integer, i As Integer
-	Dim sheet As Object
+	Dim i As Integer
 	Dim j As Integer
 
-	For Each sheet In wBook.Sheets
-	    If sheet.Name Like "Sheet*" Then
-	        sheet.Delete
-	    End If
-	    If sheet.Name Like "*0" Then
-	    	sheet.Range("A35").value = "Polarization"
-			sheet.Range("B35").value = "AR"
-			sheet.Range("C35").value = "Frequency"
-			sheet.Range("D35").value = sheet.Range("D1").Value
-			sheet.Range("E35").value = "Port"
-			sheet.Range("F35").value = sheet.Range("F1").Value
-			sheet.Range("A36").value = "Phi\Theta"
-			For i = 0 To Len(Columns)-1
-				sheet.Range(Mid(Columns,i+1,1)+"36").value = i*15
-				sheet.Range("A"+Cstr(i+37)) = i*30
-			Next
-
-	    	'hide lhcp directivity data
-	    	sheet.Rows("17:33").Hidden = True
-			Dim Dvalue As Double, deltaDirectivity As Double, axialRatio As Double
-			'coloring and resizing cells
-			sheet.Columns("A").ColumnWidth = 18
-
-			sheet.Rows("1").RowHeight = 25
-			sheet.Rows("35").RowHeight = 25
-			'sheet.Range("A1:Z100").HorizontalAlignment = xlCenter
-
-
-	    	For i  = 0 To 12
-				For j = 0 To 12
-
-					'=======================Axial ratio estimating and coloring============================
-					deltaDirectivity = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value - sheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).Value
-					axialRatio = Sgn(deltaDirectivity)*20*CST_Log10((10^(deltaDirectivity/20)+1)/(Abs(10^(deltaDirectivity/20)-1)+0.01))
-					sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).value = Round(axialRatio,2)
-					If axialRatio >= 0 And axialRatio < 3 Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(0, 130, 0)
-					ElseIf axialRatio < 6 And axialRatio >= 3 Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(0, 180, 0)
-					ElseIf axialRatio < 10 And axialRatio >= 6 Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(145, 218, 0)
-					ElseIf axialRatio < 18 And axialRatio >= 10 Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(216, 254, 154)
-					ElseIf axialRatio >= 18 Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 255, 0)
-					ElseIf axialRatio < -14 Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 200, 0)
-					ElseIf axialRatio < -6 And axialRatio >= -14 Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 0, 0)
-					ElseIf axialRatio < 0 And axialRatio >= -6  Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(150, 0, 0)
-					End If
-					'color = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color
-					'========================Coloring rhcp directvity data===================================
-					'reference total efficiency -8dB
-					Dvalue = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value
-					If Dvalue >= 2 Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(0, 130, 0)
-					ElseIf Dvalue < 2 And Dvalue >= 0 Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(0, 180, 0)
-					ElseIf Dvalue < 0 And Dvalue >= -2 Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(145, 218, 0)
-					ElseIf Dvalue < -2 And Dvalue >= -4 Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(216, 254, 154)
-					ElseIf Dvalue < -4 And Dvalue >= -6 Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 255, 0)
-					ElseIf Dvalue < -6 And Dvalue >= -8 Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 200, 0)
-					ElseIf Dvalue < -8 And Dvalue >= -10 Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 0, 0)
-					ElseIf Dvalue < -10  Then
-						sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(150, 0, 0)
-					End If
-
-				Next
-			Next
-			'======================================UH/Tot===============================
-			'sheet.Range("A51") = "UHPower ratio"
-			'sheet.Range("B51") = Round(10*CST_Log10(getUpperHemisphereRatio(sheet, columns)),2)
-			'sheet.Range("C51") = "dB"
-			writeAverageDirectivity(sheet, Columns)
-
-	    End If
+	sheet.Range("A35").value = "Polarization"
+	sheet.Range("B35").value = "AR"
+	sheet.Range("C35").value = "Frequency"
+	sheet.Range("D35").value = sheet.Range("D1").Value
+	sheet.Range("E35").value = "Port"
+	sheet.Range("F35").value = sheet.Range("F1").Value
+	sheet.Range("A36").value = "Phi\Theta"
+	For i = 0 To Len(Columns)-1
+		sheet.Range(Mid(Columns,i+1,1)+"36").value = i*15
+		sheet.Range("A"+Cstr(i+37)) = i*30
 	Next
-	wBook.Save
-	O.ActiveWorkbook.Close
-	O.quit
 
-End Sub
-Function getUpperHemisphereRatio(sheet As Object, Columns As String)
-	Dim totalPower As Double, upperPower As Double
-	Dim itheta As Integer, iphi As Integer
-	Dim theta As Integer
+	'hide lhcp directivity data
+	sheet.Rows("17:33").Hidden = True
+	Dim Dvalue As Double, deltaDirectivity As Double, axialRatio As Double
+	'coloring and resizing cells
+	sheet.Columns("A").ColumnWidth = 18
 
-	totalPower = 0
-	upperPower = 0
+	sheet.Rows("1").RowHeight = 25
+	sheet.Rows("35").RowHeight = 25
+	'sheet.Range("A1:Z100").HorizontalAlignment = xlCenter
 
-	For itheta = 0 To 12
-		For iphi = 0 To 12
-			If sheet.Range(Mid(Columns,itheta+1,1) + CStr(2)).Value = 0  Then
 
-				totalPower = totalPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(1-cosD(15/2))*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(1-cosD(15/2))*pi/6
-				upperPower = upperPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(1-cosD(15/2))*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(1-cosD(15/2))*pi/6
+	For i  = 0 To 12
+		For j = 0 To 12
 
-			ElseIf sheet.Range(Mid(Columns,itheta+1,1) + CStr(2)).Value = 90 Then
-
-				totalPower = totalPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(cosD(90-15/2)-cosD(90+15/2))*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(cosD(90-15/2)-cosD(90+15/2))*pi/6
-				upperPower = upperPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(cosD(90-15/2))*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(cosD(90-15/2))*pi/6
-
-			ElseIf sheet.Range(Mid(Columns,itheta+1,1) + CStr(2)).Value < 90 And sheet.Range(Mid(Columns,itheta+1,1) + CStr(2)).Value > 0 Then
-
-				theta = sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+2)).Value
-				totalPower = totalPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(cosD(theta-15/2)-cosD(theta+15/2))*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(cosD(theta-15/2)-cosD(theta+15/2))*pi/6
-				upperPower = upperPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(cosD(theta-15/2)-cosD(theta+15/2))*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(cosD(theta-15/2)-cosD(theta+15/2))*pi/6
-
-			ElseIf sheet.Range(Mid(Columns,itheta+1,1) + CStr(2)).Value > 90 And sheet.Range(Mid(Columns,itheta+1,1) + CStr(2)).Value < 180 Then
-
-				theta = sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+2)).Value
-				totalPower = totalPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(cosD(theta-15/2)-cosD(theta+15/2))*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(cosD(theta-15/2)-cosD(theta+15/2))*pi/6
-
-			ElseIf sheet.Range(Mid(Columns,itheta+1,1) + CStr(2)).Value = 180 Then
-
-				totalPower = totalPower + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+3)).Value)*(cosD(345/2)+1)*pi/6 + 10^(sheet.Range(Mid(Columns,itheta+1,1) + CStr(iphi+20)).Value)*(345/2+1)*pi/6
-
+			'=======================Axial ratio estimating and coloring============================
+			deltaDirectivity = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value - sheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).Value
+			axialRatio = Sgn(deltaDirectivity)*20*CST_Log10((10^(deltaDirectivity/20)+1)/(Abs(10^(deltaDirectivity/20)-1)+0.01))
+			sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).value = Round(axialRatio,2)
+			If axialRatio >= 0 And axialRatio < 3 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(0, 130, 0)
+			ElseIf axialRatio < 6 And axialRatio >= 3 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(0, 180, 0)
+			ElseIf axialRatio < 10 And axialRatio >= 6 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(145, 218, 0)
+			ElseIf axialRatio < 18 And axialRatio >= 10 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(216, 254, 154)
+			ElseIf axialRatio >= 18 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 255, 0)
+			ElseIf axialRatio < -14 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 200, 0)
+			ElseIf axialRatio < -6 And axialRatio >= -14 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 0, 0)
+			ElseIf axialRatio < 0 And axialRatio >= -6  Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(150, 0, 0)
 			End If
+			'color = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color
+			'========================Coloring rhcp directvity data===================================
+			'reference total efficiency -8dB
+			Dvalue = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value
+			If Dvalue >= 2 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(0, 130, 0)
+			ElseIf Dvalue < 2 And Dvalue >= 0 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(0, 180, 0)
+			ElseIf Dvalue < 0 And Dvalue >= -2 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(145, 218, 0)
+			ElseIf Dvalue < -2 And Dvalue >= -4 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(216, 254, 154)
+			ElseIf Dvalue < -4 And Dvalue >= -6 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 255, 0)
+			ElseIf Dvalue < -6 And Dvalue >= -8 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 200, 0)
+			ElseIf Dvalue < -8 And Dvalue >= -10 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 0, 0)
+			ElseIf Dvalue < -10  Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(150, 0, 0)
+			End If
+
 		Next
 	Next
-	getUpperHemisphereRatio = Round(upperPower/totalPower,2)
-End Function
+	'======================================UH/Tot===============================
+	'sheet.Range("A51") = "UHPower ratio"
+	'sheet.Range("B51") = Round(10*CST_Log10(getUpperHemisphereRatio(sheet, columns)),2)
+	'sheet.Range("C51") = "dB"
+	writeAverageDirectivity(sheet, Columns)
+
+End Sub
 Sub writeAverageDirectivity(sheet As Object, Columns As String)
 
 	sheet.Columns("P").ColumnWidth = 15
