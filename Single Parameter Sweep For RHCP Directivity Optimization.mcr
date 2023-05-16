@@ -115,7 +115,7 @@ Sub Main ()
 	cutAngle = Evaluate(dlg.Angle)
 
 	projectPath = GetProjectPath("Project")
-   	dataFile = projectPath + "\sweeplog.txt"
+   	dataFile = projectPath + "\sweeplog_"+Replace(CStr(Time),":","_")+".txt"
    	Open dataFile For Output As #2
    	Print #2, "##########Sweep of " + parameter + " begins at " + CStr(Now) +"'###########."
    	Print #2, " "
@@ -303,7 +303,7 @@ Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double)
     Next n
 	 '==============================write directivity data============================
 	projectPath = GetProjectPath("Project")
-	dataFile = projectPath+"\Circularly polarized directivity @"+FrequencyStr+"GHz and Port "+PortStr+".xlsx"
+	dataFile = projectPath+"\Circularly polarized directivity_frquency="+FrequencyStr+"GHz_Port="+PortStr+"_"+Replace(CStr(Time),":","_")+".xlsx"
 	Columns = "BCDEFGHIJKLMN"
 
 	NoticeInformation = "The directivity data is under（"+projectPath+"\）"
@@ -325,8 +325,8 @@ Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double)
 
 	'Add a sheet and rename it
 
-	wBook.Sheets.Add.Name = CStr(rotateAngle)
-	Set wSheet = wBook.Sheets(CStr(rotateAngle))
+	wBook.Sheets.Add.Name = "rotate angle="+CStr(rotateAngle)
+	Set wSheet = wBook.Sheets("rotate angle="+CStr(rotateAngle))
 
 	'write rhcp directivity
 	wSheet.Range("A1").value = "Polarization"
