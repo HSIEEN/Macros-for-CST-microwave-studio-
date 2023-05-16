@@ -1,6 +1,8 @@
 'sweep single parameter to meet the target
 '2023-01-10 By Shawn
 '#include "vba_globals_all.lib"
+Public startTime
+
 Sub Main ()
 	Dim parameterArray(1000) As String
 	Dim ii As Integer
@@ -111,11 +113,13 @@ Sub Main ()
 	Dim dataFile As String
 	Dim groupValue As Integer, cutAngle As Double
 	Dim fieldComponent As String
+
 	groupValue = dlg.Group1
 	cutAngle = Evaluate(dlg.Angle)
 
 	projectPath = GetProjectPath("Project")
-   	dataFile = projectPath + "\sweeplog_"+Replace(CStr(Time),":","_")+".txt"
+	startTime = Replace(CStr(Time),":","_")
+   	dataFile = projectPath + "\Sweep log_"+Replace(CStr(Time),":","_")+".txt"
    	Open dataFile For Output As #2
    	Print #2, "##########Sweep of " + parameter + " begins at " + CStr(Now) +"'###########."
    	Print #2, " "
@@ -128,12 +132,12 @@ Sub Main ()
 		runWithParameter(parameter,rotateAngle)
 		Print #2, "% Step "+CStr(n+1)+" simulation is done."
 		If f1 <> 0 Then
-			directivity = Copy1DFarfieldResult(groupValue, cutAngle, rotateAngle, f1)
+			directivity = Copy1DFarfieldResult(groupValue, cutAngle, rotateAngle, f1, startTime)
 			Print #2, "%-%-% RHCP Directivity at frequency "+ CStr(f1)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
 		End If
 
 		If f2 <> 0 Then
-			directivity = Copy1DFarfieldResult(groupValue, cutAngle, rotateAngle, f2)
+			directivity = Copy1DFarfieldResult(groupValue, cutAngle, rotateAngle, f2, startTime)
 			Print #2, "%-%-% RHCP Directivity at frequency "+ CStr(f2)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
 		End If
 		Print #2, "%-%-% Finish time: " + CStr(Now) +"."
@@ -157,7 +161,7 @@ Sub runWithParameter(para As String, value As Double)
 	Solver.Start
 End Sub
 
-Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateAngle As Double, freq As Double)
+Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateAngle As Double, freq As Double, startTime As String)
 	'parameters: groupValue denotes the cutting plane,0->theta, 1->phi; cutAngle denotes the angle in the plane specified by groupvalue; theta0 and phi0
 	'denote the angle where the directivity is estimated; rotateAngle is the rotate angle of the ham; freq is the operation frequency we take care
 		Dim SelectedItem As String, PortStr As String, FrequencyStr As String
@@ -225,7 +229,7 @@ Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateA
 		FarfieldPlot.Plot
 		FarfieldPlot.CopyFarfieldTo1DResults(DirName,"farfield (f="+FrequencyStr+")["+PortStr+"]_Left")
 
-		saveCircularDirectivity(rotateAngle, freq)
+		saveCircularDirectivity(rotateAngle, freq, startTime)
         'CurrentItem = FirstChildItem
         Copy1DFarfieldResult = getDirectivity()
         SelectTreeItem("1D Results\"+DirName)
@@ -241,7 +245,7 @@ Function getDirectivity()
 	directivity = FarfieldPlot.CalculatePoint(0, 0, farfieldComponent, "")
 	getDirectivity = directivity
 End Function
-Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double)
+Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double, startTime As String)
 
     Dim SelectedItem As String
 
@@ -303,7 +307,7 @@ Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double)
     Next n
 	 '==============================write directivity data============================
 	projectPath = GetProjectPath("Project")
-	dataFile = projectPath+"\Circularly polarized directivity_frquency="+FrequencyStr+"GHz_Port="+PortStr+"_"+Replace(CStr(Time),":","_")+".xlsx"
+	dataFile = projectPath+"\Circularly polarized directivity_frequency="+FrequencyStr+"GHz_Port="+PortStr+"_"+startTime+".xlsx"
 	Columns = "BCDEFGHIJKLMN"
 
 	NoticeInformation = "The directivity data is under（"+projectPath+"\）"
@@ -325,8 +329,8 @@ Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double)
 
 	'Add a sheet and rename it
 
-	wBook.Sheets.Add.Name = "Rotation angle="+CStr(rotateAngle)
-	Set wSheet = wBook.Sheets("Rotation angle="+CStr(rotateAngle))
+	wBook.Sheets.Add.Name = "Rotation angle="+CStr(rotateAngle)+"@ f="+ CStr(frequency) +"GHz"
+	Set wSheet = wBook.Sheets("Rotation angle="+CStr(rotateAngle)+"@ f="+ CStr(frequency) +"GHz")
 
 	'write rhcp directivity
 	wSheet.Range("A1").value = "Polarization"
@@ -485,57 +489,100 @@ Sub writeAverageDirectivity(sheet As Object, Columns As String)
 	sheet.Range("P6").Value = "90"
 	sheet.Range("P7").Value = "120"
 
-	sheet.Range("Q3").Value = Round(10*CST_Log10(((10^(sheet.Range("B3").Value/10)+10^(sheet.Range("B4").Value/10)+ _
-	10^(sheet.Range("B5").Value/10)+10^(sheet.Range("B6").Value/10)+10^(sheet.Range("B7").Value/10)+ _
-	10^(sheet.Range("B8").Value/10)+10^(sheet.Range("B9").Value/10)+10^(sheet.Range("B10").Value/10)+10^(sheet.Range("B11").Value/10)+ _
-	10^(sheet.Range("B12").Value/10)+10^(sheet.Range("B13").Value/10)+10^(sheet.Range("B14").Value/10))*(1-Cos(pi/24))*pi/6+(10^(sheet.Range("C3").Value/10)+ _
-	10^(sheet.Range("C4").Value/10)+10^(sheet.Range("C5").Value/10)+10^(sheet.Range("C6").Value/10)+10^(sheet.Range("C7").Value/10)+10^(sheet.Range("C8").Value/10)+ _
-	10^(sheet.Range("C9").Value/10)+10^(sheet.Range("C10").Value/10)+10^(sheet.Range("C11").Value/10)+10^(sheet.Range("C12").Value/10)+10^(sheet.Range("C13").Value/10)+ _
-	10^(sheet.Range("C14").Value/10))*(Cos(pi/24)-Cos(pi/8))*pi/6+(10^(sheet.Range("D3").Value/10)+10^(sheet.Range("D4").Value/10)+10^(sheet.Range("D5").Value/10)+ _
-	10^(sheet.Range("D6").Value/10)+10^(sheet.Range("D7").Value/10)+10^(sheet.Range("D8").Value/10)+10^(sheet.Range("D9").Value/10)+10^(sheet.Range("D10").Value/10)+ _
-	10^(sheet.Range("D11").Value/10)+10^(sheet.Range("D12").Value/10)+10^(sheet.Range("D13").Value/10)+ _
+	sheet.Range("Q3").Value = Round(10*CST_Log10(((10^(sheet.Range("B3").Value/10)+ _
+	10^(sheet.Range("B4").Value/10)+10^(sheet.Range("B5").Value/10)+ _
+	10^(sheet.Range("B6").Value/10)+10^(sheet.Range("B7").Value/10)+ _
+	10^(sheet.Range("B8").Value/10)+10^(sheet.Range("B9").Value/10)+ _
+	10^(sheet.Range("B10").Value/10)+10^(sheet.Range("B11").Value/10)+ _
+	10^(sheet.Range("B12").Value/10)+10^(sheet.Range("B13").Value/10)+ _
+	10^(sheet.Range("B14").Value/10))*(1-Cos(pi/24))*pi/6+(10^(sheet.Range("C3").Value/10)+ _
+	10^(sheet.Range("C4").Value/10)+10^(sheet.Range("C5").Value/10)+ _
+	10^(sheet.Range("C6").Value/10)+10^(sheet.Range("C7").Value/10)+ _
+	10^(sheet.Range("C8").Value/10)+10^(sheet.Range("C9").Value/10)+ _
+	10^(sheet.Range("C10").Value/10)+10^(sheet.Range("C11").Value/10)+ _
+	10^(sheet.Range("C12").Value/10)+10^(sheet.Range("C13").Value/10)+ _
+	10^(sheet.Range("C14").Value/10))*(Cos(pi/24)-Cos(pi/8))*pi/6+ _
+	(10^(sheet.Range("D3").Value/10)+10^(sheet.Range("D4").Value/10)+ _
+	10^(sheet.Range("D5").Value/10)+10^(sheet.Range("D6").Value/10)+ _
+	10^(sheet.Range("D7").Value/10)+10^(sheet.Range("D8").Value/10)+ _
+	10^(sheet.Range("D9").Value/10)+10^(sheet.Range("D10").Value/10)+ _
+	10^(sheet.Range("D11").Value/10)+10^(sheet.Range("D12").Value/10)+ _
+	10^(sheet.Range("D13").Value/10)+ _
 	10^(sheet.Range("D14").Value/10))*(Cos(pi/8)-Cos(pi/6))*pi/6)/(2*pi*(1-Cos(pi/6)))),2)
 
 	sheet.Range("Q4").Value = Round(10*CST_Log10(((10^(sheet.Range("Q3").Value/10)*(2*pi*(1-Cos(pi/6)))+ _
-	(10^(sheet.Range("D3").Value/10)+10^(sheet.Range("D4").Value/10)+10^(sheet.Range("D5").Value/10)+ _
-	10^(sheet.Range("D6").Value/10)+10^(sheet.Range("D7").Value/10)+10^(sheet.Range("D8").Value/10)+10^(sheet.Range("D9").Value/10)+ _
-	10^(sheet.Range("D10").Value/10)+10^(sheet.Range("D11").Value/10)+10^(sheet.Range("D12").Value/10)+10^(sheet.Range("D13").Value/10)+ _
-	10^(sheet.Range("D14").Value/10))*(Cos(pi/6)-Cos(5*pi/24))*pi/6+(10^(sheet.Range("E3").Value/10)+10^(sheet.Range("E4").Value/10)+ _
-	10^(sheet.Range("E5").Value/10)+10^(sheet.Range("E6").Value/10)+10^(sheet.Range("E7").Value/10)+10^(sheet.Range("E8").Value/10)+ _
-	10^(sheet.Range("E9").Value/10)+10^(sheet.Range("E10").Value/10)+10^(sheet.Range("E11").Value/10)+10^(sheet.Range("E12").Value/10)+ _
-	10^(sheet.Range("E13").Value/10)+10^(sheet.Range("E14").Value/10))*(Cos(5*pi/24)-Cos(pi/4))*pi/6)/(2*pi*(1-Cos(pi/4))))),2)
+	(10^(sheet.Range("D3").Value/10)+10^(sheet.Range("D4").Value/10)+ _
+	10^(sheet.Range("D5").Value/10)+10^(sheet.Range("D6").Value/10)+ _
+	10^(sheet.Range("D7").Value/10)+10^(sheet.Range("D8").Value/10)+ _
+	10^(sheet.Range("D9").Value/10)+10^(sheet.Range("D10").Value/10)+ _
+	10^(sheet.Range("D11").Value/10)+10^(sheet.Range("D12").Value/10)+ _
+	10^(sheet.Range("D13").Value/10)+ _
+	10^(sheet.Range("D14").Value/10))*(Cos(pi/6)-Cos(5*pi/24))*pi/6+ _
+	(10^(sheet.Range("E3").Value/10)+10^(sheet.Range("E4").Value/10)+ _
+	10^(sheet.Range("E5").Value/10)+10^(sheet.Range("E6").Value/10)+ _
+	10^(sheet.Range("E7").Value/10)+10^(sheet.Range("E8").Value/10)+ _
+	10^(sheet.Range("E9").Value/10)+10^(sheet.Range("E10").Value/10)+ _
+	10^(sheet.Range("E11").Value/10)+10^(sheet.Range("E12").Value/10)+ _
+	10^(sheet.Range("E13").Value/10)+ _
+	10^(sheet.Range("E14").Value/10))*(Cos(5*pi/24)-Cos(pi/4))*pi/6)/(2*pi*(1-Cos(pi/4))))),2)
 
-	sheet.Range("Q5").Value = Round(10*CST_Log10(((10^(sheet.Range("Q4").Value/10)*(2*pi*(1-Cos(pi/4)))+(10^(sheet.Range("E3").Value/10)+ _
-	10^(sheet.Range("E4").Value/10)+10^(sheet.Range("E5").Value/10)+10^(sheet.Range("E6").Value/10)+10^(sheet.Range("E7").Value/10)+ _
-	10^(sheet.Range("E8").Value/10)+10^(sheet.Range("E9").Value/10)+10^(sheet.Range("E10").Value/10)+10^(sheet.Range("E11").Value/10)+ _
-	10^(sheet.Range("E12").Value/10)+10^(sheet.Range("E13").Value/10)+10^(sheet.Range("E14").Value/10))*(Cos(pi/4)-Cos(7*pi/24))*pi/6+ _
-	((10^(sheet.Range("F3").Value/10)+10^(sheet.Range("F4").Value/10)+10^(sheet.Range("F5").Value/10)+10^(sheet.Range("F6").Value/10)+ _
-	10^(sheet.Range("F7").Value/10)+10^(sheet.Range("F8").Value/10)+10^(sheet.Range("F9").Value/10)+10^(sheet.Range("F10").Value/10)+ _
-	10^(sheet.Range("F11").Value/10)+10^(sheet.Range("F12").Value/10)+10^(sheet.Range("F13").Value/10)+ _
+	sheet.Range("Q5").Value = Round(10*CST_Log10(((10^(sheet.Range("Q4").Value/10)*(2*pi*(1-Cos(pi/4)))+ _
+	(10^(sheet.Range("E3").Value/10)+10^(sheet.Range("E4").Value/10)+ _
+	10^(sheet.Range("E5").Value/10)+10^(sheet.Range("E6").Value/10)+ _
+	10^(sheet.Range("E7").Value/10)+10^(sheet.Range("E8").Value/10)+ _
+	10^(sheet.Range("E9").Value/10)+10^(sheet.Range("E10").Value/10)+ _
+	10^(sheet.Range("E11").Value/10)+10^(sheet.Range("E12").Value/10)+ _
+	10^(sheet.Range("E13").Value/10)+ _
+	10^(sheet.Range("E14").Value/10))*(Cos(pi/4)-Cos(7*pi/24))*pi/6+ _
+	((10^(sheet.Range("F3").Value/10)+10^(sheet.Range("F4").Value/10)+ _
+	10^(sheet.Range("F5").Value/10)+10^(sheet.Range("F6").Value/10)+ _
+	10^(sheet.Range("F7").Value/10)+10^(sheet.Range("F8").Value/10)+ _
+	10^(sheet.Range("F9").Value/10)+10^(sheet.Range("F10").Value/10)+ _
+	10^(sheet.Range("F11").Value/10)+10^(sheet.Range("F12").Value/10)+ _
+	10^(sheet.Range("F13").Value/10)+ _
 	10^(sheet.Range("F14").Value/10))*(Cos(7*pi/24)-Cos(pi/3))*pi/6))/(2*pi*(1-Cos(pi/3))))),2)
 
-	sheet.Range("Q6").Value = Round(10*CST_Log10(((10^(sheet.Range("Q5").Value/10)*2*pi*(1-Cos(pi/3))+(10^(sheet.Range("F3").Value/10)+ _
-	10^(sheet.Range("F4").Value/10)+10^(sheet.Range("F5").Value/10)+10^(sheet.Range("F6").Value/10)+10^(sheet.Range("F7").Value/10)+ _
-	10^(sheet.Range("F8").Value/10)+10^(sheet.Range("F9").Value/10)+10^(sheet.Range("F10").Value/10)+10^(sheet.Range("F11").Value/10)+ _
-	10^(sheet.Range("F12").Value/10)+10^(sheet.Range("F13").Value/10)+10^(sheet.Range("F14").Value/10))*(Cos(8*pi/24)-Cos(9*pi/24))*pi/6+ _
-	(10^(sheet.Range("G3").Value/10)+10^(sheet.Range("G4").Value/10)+10^(sheet.Range("G5").Value/10)+10^(sheet.Range("G6").Value/10)+ _
-	10^(sheet.Range("G7").Value/10)+10^(sheet.Range("G8").Value/10)+10^(sheet.Range("G9").Value/10)+10^(sheet.Range("G10").Value/10)+ _
-	10^(sheet.Range("G11").Value/10)+10^(sheet.Range("G12").Value/10)+10^(sheet.Range("G13").Value/10)+ _
-	10^(sheet.Range("G14").Value/10))*(Cos(9*pi/24)-Cos(11*pi/24))*pi/6+(10^(sheet.Range("H3").Value/10)+10^(sheet.Range("H4").Value/10)+ _
-	10^(sheet.Range("H5").Value/10)+10^(sheet.Range("H6").Value/10)+10^(sheet.Range("H7").Value/10)+10^(sheet.Range("H8").Value/10)+ _
-	10^(sheet.Range("H9").Value/10)+10^(sheet.Range("H10").Value/10)+10^(sheet.Range("H11").Value/10)+10^(sheet.Range("H12").Value/10)+ _
-	10^(sheet.Range("H13").Value/10)+10^(sheet.Range("H14").Value/10))*(Cos(11*pi/24)-Cos(pi/2))*pi/6))/(2*pi*(1-Cos(pi/2)))),2)
+	sheet.Range("Q6").Value = Round(10*CST_Log10(((10^(sheet.Range("Q5").Value/10)*2*pi*(1-Cos(pi/3))+ _
+	(10^(sheet.Range("F3").Value/10)+10^(sheet.Range("F4").Value/10)+ _
+	10^(sheet.Range("F5").Value/10)+10^(sheet.Range("F6").Value/10)+ _
+	10^(sheet.Range("F7").Value/10)+10^(sheet.Range("F8").Value/10)+ _
+	10^(sheet.Range("F9").Value/10)+10^(sheet.Range("F10").Value/10)+ _
+	10^(sheet.Range("F11").Value/10)+10^(sheet.Range("F12").Value/10)+ _
+	10^(sheet.Range("F13").Value/10)+10^(sheet.Range("F14").Value/10))*(Cos(8*pi/24)-Cos(9*pi/24))*pi/6+ _
+	(10^(sheet.Range("G3").Value/10)+10^(sheet.Range("G4").Value/10)+ _
+	10^(sheet.Range("G5").Value/10)+10^(sheet.Range("G6").Value/10)+ _
+	10^(sheet.Range("G7").Value/10)+10^(sheet.Range("G8").Value/10)+ _
+	10^(sheet.Range("G9").Value/10)+10^(sheet.Range("G10").Value/10)+ _
+	10^(sheet.Range("G11").Value/10)+10^(sheet.Range("G12").Value/10)+ _
+	10^(sheet.Range("G13").Value/10)+ _
+	10^(sheet.Range("G14").Value/10))*(Cos(9*pi/24)-Cos(11*pi/24))*pi/6+ _
+	(10^(sheet.Range("H3").Value/10)+10^(sheet.Range("H4").Value/10)+ _
+	10^(sheet.Range("H5").Value/10)+10^(sheet.Range("H6").Value/10)+ _
+	10^(sheet.Range("H7").Value/10)+10^(sheet.Range("H8").Value/10)+ _
+	10^(sheet.Range("H9").Value/10)+10^(sheet.Range("H10").Value/10)+ _
+	10^(sheet.Range("H11").Value/10)+10^(sheet.Range("H12").Value/10)+ _
+	10^(sheet.Range("H13").Value/10)+ _
+	10^(sheet.Range("H14").Value/10))*(Cos(11*pi/24)-Cos(pi/2))*pi/6))/(2*pi*(1-Cos(pi/2)))),2)
 
-	sheet.Range("Q7").Value = Round(10*CST_Log10((10^(sheet.Range("Q6").Value/10)*2*pi*(1-Cos(pi/2))+(10^(sheet.Range("H3").Value/10)+ _
-	10^(sheet.Range("H4").Value/10)+10^(sheet.Range("H5").Value/10)+10^(sheet.Range("H6").Value/10)+10^(sheet.Range("H7").Value/10)+ _
-	10^(sheet.Range("H8").Value/10)+10^(sheet.Range("H9").Value/10)+10^(sheet.Range("H10").Value/10)+10^(sheet.Range("H11").Value/10)+ _
-	10^(sheet.Range("H12").Value/10)+10^(sheet.Range("H13").Value/10)+10^(sheet.Range("H14").Value/10))*(Cos(pi/2)-Cos(13*pi/24))*pi/6+ _
-	(10^(sheet.Range("I3").Value/10)+10^(sheet.Range("I4").Value/10)+10^(sheet.Range("I5").Value/10)+10^(sheet.Range("I6").Value/10)+ _
-	10^(sheet.Range("I7").Value/10)+10^(sheet.Range("I8").Value/10)+10^(sheet.Range("I9").Value/10)+10^(sheet.Range("I10").Value/10)+ _
-	10^(sheet.Range("I11").Value/10)+10^(sheet.Range("I12").Value/10)+10^(sheet.Range("I13").Value/10)+ _
+	sheet.Range("Q7").Value = Round(10*CST_Log10((10^(sheet.Range("Q6").Value/10)*2*pi*(1-Cos(pi/2))+ _
+	(10^(sheet.Range("H3").Value/10)+10^(sheet.Range("H4").Value/10)+ _
+	10^(sheet.Range("H5").Value/10)+10^(sheet.Range("H6").Value/10)+ _
+	10^(sheet.Range("H7").Value/10)+10^(sheet.Range("H8").Value/10)+ _
+	10^(sheet.Range("H9").Value/10)+10^(sheet.Range("H10").Value/10)+ _
+	10^(sheet.Range("H11").Value/10)+10^(sheet.Range("H12").Value/10)+ _
+	10^(sheet.Range("H13").Value/10)+ _
+	10^(sheet.Range("H14").Value/10))*(Cos(pi/2)-Cos(13*pi/24))*pi/6+ _
+	(10^(sheet.Range("I3").Value/10)+10^(sheet.Range("I4").Value/10)+ _
+	10^(sheet.Range("I5").Value/10)+10^(sheet.Range("I6").Value/10)+ _
+	10^(sheet.Range("I7").Value/10)+10^(sheet.Range("I8").Value/10)+ _
+	10^(sheet.Range("I9").Value/10)+10^(sheet.Range("I10").Value/10)+ _
+	10^(sheet.Range("I11").Value/10)+10^(sheet.Range("I12").Value/10)+ _
+	10^(sheet.Range("I13").Value/10)+ _
 	10^(sheet.Range("I14").Value/10))*(Cos(13*pi/24)-Cos(15*pi/24))*pi/6+(10^(sheet.Range("J3").Value/10)+ _
-	10^(sheet.Range("J4").Value/10)+10^(sheet.Range("J5").Value/10)+10^(sheet.Range("J6").Value/10)+10^(sheet.Range("J7").Value/10)+ _
-	10^(sheet.Range("J8").Value/10)+10^(sheet.Range("J9").Value/10)+10^(sheet.Range("J10").Value/10)+10^(sheet.Range("J11").Value/10)+ _
+	10^(sheet.Range("J4").Value/10)+10^(sheet.Range("J5").Value/10)+ _
+	10^(sheet.Range("J6").Value/10)+10^(sheet.Range("J7").Value/10)+ _
+	10^(sheet.Range("J8").Value/10)+10^(sheet.Range("J9").Value/10)+ _
+	10^(sheet.Range("J10").Value/10)+10^(sheet.Range("J11").Value/10)+ _
 	10^(sheet.Range("J12").Value/10)+10^(sheet.Range("J13").Value/10)+ _
 	10^(sheet.Range("J14").Value/10))*(Cos(15*pi/24)-Cos(16*pi/24))*pi/6)/(2*pi*(1-Cos(2*pi/3)))),2)
 
