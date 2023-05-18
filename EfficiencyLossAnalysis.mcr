@@ -282,22 +282,28 @@ Sub Main ()
 	Dim SelectedItem As String
 	Dim CurveLabel As String
 	Dim index As Integer
+
 	SelectedItem = Resulttree.GetFirstChildName(PowerPath+"\Radiation efficiency loss due to dielectric loss")
 	While SelectedItem <> ""
 		SelectTreeItem(SelectedItem)
         CurveLabel = Right(SelectedItem,Len(SelectedItem)-InStrRev(SelectedItem,"\"))
 
-	    index =Plot1D.GetCurveIndexOfCurveLabel(CurveLabel)
+	      With Plot1D
 
-	     Plot1D.SetLineStyle(index,"Solid",2) ' thick dashed line
+		      index =.GetCurveIndexOfCurveLabel(CurveLabel)
 
-	     '.SetLineColor(index,255,255,0)  ' yellow
+		     .SetLineStyle(index,"Solid",2) ' thick dashed line
 
-	     Plot1D.Plot ' make changes visible
+		     '.SetLineColor(index,255,255,0)  ' yellow
+
+		     .Plot ' make changes visible
+
+		End With
 
 
 		SelectedItem = Resulttree.GetNextItemName(SelectedItem)
 	Wend
+
 	SelectedItem = Resulttree.GetFirstChildName(PowerPath+"\Radiation efficiency loss due to metal loss")
 	While SelectedItem <> ""
 		SelectTreeItem(SelectedItem)
