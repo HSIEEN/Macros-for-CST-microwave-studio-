@@ -1,7 +1,7 @@
 'sweep single parameter to meet the target
 '2023-01-10 By Shawn
 '#include "vba_globals_all.lib"
-Public startTime
+Public startTime, parameter
 
 Sub Main ()
 	Dim parameterArray(1000) As String
@@ -61,11 +61,15 @@ Sub Main ()
 	End If
 
 
-	Dim parameter As String
+	'Dim parameter As String
 	Dim xMin As Double, xMax As Double, theta0 As Double, phi0 As Double, directivity As Double
 	Dim xSim As Double
 	Dim stepWidth As Double
 
+	If dlg.parameterIndex = -1 Then
+		MsgBox("No parameter is selected!!",vbCritical,"Error")
+		Exit All
+	End If
 	parameter = parameterArray(dlg.parameterIndex)
 	If DoesParameterExist(parameter) = False Then
 		MsgBox("The input paramter does not exist!!",vbCritical,"Error")
@@ -132,12 +136,12 @@ Sub Main ()
 		runWithParameter(parameter,rotateAngle)
 		Print #2, "%-%-%  Step "+CStr(n+1)+" simulation is done."
 		If f1 <> 0 Then
-			directivity = Copy1DFarfieldResult(groupValue, cutAngle, rotateAngle, f1, startTime)
+			directivity = Copy1DFarfieldResult(groupValue, cutAngle, rotateAngle, f1)
 			Print #2, "%-%-% RHCP Directivity at frequency "+ CStr(f1)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
 		End If
 
 		If f2 <> 0 Then
-			directivity = Copy1DFarfieldResult(groupValue, cutAngle, rotateAngle, f2, startTime)
+			directivity = Copy1DFarfieldResult(groupValue, cutAngle, rotateAngle, f2)
 			Print #2, "%-%-% RHCP Directivity at frequency "+ CStr(f2)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
 		End If
 		Print #2, "%-%-% Finish time: " + CStr(Now) +"."
@@ -161,7 +165,7 @@ Sub runWithParameter(para As String, value As Double)
 	Solver.Start
 End Sub
 
-Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateAngle As Double, freq As Double, startTime As String)
+Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateAngle As Double, freq As Double)
 	'parameters: groupValue denotes the cutting plane,0->theta, 1->phi; cutAngle denotes the angle in the plane specified by groupvalue; theta0 and phi0
 	'denote the angle where the directivity is estimated; rotateAngle is the rotate angle of the ham; freq is the operation frequency we take care
 		Dim selectedItem As String, portStr As String, frequencyStr As String
@@ -204,7 +208,7 @@ Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateA
 		'FarfieldPlot.Plot
 		Dim DirName As String
 
-		DirName = "CP directivity\Rotation angle="+CStr(rotateAngle)+ "@"+frequencyStr+"GHz"
+		DirName = "CP directivity\"+parameter+"="+CStr(rotateAngle)+ "@"+frequencyStr+"GHz"
 		Dim ChildItem As String
 			If Resulttree.DoesTreeItemExist("1D Results\"+DirName) Then
 				ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName)
@@ -229,7 +233,7 @@ Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateA
 		FarfieldPlot.Plot
 		FarfieldPlot.CopyFarfieldTo1DResults(DirName,"farfield (f="+frequencyStr+")["+portStr+"]_Left")
 
-		saveCircularDirectivity(rotateAngle, freq, startTime)
+		saveCircularDirectivity(rotateAngle, freq)
         'CurrentItem = FirstChildItem
         Copy1DFarfieldResult = getDirectivity()
         SelectTreeItem("1D Results\"+DirName)
@@ -242,18 +246,13 @@ Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateA
 		While selectedItem <> ""
 			'SelectTreeItem(selectedItem)
 			curveLabel = Right(selectedItem,Len(selectedItem)-InStrRev(selectedItem,"\"))
+
 		   With Plot1D
-
-			      index =.GetCurveIndexOfCurveLabel(curveLabel)
-
-			     .SetLineStyle(index,"Solid",3) ' thick dashed line
-
-			     .SetFont("Tahoma","bold","16")
-
-			     '.SetLineColor(index,255,255,0)  ' yellow
-
-			     .Plot ' make changes visible
-
+		      index =.GetCurveIndexOfCurveLabel(curveLabel)
+		     .SetLineStyle(index,"Solid",3) ' thick dashed line
+		     .SetFont("Tahoma","bold","16")
+		     '.SetLineColor(index,255,255,0)  ' yellow
+		     .Plot ' make changes visible
 			End With
 
 			selectedItem = Resulttree.GetNextItemName(selectedItem)
@@ -271,15 +270,12 @@ Function getDirectivity()
 	directivity = FarfieldPlot.CalculatePoint(0, 0, farfieldComponent, "")
 	getDirectivity = directivity
 End Function
-Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double, startTime As String)
+Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double)
 
     Dim selectedItem As String
-
     Dim n As Integer
-
     Dim frequencyStr As String
     Dim portStr As String
-
 
 	portStr = "1"
 	frequencyStr = CStr(frequency)
@@ -355,8 +351,8 @@ Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double, startTime
 
 	'Add a sheet and rename it
 
-	wBook.Sheets.Add.Name = "Rotation angle="+CStr(rotateAngle)
-	Set wSheet = wBook.Sheets("Rotation angle="+CStr(rotateAngle))
+	wBook.Sheets.Add.Name = parameter+"="+CStr(rotateAngle)
+	Set wSheet = wBook.Sheets(parameter+"="+CStr(rotateAngle))
 
 	'write rhcp directivity
 	wSheet.Range("A1").value = "Polarization"
@@ -495,10 +491,10 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 	'sheet.Range("A51") = "UHPower ratio"
 	'sheet.Range("B51") = Round(10*CST_Log10(getUpperHemisphereRatio(sheet, columns)),2)
 	'sheet.Range("C51") = "dB"
-	writeAverageDirectivity(sheet, Columns)
+	writeAverageDirectivityAndRating(sheet, Columns)
 
 End Sub
-Sub writeAverageDirectivity(sheet As Object, Columns As String)
+Sub writeAverageDirectivityAndRating(sheet As Object, Columns As String)
 	'Formating cells
 
 	sheet.Columns("P").ColumnWidth = 15
@@ -620,7 +616,15 @@ Sub writeAverageDirectivity(sheet As Object, Columns As String)
 	10^(sheet.Range("J13").Value/10)+10^(sheet.Range("J14").Value/10))*(Cos(15*pi/24)- _
 	Cos(16*pi/24))*pi/6)/(2*pi*(1-Cos(2*pi/3)))),2)
 
-	sheet.Range("Q8").Formula = "=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=-9)*(B3:E15>-100))+1.25*SUMPRODUCT((B3:E15<=-8)*(B3:E15>-9))+SUMPRODUCT((B3:E15<=-7)*(B3:E15>-8))+0.75*SUMPRODUCT((B3:E15<=-6)*(B3:E15>-7))+0.5*SUMPRODUCT((B3:E15<=-5)*(B3:E15>-6))+0.25*SUMPRODUCT((B3:E15<=-4)*(B3:E15>-5)))+1.5*SUMPRODUCT((F3:H15<=-9)*(F3:H15>-100))+1.25*SUMPRODUCT((F3:H15<=-8)*(F3:H15>-9))+SUMPRODUCT((F3:H15<=-7)*(F3:H15>-8))+0.75*SUMPRODUCT((F3:H15<=-6)*(F3:H15>-7))+0.5*SUMPRODUCT((F3:H15<=-5)*(F3:H15>-6))+0.25*SUMPRODUCT((F3:H15<=-4)*(F3:H15>-5))+0.5*(1.5*SUMPRODUCT((I3:J15<=-9)*(I3:J15>-100))+1.25*SUMPRODUCT((I3:J15<=-8)*(I3:J15>-9))+SUMPRODUCT((I3:J15<=-7)*(I3:J15>-8))+0.75*SUMPRODUCT((I3:J15<=-6)*(I3:J15>-7))+0.5*SUMPRODUCT((I3:J15<=-5)*(I3:J15>-6))+0.25*SUMPRODUCT((I3:J15<=-4)*(I3:J15>-5)))))/117*100,2)"
+	sheet.Range("Q8").Formula = _
+	"=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=-9)*(B3:E15>-100))+1.25*SUMPRODUCT((B3:E15<=-8)*(B3:E15>-9))"+ _
+	"+SUMPRODUCT((B3:E15<=-7)*(B3:E15>-8))+0.75*SUMPRODUCT((B3:E15<=-6)*(B3:E15>-7))+0.5*SUMPRODUCT((B3:E15<=-5)"+ _
+	"*(B3:E15>-6))+0.25*SUMPRODUCT((B3:E15<=-4)*(B3:E15>-5)))+1.5*SUMPRODUCT((F3:H15<=-9)*(F3:H15>-100))+"+ _
+	"1.25*SUMPRODUCT((F3:H15<=-8)*(F3:H15>-9))+SUMPRODUCT((F3:H15<=-7)*(F3:H15>-8))+0.75*SUMPRODUCT((F3:H15<=-6)"+ _
+	"*(F3:H15>-7))+0.5*SUMPRODUCT((F3:H15<=-5)*(F3:H15>-6))+0.25*SUMPRODUCT((F3:H15<=-4)*(F3:H15>-5))+0.5*"+ _
+	"(1.5*SUMPRODUCT((I3:J15<=-9)*(I3:J15>-100))+1.25*SUMPRODUCT((I3:J15<=-8)*(I3:J15>-9))+SUMPRODUCT((I3:J15<=-7)*"+ _
+	"(I3:J15>-8))+0.75*SUMPRODUCT((I3:J15<=-6)*(I3:J15>-7))+0.5*SUMPRODUCT((I3:J15<=-5)*(I3:J15>-6))"+ _
+	"+0.25*SUMPRODUCT((I3:J15<=-4)*(I3:J15>-5)))))/117*100,2)"
 End Sub
 
 
