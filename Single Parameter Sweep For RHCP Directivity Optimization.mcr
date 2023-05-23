@@ -38,13 +38,13 @@ Sub Main ()
 	End Dialog
 	Dim dlg As UserDialog
 	dlg.xMin = "0"
-	dlg.xMax = "0"
+	dlg.xMax = "360"
 	'dlg.Mono = "0"
 	dlg.f1 = "0"
 	dlg.f2 = "0"
 
-	dlg.Group1 = 0
-	dlg.Angle = "90"
+	dlg.Group1 = 1
+	dlg.Angle = "0"
 	'dlg.f3 = "0"
 	'dlg.Q1 = "0"
 	'dlg.Q2 = "0"
@@ -55,7 +55,7 @@ Sub Main ()
 	'dlg.theta2 = "0"
 	'dlg.phi1 = "0"
 	'dlg.phi2 = "0"
-	dlg.stepSize = "0"
+	dlg.stepSize = "10"
 	If Dialog(dlg,-2) = 0 Then
 		Exit All
 	End If
@@ -130,7 +130,7 @@ Sub Main ()
 		Print #2, "%-%-% Start time: " + CStr(Now) +"."
 		'run with specified value of xSim
 		runWithParameter(parameter,rotateAngle)
-		Print #2, "% Step "+CStr(n+1)+" simulation is done."
+		Print #2, "%-%-%  Step "+CStr(n+1)+" simulation is done."
 		If f1 <> 0 Then
 			directivity = Copy1DFarfieldResult(groupValue, cutAngle, rotateAngle, f1, startTime)
 			Print #2, "%-%-% RHCP Directivity at frequency "+ CStr(f1)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
@@ -174,7 +174,7 @@ Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateA
 		FarfieldPlot.Reset
 
 		'FarfieldPlot.Plot
-		FarfieldPlot.SelectComponent("Abs")
+		'FarfieldPlot.SelectComponent("Abs")
 		FarfieldPlot.PlotType("polar")
 		If groupValue = 0 Then
 
@@ -333,7 +333,7 @@ Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double, startTime
     Next n
 	 '==============================write directivity data============================
 	projectPath = GetProjectPath("Project")
-	dataFile = projectPath+"\Circularly polarized directivity_frequency="+frequencyStr+"GHz_Port="+portStr+"_"+startTime+".xlsx"
+	dataFile = projectPath+"\Circularly polarized directivity_frequency="+frequencyStr+"GHz Port="+portStr+"_"+startTime+".xlsx"
 	Columns = "BCDEFGHIJKLMN"
 
 	NoticeInformation = "The directivity data is under（"+projectPath+"\）"
@@ -436,6 +436,8 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 	'coloring and resizing cells
 	sheet.Columns("A").ColumnWidth = 18
 
+	sheet.Columns("C").ColumnWidth = 10
+
 	sheet.Rows("1").RowHeight = 25
 	sheet.Rows("35").RowHeight = 25
 	'sheet.Range("A1:Z100").HorizontalAlignment = xlCenter
@@ -497,6 +499,7 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 
 End Sub
 Sub writeAverageDirectivity(sheet As Object, Columns As String)
+	'Formating cells
 
 	sheet.Columns("P").ColumnWidth = 15
 	sheet.Range("P2").Interior.Color = RGB(221, 235, 247)
@@ -504,13 +507,14 @@ Sub writeAverageDirectivity(sheet As Object, Columns As String)
 	sheet.Range("P8").Interior.Color = RGB(221, 235, 247)
 	sheet.Range("Q2").Interior.Color = RGB(221, 235, 247)
 	sheet.Range("Q3:Q7").Interior.Color = RGB(255, 217, 102)
-	sheet.Range("Q8").Interior.Color = RGB(0, 176, 240)
+	sheet.Range("Q8").Interior.Color = RGB(255, 217, 102)
 	sheet.Columns("Q").ColumnWidth = 30
 	sheet.Range("A1:Q100").Font.Bold = True
+	sheet.Range("Q3:Q8").Font.Color = RGB(255, 0, 0)
 
 	sheet.Range("P2").Value = "Within theta"
 	sheet.Range("Q2").Value = "Weighted Average direcitivy"
-	sheet.Range("P8").Value = "Directivity Rating"
+	sheet.Range("P8").Value = "RHCPD rating"
 
 	sheet.Range("P3").Value = "30"
 	sheet.Range("P4").Value = "45"
@@ -616,11 +620,9 @@ Sub writeAverageDirectivity(sheet As Object, Columns As String)
 	10^(sheet.Range("J13").Value/10)+10^(sheet.Range("J14").Value/10))*(Cos(15*pi/24)- _
 	Cos(16*pi/24))*pi/6)/(2*pi*(1-Cos(2*pi/3)))),2)
 
-	sheet.Range("Q8").Formula = "=ROUND((117-0.5*(1.4*(1.5*SUMPRODUCT((B3:E15<=-11)*(B3:E15>-100))+1.25*SUMPRODUCT((B3:E15<=-10)*(B3:E15>-11))+SUMPRODUCT((B3:E15<=-9)*(B3:E15>-10))+0.75*SUMPRODUCT((B3:E15<=-8)*(B3:E15>-9))+0.5*SUMPRODUCT((B3:E15<=-7)*(B3:E15>-8))+0.25*SUMPRODUCT((B3:E15<=-6)*(B3:E15>-7)))+1.5*SUMPRODUCT((F3:H15<=-11)*(F3:H15>-100))+1.25*SUMPRODUCT((F3:H15<=-10)*(F3:H15>-11))+SUMPRODUCT((F3:H15<=-9)*(F3:H15>-10))+0.75*SUMPRODUCT((F3:H15<=-8)*(F3:H15>-9))+0.5*SUMPRODUCT((F3:H15<=-7)*(F3:H15>-8))+0.25*SUMPRODUCT((F3:H15<=-6)*(F3:H15>-7))+0.6*(1.5*SUMPRODUCT((I3:J15<=-11)*(I3:J15>-100))+1.25*SUMPRODUCT((I3:J15<=-10)*(I3:J15>-11))+SUMPRODUCT((I3:J15<=-9)*(I3:J15>-10))+0.75*SUMPRODUCT((I3:J15<=-8)*(I3:J15>-9))+0.5*SUMPRODUCT((I3:J15<=-7)*(I3:J15>-8))+0.25*SUMPRODUCT((I3:J15<=-6)*(I3:J15>-7)))))/117*100,2)"
+	sheet.Range("Q8").Formula = "=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=-9)*(B3:E15>-100))+1.25*SUMPRODUCT((B3:E15<=-8)*(B3:E15>-9))+SUMPRODUCT((B3:E15<=-7)*(B3:E15>-8))+0.75*SUMPRODUCT((B3:E15<=-6)*(B3:E15>-7))+0.5*SUMPRODUCT((B3:E15<=-5)*(B3:E15>-6))+0.25*SUMPRODUCT((B3:E15<=-4)*(B3:E15>-5)))+1.5*SUMPRODUCT((F3:H15<=-9)*(F3:H15>-100))+1.25*SUMPRODUCT((F3:H15<=-8)*(F3:H15>-9))+SUMPRODUCT((F3:H15<=-7)*(F3:H15>-8))+0.75*SUMPRODUCT((F3:H15<=-6)*(F3:H15>-7))+0.5*SUMPRODUCT((F3:H15<=-5)*(F3:H15>-6))+0.25*SUMPRODUCT((F3:H15<=-4)*(F3:H15>-5))+0.5*(1.5*SUMPRODUCT((I3:J15<=-9)*(I3:J15>-100))+1.25*SUMPRODUCT((I3:J15<=-8)*(I3:J15>-9))+SUMPRODUCT((I3:J15<=-7)*(I3:J15>-8))+0.75*SUMPRODUCT((I3:J15<=-6)*(I3:J15>-7))+0.5*SUMPRODUCT((I3:J15<=-5)*(I3:J15>-6))+0.25*SUMPRODUCT((I3:J15<=-4)*(I3:J15>-5)))))/117*100,2)"
 End Sub
-Function countCellsInRange(sheet As Object, min As Double, max As Double)
 
-End Function
 
 
 
