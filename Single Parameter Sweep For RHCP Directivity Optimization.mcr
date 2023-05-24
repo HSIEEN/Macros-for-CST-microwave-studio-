@@ -44,7 +44,7 @@ Sub Main ()
 	dlg.f2 = "0"
 
 	dlg.Group1 = 1
-	dlg.Angle = "0"
+	dlg.Angle = "270"
 	'dlg.f3 = "0"
 	'dlg.Q1 = "0"
 	'dlg.Q2 = "0"
@@ -396,6 +396,7 @@ Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double)
 	Next
 
 	Dim sheet As Object
+
 	For Each sheet In wBook.Sheets
 	    If sheet.Name Like "Sheet*" Then
 	        sheet.Delete
@@ -436,8 +437,8 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 
 	sheet.Rows("1").RowHeight = 25
 	sheet.Rows("35").RowHeight = 25
-	sheet.Range("A1:Z100").HorizontalAlignment =  -4108
-	sheet.Range("P2:Q8").Borders.LineStyle = 1
+	sheet.Range("A1:Z100").HorizontalAlignment =  -4108 	'Center
+	sheet.Range("P2:Q8").Borders.LineStyle = 1			 'Continous
 
 
 	For i  = 0 To 12
