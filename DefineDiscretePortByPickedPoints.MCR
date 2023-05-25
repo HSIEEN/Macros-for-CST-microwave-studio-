@@ -6,8 +6,6 @@ Option Explicit
 '#include "vba_globals_all.lib"
 
 Sub Main
- Dim cst_type_of_port As String, cst_coordinate_xyz As String, cst_footpoint As Double
- Dim cst_impedance As Double , cst_voltagecurrent As Double , cst_checkbox1 As Integer
 
  Dim port_nr_offset As Integer
  Dim n_of_ppoints As Integer
@@ -15,8 +13,7 @@ Sub Main
  Dim Array_x () As Double
  Dim Array_y () As Double
  Dim Array_z () As Double
- Dim type_array(3) As String
- Dim list_array_x(3) As String, projectname As String
+
  
  n_of_ppoints = Pick.GetNumberOfPickedPoints
 
