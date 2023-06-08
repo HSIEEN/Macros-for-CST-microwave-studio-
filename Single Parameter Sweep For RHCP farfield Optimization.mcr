@@ -1,7 +1,9 @@
 'sweep single parameter to meet the target
 '2023-01-10 By Shawn
 '#include "vba_globals_all.lib"
-Public startTime, parameter, portStr
+Option Explicit
+Public startTime As String, parameter As String, portStr As String
+Public cutPlaneValue As Integer, farfieldComponentValue As Integer, cutAngle As Double
 
 Sub Main ()
 	Dim parameterArray(1000) As String
@@ -18,32 +20,37 @@ Sub Main ()
 		portArray(ii) = Port.GetNextPortNumber
 	Next
 
-	Begin Dialog UserDialog 810,434,"Single parameter sweep for RHCP directivity comparison" ' %GRID:10,7,1,1
-		GroupBox 600,7,210,56,"Select a parameter:",.GroupBox1
-		GroupBox 600,63,210,63,"Parameter sweep settings:",.GroupBox2
-		OKButton 610,371,90,21
-		CancelButton 710,371,90,21
-		Text 620,84,40,14,"From",.Text1
-		Text 720,84,20,14,"to",.Text2
-		Text 630,105,100,14,"with step size:",.Text3
-		TextBox 670,84,40,14,.xMin
-		TextBox 750,84,40,14,.xMax
-		TextBox 740,105,50,14,.stepSize
-		GroupBox 600,175,210,84,"Frequency settings:",.GroupBox3
-		Text 630,203,80,14,"Frequency1:",.Text5
-		Text 630,231,80,14,"Frequency2:",.Text7
-		TextBox 720,203,40,14,.f1
-		TextBox 720,231,40,14,.f2
-		GroupBox 600,259,210,84,"Cut angle settings in 1D plot:",.GroupBox4
+	Begin Dialog UserDialog 860,427,"Single parameter sweep for farfield optimization" ' %GRID:10,7,1,1
+		GroupBox 640,7,210,56,"Select a parameter:",.GroupBox1
+		GroupBox 640,63,210,63,"Parameter sweep settings:",.GroupBox2
+		OKButton 640,406,90,21
+		CancelButton 750,406,90,21
+		Text 650,84,40,14,"From",.Text1
+		Text 750,84,20,14,"to",.Text2
+		Text 660,105,100,14,"with step size:",.Text3
+		TextBox 700,84,40,14,.xMin
+		TextBox 780,84,40,14,.xMax
+		TextBox 770,105,50,14,.stepSize
+		GroupBox 640,175,210,84,"Frequency settings:",.GroupBox3
+		Text 670,203,80,14,"Frequency1:",.Text5
+		Text 670,231,80,14,"Frequency2:",.Text7
+		TextBox 770,203,40,14,.f1
+		TextBox 770,231,40,14,.f2
+		GroupBox 640,336,210,63,"Cut angle settings in 1D plot:",.GroupBox4
 		OptionGroup .Group1
-			OptionButton 640,287,40,14,"θ",.OptionButton1
-			OptionButton 720,287,40,14,"φ",.OptionButton2
-		Text 620,322,90,14,"with angle of",.Text6
-		TextBox 730,322,40,14,.Angle
-		DropListBox 620,28,180,21,parameterArray(),.parameterIndex
-		Picture 0,7,600,399,GetInstallPath + "\Library\Macros\Coros\Simulation\Single parameter sweep instructions For RHCP optimization.bmp",0,.Picture1
-		GroupBox 600,126,210,49,"Select a port:",.GroupBox5
-		DropListBox 670,147,80,21,portArray(),.portIndex
+			OptionButton 700,357,40,14,"θ",.OptionButton1
+			OptionButton 770,357,40,14,"φ",.OptionButton2
+		Text 680,378,90,14,"with angle of",.Text6
+		TextBox 780,378,40,14,.Angle
+		DropListBox 660,28,170,21,parameterArray(),.parameterIndex
+		Picture 0,7,630,420,GetInstallPath + "\Library\Macros\Coros\Simulation\Single parameter sweep instructions For RHCP optimization.bmp",0,.Picture1
+		GroupBox 640,126,210,49,"Select a port:",.GroupBox5
+		DropListBox 700,147,80,21,portArray(),.portIndex
+		GroupBox 640,259,210,70,"Select a farfield component:",.GroupBox6
+		OptionGroup .Group2
+			OptionButton 650,280,100,14,"Directivity",.OptionButton3
+			OptionButton 770,280,70,14,"Gain",.OptionButton4
+			OptionButton 650,301,120,14,"Realized Gain",.OptionButton5
 	End Dialog
 
 	Dim dlg As UserDialog
@@ -55,6 +62,7 @@ Sub Main ()
 	dlg.Group1 = 1
 	dlg.Angle = "270"
 	dlg.stepSize = "10"
+	dlg.Group2 = 0
 
 	If Dialog(dlg,-2) = 0 Then
 		Exit All
@@ -64,6 +72,7 @@ Sub Main ()
 	Dim xMin As Double, xMax As Double, theta0 As Double, phi0 As Double, directivity As Double
 	Dim xSim As Double
 	Dim stepWidth As Double
+	Dim f1 As Double, f2 As Double, stepSize As Double
 
 	If dlg.parameterIndex = -1 Then
 		MsgBox("No parameter is selected!!",vbCritical,"Error")
@@ -117,20 +126,43 @@ Sub Main ()
 
 	Dim projectPath As String
 	Dim dataFile As String
-	Dim groupValue As Integer, cutAngle As Double
-	Dim fieldComponent As String
+	'Dim cutPlaneValue As Integer, cutAngle As Double
+	'Dim fieldComponentValue As Integer
+	'Dim farfieldComponentValue As String
 
-	groupValue = dlg.Group1
+	cutPlaneValue = dlg.Group1
 	cutAngle = Evaluate(dlg.Angle)
+
+	'farfieldComponentValue = 0 for directivity, 1 for gain, 2 for realized gain
+	farfieldComponentValue = dlg.Group2
 
 	projectPath = GetProjectPath("Project")
 	startTime = Replace(CStr(Time),":","_")
-   	dataFile = projectPath + "\Sweep log_"+Replace(CStr(Time),":","_")+".txt"
+
+	Select Case farfieldComponentValue
+   	Case 0
+		dataFile = projectPath + "\Directivity sweep log_"+Replace(CStr(Time),":","_")+".txt"
+	Case 1
+		dataFile = projectPath + "\Gain sweep log_"+Replace(CStr(Time),":","_")+".txt"
+	Case 2
+		dataFile = projectPath + "\Realized gain sweep log_"+Replace(CStr(Time),":","_")+".txt"
+   	End Select
+
+
    	Open dataFile For Output As #2
    	Print #2, "##########Sweep of " + parameter + " begins at " + CStr(Now) +"'###########."
    	Print #2, " "
 
-	FarfieldPlot.SetPlotMode("directivity")
+
+   	Select Case farfieldComponentValue
+   	Case 0
+		FarfieldPlot.SetPlotMode("directivity")
+	Case 1
+		FarfieldPlot.SetPlotMode("gain")
+	Case 2
+		FarfieldPlot.SetPlotMode("realized gain")
+   	End Select
+
 
     While rotateAngle <= xMax And rotateAngle < xMin+360
 		Print #2, "%-%-% On step "+CStr(n+1)+": "+parameter+"="+Cstr(rotateAngle)+"."
@@ -139,13 +171,27 @@ Sub Main ()
 		runWithParameter(parameter,rotateAngle)
 		Print #2, "%-%-%  Step "+CStr(n+1)+" simulation is done."
 		If f1 <> 0 Then
-			directivity = Copy1DFarfieldResult(groupValue, cutAngle, rotateAngle, f1)
-			Print #2, "%-%-% RHCP Directivity at frequency "+ CStr(f1)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
+			directivity = Copy1DFarfieldResult(rotateAngle, f1)
+		   	Select Case farfieldComponentValue
+		   	Case 0
+				Print #2, "%-%-% RHCP Directivity at frequency "+ CStr(f1)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
+			Case 1
+				Print #2, "%-%-% RHCP gain at frequency "+ CStr(f1)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
+			Case 2
+				Print #2, "%-%-% RHCP Realized gain at frequency "+ CStr(f1)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
+		   	End Select
 		End If
 
 		If f2 <> 0 Then
-			directivity = Copy1DFarfieldResult(groupValue, cutAngle, rotateAngle, f2)
-			Print #2, "%-%-% RHCP Directivity at frequency "+ CStr(f2)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
+			directivity = Copy1DFarfieldResult(rotateAngle, f2)
+		   	Select Case farfieldComponentValue
+		   	Case 0
+				Print #2, "%-%-% RHCP Directivity at frequency "+ CStr(f2)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
+			Case 1
+				Print #2, "%-%-% RHCP gain at frequency "+ CStr(f2)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
+			Case 2
+				Print #2, "%-%-% RHCP Realized gain at frequency "+ CStr(f2)+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
+		   	End Select
 		End If
 		Print #2, "%-%-% Finish time: " + CStr(Now) +"."
 		Print #2, " "
@@ -158,7 +204,8 @@ Sub Main ()
 
 	Print #2, "##########Sweep of " + parameter + " ends at " + CStr(Now) +"'###########."
 	Close #2
-	MsgBox("Maximum rotation angle reached, the sweep progress finished.",vbInformation, "Attention")
+
+	MsgBox("Maximum value reached, the sweep progress finished.",vbInformation, "Attention")
 
 End Sub
 Sub runWithParameter(para As String, value As Double)
@@ -171,8 +218,8 @@ Sub runWithParameter(para As String, value As Double)
 
 End Sub
 
-Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateAngle As Double, freq As Double)
-	'parameters: groupValue denotes the cutting plane,0->theta, 1->phi; cutAngle denotes the angle in the plane specified by groupvalue; theta0 and phi0
+Function Copy1DFarfieldResult(rotateAngle As Double, freq As Double)
+	'parameters: cutPlaneValue denotes the cutting plane,0->theta, 1->phi; cutAngle denotes the angle in the plane specified by cutPlaneValue; theta0 and phi0
 	'denote the angle where the directivity is estimated; rotateAngle is the rotate angle of the ham; freq is the operation frequency we take care
 		Dim selectedItem As String, frequencyStr As String
 
@@ -184,7 +231,7 @@ Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateA
 		FarfieldPlot.Reset
 		FarfieldPlot.PlotType("polar")
 
-		If groupValue = 0 Then
+		If cutPlaneValue = 0 Then
 
 			FarfieldPlot.Vary("angle2")
 			FarfieldPlot.Theta(cutAngle)
@@ -198,7 +245,14 @@ Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateA
 
 		FarfieldPlot.SetAxesType("currentwcs")
 		FarfieldPlot.SetAntennaType("unknown")
-		FarfieldPlot.SetPlotMode("Directivity")
+		Select Case farfieldComponentValue
+	   	Case 0
+			FarfieldPlot.SetPlotMode("directivity")
+		Case 1
+			FarfieldPlot.SetPlotMode("gain")
+		Case 2
+			FarfieldPlot.SetPlotMode("realized gain")
+	   	End Select
 		FarfieldPlot.SetCoordinateSystemType("ludwig3")
 		FarfieldPlot.SetAutomaticCoordinateSystem("True")
 		FarfieldPlot.SetPolarizationType("Circular")
@@ -208,7 +262,15 @@ Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateA
 		'FarfieldPlot.Plot
 		Dim DirName As String
 
-		DirName = "CP directivity@port="+portStr+"\"+parameter+"="+CStr(rotateAngle)+ "@"+frequencyStr+"GHz"
+		Select Case farfieldComponentValue
+	   	Case 0
+			DirName = "CP directivity@port="+portStr+"\"+parameter+"="+CStr(rotateAngle)+ "@"+frequencyStr+"GHz"
+		Case 1
+			DirName = "CP gain@port="+portStr+"\"+parameter+"="+CStr(rotateAngle)+ "@"+frequencyStr+"GHz"
+		Case 2
+			DirName = "CP realized gain@port="+portStr+"\"+parameter+"="+CStr(rotateAngle)+ "@"+frequencyStr+"GHz"
+	   	End Select
+
 		Dim ChildItem As String
 		If Resulttree.DoesTreeItemExist("1D Results\"+DirName) Then
 			ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName)
@@ -234,9 +296,9 @@ Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateA
 		FarfieldPlot.Plot
 		FarfieldPlot.CopyFarfieldTo1DResults(DirName,"farfield (f="+frequencyStr+")["+portStr+"]_Left")
 
-		saveCircularDirectivity(rotateAngle, freq)
+		savefarfieldComponent(rotateAngle, freq)
         'CurrentItem = FirstChildItem
-        Copy1DFarfieldResult = getDirectivity()
+        Copy1DFarfieldResult = getfarfieldComponent()
         SelectTreeItem("1D Results\"+DirName)
 
 		Dim curveLabel As String
@@ -262,17 +324,17 @@ Function Copy1DFarfieldResult(groupValue As Integer, cutAngle As Double, rotateA
         'Plot1D.SetFont("Tahoma","bold","16")
 End Function
 
-Function getDirectivity()
+Function getfarfieldComponent()
 
 	Dim farfieldComponent As String
 	Dim directivity As Double
 
 	farfieldComponent = "ludwig3 circular right abs"
 	directivity = FarfieldPlot.CalculatePoint(0, 0, farfieldComponent, "")
-	getDirectivity = directivity
+	getfarfieldComponent = directivity
 
 End Function
-Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double)
+Sub savefarfieldComponent(rotateAngle As Double,frequency As Double)
 
     Dim selectedItem As String
     Dim n As Integer
@@ -328,10 +390,31 @@ Sub saveCircularDirectivity(rotateAngle As Double,frequency As Double)
     Next n
 	 '==============================write directivity data============================
 	projectPath = GetProjectPath("Project")
-	dataFile = projectPath+"\Circularly polarized directivity_frequency="+frequencyStr+"GHz Port="+portStr+"_"+startTime+".xlsx"
+
+	Select Case farfieldComponentValue
+   	Case 0
+		dataFile = projectPath+"\Circularly polarized directivity_frequency="+frequencyStr+"GHz Port="+portStr+"_"+startTime+".xlsx"
+	Case 1
+		dataFile = projectPath+"\Circularly polarized gain_frequency="+frequencyStr+"GHz Port="+portStr+"_"+startTime+".xlsx"
+	Case 2
+		dataFile = projectPath+"\Circularly polarized realized gain_frequency="+frequencyStr+"GHz Port="+portStr+"_"+startTime+".xlsx"
+   	End Select
+
 	Columns = "BCDEFGHIJKLMN"
 
-	NoticeInformation = "The directivity data is under（"+projectPath+"\）"
+	Dim NoticeInformation As String
+	Dim O As Object
+
+	Select Case farfieldComponentValue
+   	Case 0
+		NoticeInformation = "The directivity data is under（"+projectPath+"\）"
+	Case 1
+		NoticeInformation = "The gain data is under（"+projectPath+"\）"
+	Case 2
+		NoticeInformation = "The realized gain data is under（"+projectPath+"\）"
+   	End Select
+
+
     ReportInformationToWindow(NoticeInformation)
 
     Set O = CreateObject("Excel.Application")
@@ -469,23 +552,35 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 			End If
 			'color = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color
 			'========================Coloring rhcp directvity data===================================
-			'reference total efficiency -8dB
+
 			Dvalue = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value
-			If Dvalue >= 2 Then
+
+			Select Case farfieldComponentValue
+		   	Case 0	'reference total efficiency -8dB when the directivity is selected as the farfield component
+				Dvalue = Dvalue-8
+			Case 1
+				Dvalue = Dvalue
+			Case 2
+				Dvalue = Dvalue
+		   	End Select
+
+
+
+			If Dvalue >= -6 Then
 				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(0, 130, 0)
-			ElseIf Dvalue < 2 And Dvalue >= 0 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(0, 180, 0)
-			ElseIf Dvalue < 0 And Dvalue >= -2 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(145, 218, 0)
-			ElseIf Dvalue < -2 And Dvalue >= -4 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(216, 254, 154)
-			ElseIf Dvalue < -4 And Dvalue >= -6 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 255, 0)
 			ElseIf Dvalue < -6 And Dvalue >= -8 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(0, 180, 0)
+			ElseIf Dvalue <-8 And Dvalue >= -10 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(145, 218, 0)
+			ElseIf Dvalue < -10 And Dvalue >= -12 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(216, 254, 154)
+			ElseIf Dvalue < -12 And Dvalue >= -14 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 255, 0)
+			ElseIf Dvalue < -14 And Dvalue >= -16 Then
 				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 200, 0)
-			ElseIf Dvalue < -8 And Dvalue >= -10 Then
+			ElseIf Dvalue < -16 And Dvalue >= -18 Then
 				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 0, 0)
-			ElseIf Dvalue < -10  Then
+			ElseIf Dvalue < -18  Then
 				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(150, 0, 0)
 			End If
 
@@ -495,10 +590,10 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 	'sheet.Range("A51") = "UHPower ratio"
 	'sheet.Range("B51") = Round(10*CST_Log10(getUpperHemisphereRatio(sheet, columns)),2)
 	'sheet.Range("C51") = "dB"
-	writeAverageDirectivityAndRating(sheet, Columns)
+	writeAverageFarfieldComponentAndRating(sheet, Columns)
 
 End Sub
-Sub writeAverageDirectivityAndRating(sheet As Object, Columns As String)
+Sub writeAverageFarfieldComponentAndRating(sheet As Object, Columns As String)
 
 	'Formatting cells
 	With sheet
@@ -519,7 +614,15 @@ Sub writeAverageDirectivityAndRating(sheet As Object, Columns As String)
 	    .Range("P6").Value = "90"
 	    .Range("P7").Value = "120"
 	    .Range("P8").Value = "RHCPD rating"
-	    .Range("Q2").Value = "Weighted Average directivity"
+	    Select Case farfieldComponentValue
+	   	Case 0
+			.Range("Q2").Value = "Weighted Average directivity"
+		Case 1
+			.Range("Q2").Value = "Weighted Average gain"
+		Case 2
+			.Range("Q2").Value = "Weighted Average realized gain"
+	   	End Select
+
 	End With
 
 	sheet.Range("Q3").Formula = _
