@@ -4,6 +4,7 @@
 Option Explicit
 Public startTime As String, parameter As String, portStr As String
 Public cutPlaneValue As Integer, farfieldComponentValue As Integer, cutAngle As Double
+Public mismatchLoss As Double
 
 Sub Main ()
 	Dim parameterArray(1000) As String
@@ -388,6 +389,8 @@ Sub savefarfieldComponent(rotateAngle As Double,frequency As Double)
          lhcpDirectivity(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = upperHemisphereLHCPdirectivity(n)
          '10*CST_Log10(upperHemisphereLHCPdirectivity(n))'Log(upperHemisphereLHCPdirectivity(n)/AVGPower)/Log(10)*10
     Next n
+
+    mismatchLoss = FarfieldPlot.GetTotalEfficiency - FarfieldPlot.GetRadiationEfficiency
 	 '==============================write directivity data============================
 	projectPath = GetProjectPath("Project")
 
@@ -559,11 +562,10 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 		   	Case 0	'reference total efficiency -8dB when the directivity is selected as the farfield component
 				Dvalue = Dvalue-8
 			Case 1
-				Dvalue = Dvalue
+				Dvalue = Dvalue+mismatchLoss
 			Case 2
 				Dvalue = Dvalue
 		   	End Select
-
 
 
 			If Dvalue >= -6 Then
@@ -578,9 +580,9 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 255, 0)
 			ElseIf Dvalue < -14 And Dvalue >= -16 Then
 				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 200, 0)
-			ElseIf Dvalue < -16 And Dvalue >= -18 Then
+			ElseIf Dvalue < -16 And Dvalue >= -20 Then
 				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 0, 0)
-			ElseIf Dvalue < -18  Then
+			ElseIf Dvalue < -20 Then
 				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(150, 0, 0)
 			End If
 
@@ -670,15 +672,48 @@ Sub writeAverageFarfieldComponentAndRating(sheet As Object, Columns As String)
 	"10^(J5/10)+10^(J6/10)+10^(J7/10)+10^(J8/10)+10^(J9/10)+10^(J10/10)+10^(J11/10)+"+ _
 	"10^(J12/10)+10^(J13/10)+10^(J14/10))*(COS(15*PI()/24)-COS(16*PI()/24))*PI()/6)/(2*PI()*(1-COS(2*PI()/3)))),2)"
 
-	sheet.Range("Q8").Formula = _
-	"=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=-9)*(B3:E15>-100))+1.25*SUMPRODUCT((B3:E15<=-8)*(B3:E15>-9))"+ _
-	"+SUMPRODUCT((B3:E15<=-7)*(B3:E15>-8))+0.75*SUMPRODUCT((B3:E15<=-6)*(B3:E15>-7))+0.5*SUMPRODUCT((B3:E15<=-5)"+ _
-	"*(B3:E15>-6))+0.25*SUMPRODUCT((B3:E15<=-4)*(B3:E15>-5)))+1.5*SUMPRODUCT((F3:H15<=-9)*(F3:H15>-100))+"+ _
-	"1.25*SUMPRODUCT((F3:H15<=-8)*(F3:H15>-9))+SUMPRODUCT((F3:H15<=-7)*(F3:H15>-8))+0.75*SUMPRODUCT((F3:H15<=-6)"+ _
-	"*(F3:H15>-7))+0.5*SUMPRODUCT((F3:H15<=-5)*(F3:H15>-6))+0.25*SUMPRODUCT((F3:H15<=-4)*(F3:H15>-5))+0.5*"+ _
-	"(1.5*SUMPRODUCT((I3:J15<=-9)*(I3:J15>-100))+1.25*SUMPRODUCT((I3:J15<=-8)*(I3:J15>-9))+SUMPRODUCT((I3:J15<=-7)*"+ _
-	"(I3:J15>-8))+0.75*SUMPRODUCT((I3:J15<=-6)*(I3:J15>-7))+0.5*SUMPRODUCT((I3:J15<=-5)*(I3:J15>-6))"+ _
-	"+0.25*SUMPRODUCT((I3:J15<=-4)*(I3:J15>-5)))))/117*100,2)"
+	Select Case farfieldComponentValue
+   	Case 0	'reference total efficiency -8dB when the directivity is selected as the farfield component
+		sheet.Range("Q8").Formula = _
+		"=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=-9)*(B3:E15>-100))+1.25*SUMPRODUCT((B3:E15<=-8)*(B3:E15>-9))"+ _
+		"+SUMPRODUCT((B3:E15<=-7)*(B3:E15>-8))+0.75*SUMPRODUCT((B3:E15<=-6)*(B3:E15>-7))+0.5*SUMPRODUCT((B3:E15<=-5)"+ _
+		"*(B3:E15>-6))+0.25*SUMPRODUCT((B3:E15<=-4)*(B3:E15>-5)))+1.5*SUMPRODUCT((F3:H15<=-9)*(F3:H15>-100))+"+ _
+		"1.25*SUMPRODUCT((F3:H15<=-8)*(F3:H15>-9))+SUMPRODUCT((F3:H15<=-7)*(F3:H15>-8))+0.75*SUMPRODUCT((F3:H15<=-6)"+ _
+		"*(F3:H15>-7))+0.5*SUMPRODUCT((F3:H15<=-5)*(F3:H15>-6))+0.25*SUMPRODUCT((F3:H15<=-4)*(F3:H15>-5))+0.5*"+ _
+		"(1.5*SUMPRODUCT((I3:J15<=-9)*(I3:J15>-100))+1.25*SUMPRODUCT((I3:J15<=-8)*(I3:J15>-9))+SUMPRODUCT((I3:J15<=-7)*"+ _
+		"(I3:J15>-8))+0.75*SUMPRODUCT((I3:J15<=-6)*(I3:J15>-7))+0.5*SUMPRODUCT((I3:J15<=-5)*(I3:J15>-6))"+ _
+		"+0.25*SUMPRODUCT((I3:J15<=-4)*(I3:J15>-5)))))/117*100,2)"
+	Case 1
+		sheet.Range("Q8").Formula = _
+		"=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=(-17-"+CStr(mismatchLoss)+"))*(B3:E15>-100))+"+ _
+		"1.25*SUMPRODUCT((B3:E15<=(-16-"+CStr(mismatchLoss)+"))*(B3:E15>(-17-"+CStr(mismatchLoss)+")))"+ _
+		"+SUMPRODUCT((B3:E15<=(-15-"+CStr(mismatchLoss)+"))*(B3:E15>(-16-"+CStr(mismatchLoss)+")))+"+ _
+		"0.75*SUMPRODUCT((B3:E15<=(-14-"+CStr(mismatchLoss)+"))*(B3:E15>(-15-"+CStr(mismatchLoss)+")))+"+ _
+		"0.5*SUMPRODUCT((B3:E15<=(-13-"+CStr(mismatchLoss)+"))*(B3:E15>(-14-"+CStr(mismatchLoss)+")))+"+ _
+		"0.25*SUMPRODUCT((B3:E15<=(-12-"+CStr(mismatchLoss)+"))*(B3:E15>(-13-"+CStr(mismatchLoss)+"))))+"+ _
+		"1.5*SUMPRODUCT((F3:H15<=(-17-"+CStr(mismatchLoss)+"))*(F3:H15>-100))+"+ _
+		"1.25*SUMPRODUCT((F3:H15<=(-16-"+CStr(mismatchLoss)+"))*(F3:H15>(-17-"+CStr(mismatchLoss)+")))+"+ _
+		"SUMPRODUCT((F3:H15<=(-15-"+CStr(mismatchLoss)+"))*(F3:H15>(-16-"+CStr(mismatchLoss)+")))+"+ _
+		"0.75*SUMPRODUCT((F3:H15<=(-14-"+CStr(mismatchLoss)+"))*(F3:H15>(-15-"+CStr(mismatchLoss)+")))+"+ _
+		"0.5*SUMPRODUCT((F3:H15<=(-13-"+CStr(mismatchLoss)+"))*(F3:H15>(-14-"+CStr(mismatchLoss)+")))+"+ _
+		"0.25*SUMPRODUCT((F3:H15<=(-12-"+CStr(mismatchLoss)+"))*(F3:H15>(-13-"+CStr(mismatchLoss)+")))+0.5*"+ _
+		"(1.5*SUMPRODUCT((I3:J15<=(-17-"+CStr(mismatchLoss)+"))*(I3:J15>-100))+"+ _
+		"1.25*SUMPRODUCT((I3:J15<=(-16-"+CStr(mismatchLoss)+"))*(I3:J15>(-17-"+CStr(mismatchLoss)+")))+"+ _
+		"SUMPRODUCT((I3:J15<=(-15-"+CStr(mismatchLoss)+"))*(I3:J15>(-16-"+CStr(mismatchLoss)+")))+"+ _
+		"0.75*SUMPRODUCT((I3:J15<=(-14-"+CStr(mismatchLoss)+"))*(I3:J15>(-15-"+CStr(mismatchLoss)+"))+"+ _
+		"0.5*SUMPRODUCT((I3:J15<=(-13-"+CStr(mismatchLoss)+"))*(I3:J15>(-14-"+CStr(mismatchLoss)+")))"+ _
+		"+0.25*SUMPRODUCT((I3:J15<=(-12-"+CStr(mismatchLoss)+"))*(I3:J15>(-13-"+CStr(mismatchLoss)+"))))))/117*100,2)"
+	Case 2
+		sheet.Range("Q8").Formula = _
+		"=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=-17)*(B3:E15>-100))+1.25*SUMPRODUCT((B3:E15<=-16)*(B3:E15>-17))"+ _
+		"+SUMPRODUCT((B3:E15<=-15)*(B3:E15>-16))+0.75*SUMPRODUCT((B3:E15<=-14)*(B3:E15>-15))+0.5*SUMPRODUCT((B3:E15<=-13)"+ _
+		"*(B3:E15>-14))+0.25*SUMPRODUCT((B3:E15<=-12)*(B3:E15>-13)))+1.5*SUMPRODUCT((F3:H15<=-17)*(F3:H15>-100))+"+ _
+		"1.25*SUMPRODUCT((F3:H15<=-16)*(F3:H15>-17))+SUMPRODUCT((F3:H15<=-15)*(F3:H15>-16))+0.75*SUMPRODUCT((F3:H15<=-14)"+ _
+		"*(F3:H15>-15))+0.5*SUMPRODUCT((F3:H15<=-13)*(F3:H15>-14))+0.25*SUMPRODUCT((F3:H15<=-12)*(F3:H15>-13))+0.5*"+ _
+		"(1.5*SUMPRODUCT((I3:J15<=-17)*(I3:J15>-100))+1.25*SUMPRODUCT((I3:J15<=-16)*(I3:J15>-17))+SUMPRODUCT((I3:J15<=-15)*"+ _
+		"(I3:J15>-16))+0.75*SUMPRODUCT((I3:J15<=-14)*(I3:J15>-15)+0.5*SUMPRODUCT((I3:J15<=-13)*(I3:J15>-14))"+ _
+		"+0.25*SUMPRODUCT((I3:J15<=-12)*(I3:J15>-13)))))/117*100,2)"
+   	End Select
 End Sub
 
 
