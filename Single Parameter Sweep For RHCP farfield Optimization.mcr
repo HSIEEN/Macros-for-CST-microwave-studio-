@@ -47,7 +47,7 @@ Sub Main ()
 		Picture 0,7,630,420,GetInstallPath + "\Library\Macros\Coros\Simulation\Single parameter sweep instructions For RHCP optimization.bmp",0,.Picture1
 		GroupBox 640,126,210,49,"Select a port:",.GroupBox5
 		DropListBox 700,147,80,21,portArray(),.portIndex
-		GroupBox 640,259,210,70,"Select a farfield component:",.GroupBox6
+		GroupBox 640,259,210,70,"Set plot mode:",.GroupBox6
 		OptionGroup .Group2
 			OptionButton 650,280,100,14,"Directivity",.OptionButton3
 			OptionButton 770,280,70,14,"Gain",.OptionButton4
@@ -685,24 +685,24 @@ Sub writeAverageFarfieldComponentAndRating(sheet As Object, Columns As String)
 		"+0.25*SUMPRODUCT((I3:J15<=-4)*(I3:J15>-5)))))/117*100,2)"
 	Case 1
 		sheet.Range("Q8").Formula = _
-		"=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=(-17-"+CStr(mismatchLoss)+"))*(B3:E15>-100))+"+ _
-		"1.25*SUMPRODUCT((B3:E15<=(-16-"+CStr(mismatchLoss)+"))*(B3:E15>(-17-"+CStr(mismatchLoss)+")))"+ _
-		"+SUMPRODUCT((B3:E15<=(-15-"+CStr(mismatchLoss)+"))*(B3:E15>(-16-"+CStr(mismatchLoss)+")))+"+ _
-		"0.75*SUMPRODUCT((B3:E15<=(-14-"+CStr(mismatchLoss)+"))*(B3:E15>(-15-"+CStr(mismatchLoss)+")))+"+ _
-		"0.5*SUMPRODUCT((B3:E15<=(-13-"+CStr(mismatchLoss)+"))*(B3:E15>(-14-"+CStr(mismatchLoss)+")))+"+ _
-		"0.25*SUMPRODUCT((B3:E15<=(-12-"+CStr(mismatchLoss)+"))*(B3:E15>(-13-"+CStr(mismatchLoss)+"))))+"+ _
-		"1.5*SUMPRODUCT((F3:H15<=(-17-"+CStr(mismatchLoss)+"))*(F3:H15>-100))+"+ _
-		"1.25*SUMPRODUCT((F3:H15<=(-16-"+CStr(mismatchLoss)+"))*(F3:H15>(-17-"+CStr(mismatchLoss)+")))+"+ _
-		"SUMPRODUCT((F3:H15<=(-15-"+CStr(mismatchLoss)+"))*(F3:H15>(-16-"+CStr(mismatchLoss)+")))+"+ _
-		"0.75*SUMPRODUCT((F3:H15<=(-14-"+CStr(mismatchLoss)+"))*(F3:H15>(-15-"+CStr(mismatchLoss)+")))+"+ _
-		"0.5*SUMPRODUCT((F3:H15<=(-13-"+CStr(mismatchLoss)+"))*(F3:H15>(-14-"+CStr(mismatchLoss)+")))+"+ _
-		"0.25*SUMPRODUCT((F3:H15<=(-12-"+CStr(mismatchLoss)+"))*(F3:H15>(-13-"+CStr(mismatchLoss)+")))+0.5*"+ _
-		"(1.5*SUMPRODUCT((I3:J15<=(-17-"+CStr(mismatchLoss)+"))*(I3:J15>-100))+"+ _
-		"1.25*SUMPRODUCT((I3:J15<=(-16-"+CStr(mismatchLoss)+"))*(I3:J15>(-17-"+CStr(mismatchLoss)+")))+"+ _
-		"SUMPRODUCT((I3:J15<=(-15-"+CStr(mismatchLoss)+"))*(I3:J15>(-16-"+CStr(mismatchLoss)+")))+"+ _
-		"0.75*SUMPRODUCT((I3:J15<=(-14-"+CStr(mismatchLoss)+"))*(I3:J15>(-15-"+CStr(mismatchLoss)+"))+"+ _
-		"0.5*SUMPRODUCT((I3:J15<=(-13-"+CStr(mismatchLoss)+"))*(I3:J15>(-14-"+CStr(mismatchLoss)+")))"+ _
-		"+0.25*SUMPRODUCT((I3:J15<=(-12-"+CStr(mismatchLoss)+"))*(I3:J15>(-13-"+CStr(mismatchLoss)+"))))))/117*100,2)"
+		"=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=(-17-"+CStr(missmatchLoss)+"))*(B3:E15>-100))+"+ _
+		"1.25*SUMPRODUCT((B3:E15<=(-16-"+CStr(missmatchLoss)+"))*(B3:E15>(-17-"+CStr(missmatchLoss)+")))"+ _
+		"+SUMPRODUCT((B3:E15<=(-15-"+CStr(missmatchLoss)+"))*(B3:E15>(-16-"+CStr(missmatchLoss)+")))+"+ _
+		"0.75*SUMPRODUCT((B3:E15<=(-14-"+CStr(missmatchLoss)+"))*(B3:E15>(-15-"+CStr(missmatchLoss)+")))+"+ _
+		"0.5*SUMPRODUCT((B3:E15<=(-13-"+CStr(missmatchLoss)+"))*(B3:E15>(-14-"+CStr(missmatchLoss)+")))+"+ _
+		"0.25*SUMPRODUCT((B3:E15<=(-12-"+CStr(missmatchLoss)+"))*(B3:E15>(-13-"+CStr(missmatchLoss)+"))))+"+ _
+		"1.5*SUMPRODUCT((F3:H15<=(-17-"+CStr(missmatchLoss)+"))*(F3:H15>-100))+"+ _
+		"1.25*SUMPRODUCT((F3:H15<=(-16-"+CStr(missmatchLoss)+"))*(F3:H15>(-17-"+CStr(missmatchLoss)+")))+"+ _
+		"SUMPRODUCT((F3:H15<=(-15-"+CStr(missmatchLoss)+"))*(F3:H15>(-16-"+CStr(missmatchLoss)+")))+"+ _
+		"0.75*SUMPRODUCT((F3:H15<=(-14-"+CStr(missmatchLoss)+"))*(F3:H15>(-15-"+CStr(missmatchLoss)+")))+"+ _
+		"0.5*SUMPRODUCT((F3:H15<=(-13-"+CStr(missmatchLoss)+"))*(F3:H15>(-14-"+CStr(missmatchLoss)+")))+"+ _
+		"0.25*SUMPRODUCT((F3:H15<=(-12-"+CStr(missmatchLoss)+"))*(F3:H15>(-13-"+CStr(missmatchLoss)+")))+"+ _
+		"0.5*(1.5*SUMPRODUCT((I3:J15<=(-17-"+CStr(missmatchLoss)+"))*(I3:J15>-100))+"+ _
+		"1.25*SUMPRODUCT((I3:J15<=(-16-"+CStr(missmatchLoss)+"))*(I3:J15>(-17-"+CStr(missmatchLoss)+")))+"+ _
+		"SUMPRODUCT((I3:J15<=(-15-"+CStr(missmatchLoss)+"))*(I3:J15>(-16-"+CStr(missmatchLoss)+")))+"+ _
+		"0.75*SUMPRODUCT((I3:J15<=(-14-"+CStr(missmatchLoss)+"))*(I3:J15>(-15-"+CStr(missmatchLoss)+")))+"+ _
+		"0.5*SUMPRODUCT((I3:J15<=(-13-"+CStr(missmatchLoss)+"))*(I3:J15>(-14-"+CStr(missmatchLoss)+")))"+ _
+		"+0.25*SUMPRODUCT((I3:J15<=(-12-"+CStr(missmatchLoss)+"))*(I3:J15>(-13-"+CStr(missmatchLoss)+"))))))/117*100,2)"
 	Case 2
 		sheet.Range("Q8").Formula = _
 		"=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=-17)*(B3:E15>-100))+1.25*SUMPRODUCT((B3:E15<=-16)*(B3:E15>-17))"+ _
@@ -711,7 +711,7 @@ Sub writeAverageFarfieldComponentAndRating(sheet As Object, Columns As String)
 		"1.25*SUMPRODUCT((F3:H15<=-16)*(F3:H15>-17))+SUMPRODUCT((F3:H15<=-15)*(F3:H15>-16))+0.75*SUMPRODUCT((F3:H15<=-14)"+ _
 		"*(F3:H15>-15))+0.5*SUMPRODUCT((F3:H15<=-13)*(F3:H15>-14))+0.25*SUMPRODUCT((F3:H15<=-12)*(F3:H15>-13))+0.5*"+ _
 		"(1.5*SUMPRODUCT((I3:J15<=-17)*(I3:J15>-100))+1.25*SUMPRODUCT((I3:J15<=-16)*(I3:J15>-17))+SUMPRODUCT((I3:J15<=-15)*"+ _
-		"(I3:J15>-16))+0.75*SUMPRODUCT((I3:J15<=-14)*(I3:J15>-15)+0.5*SUMPRODUCT((I3:J15<=-13)*(I3:J15>-14))"+ _
+		"(I3:J15>-16))+0.75*SUMPRODUCT((I3:J15<=-14)*(I3:J15>-15))+0.5*SUMPRODUCT((I3:J15<=-13)*(I3:J15>-14))"+ _
 		"+0.25*SUMPRODUCT((I3:J15<=-12)*(I3:J15>-13)))))/117*100,2)"
    	End Select
 End Sub
