@@ -25,12 +25,16 @@ Sub Main ()
 
 	    If HasChildren(selectedItem) Then
 	    	sselectedItem = Resulttree.GetFirstChildName(selectedItem)
+	    	Dim curveIndex As Integer
+	    	curveIndex = -1
 			While sselectedItem <> ""
 				If (Resulttree.GetResultTypeFromItemName(sselectedItem) = _
 	    		"xysignal" Or Resulttree.GetResultTypeFromItemName(sselectedItem) = "farfieldpolar") Then
 					curveLabel = Right(sselectedItem,Len(sselectedItem)-InStrRev(sselectedItem,"\"))
+					curveIndex = curveIndex +1
 				   With Plot1D
-				      index =.GetCurveIndexOfCurveLabel(curveLabel)
+				      'index =.GetCurveIndexOfCurveLabel(curveLabel)
+				      index = curveIndex
 				      'ReportInformationToWindow("The above curve index is "+CStr(index))
 				      'index =.GetCurveIndexOfCurveLabel("S1,1")
 				     .SetLineStyle(index,"Solid",3) ' thick dashed line
