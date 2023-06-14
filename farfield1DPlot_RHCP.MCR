@@ -1,6 +1,6 @@
 ' Copy farfield 1d results to 1D results
 '2023-02-10 by Shawn Shi
-'Option Explicit
+Option Explicit
 
 '#include "vba_globals_all.lib"
 
@@ -31,20 +31,26 @@ Sub Main ()
         Exit All
     End If
 
-	Begin Dialog UserDialog 200,105,"Please choose a cut plane to plot",.DialogFunction ' %GRID:10,7,1,1
-		Text 10,7,90,14,"Coordinate:",.Text1
+	Begin Dialog UserDialog 210,154,"Please choose a cut plane to plot",.DialogFunction ' %GRID:10,7,1,1
+		OKButton 20,126,80,21
+		CancelButton 110,126,70,21
+		GroupBox 10,63,190,56,"Cut plane settings:",.GroupBox1
+		GroupBox 10,0,190,63,"Farfield plot mode:",.GroupBox2
+		OptionGroup .Group2
+			OptionButton 30,77,60,14,"Theta",.OptionButton1
+			OptionButton 110,77,60,14,"Phi",.OptionButton2
+		Text 40,98,50,14,"Angle:",.Text1
+		TextBox 90,98,60,14,.Angle
 		OptionGroup .Group1
-			OptionButton 10,21,60,14,"Theta",.OptionButton1
-			OptionButton 80,21,50,14,"Phi",.OptionButton2
-		Text 10,42,60,14,"Angle:",.Text2
-		TextBox 70,42,50,14,.Angle
-		OKButton 10,70,90,21
-		CancelButton 110,70,70,21
+			OptionButton 20,21,100,14,"Directivity",.OptionButton3
+			OptionButton 130,21,60,14,"Gain",.OptionButton4
+			OptionButton 20,42,110,14,"Realized gain",.OptionButton5
 	End Dialog
 	Dim dlg As UserDialog
 
 	dlg.Group1 = 0
-	dlg.Angle = "90"
+	dlg.Group2 = 1
+	dlg.Angle = "270"
 
 	If Dialog(dlg,-2) = 0 Then
 		Exit All
@@ -73,12 +79,14 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			StoreAllDialogSettings_LIB(parameterFile)
 			'Dim angleStr As String
 			Dim angle As Double
-			Dim groupValue As Double
+			Dim componentValue As Integer, planeValue As Integer
 			Dim PortStr As String
 			Dim FrequencyStr As String
 
+
+			componentValue = DlgValue("Group1")
 			angle = CDbl(DlgText("Angle"))
-			groupValue = DlgValue("Group1")
+			planeValue = DlgValue("Group2")
 
 			Dim SelectedItem As String
     		SelectedItem = GetSelectedTreeItem
@@ -88,15 +96,15 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			FrequencyStr = Mid$(SelectedItem$,InStr(SelectedItem,"=")+1,InStr(SelectedItem,")")-InStr(SelectedItem,"=")-1)
 
 			FarfieldPlot.Reset
-			'FarfieldPlot.SetAntennaType("directional_linear")
+
+
+
 			'FarfieldPlot.Plot
-			FarfieldPlot.SetAntennaType("directional_circular")
-			'FarfieldPlot.Plot
-			FarfieldPlot.SetPlotMode("directivity")
+
 			'FarfieldPlot.Plot
 			FarfieldPlot.SelectComponent("Abs")
 			FarfieldPlot.PlotType("polar")
-			If groupValue = 0 Then
+			If planeValue = 0 Then
 
 				FarfieldPlot.Vary("angle2")
 				FarfieldPlot.Theta(angle)
@@ -108,35 +116,80 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 
 			End If
 
+			FarfieldPlot.SetAxesType("currentwcs")
+			FarfieldPlot.SetAntennaType("unknown")
+			Select Case componentValue
+		   	Case 0
+				FarfieldPlot.SetPlotMode("directivity")
+			Case 1
+				FarfieldPlot.SetPlotMode("gain")
+			Case 2
+				FarfieldPlot.SetPlotMode("realized gain")
+		   	End Select
+			'FarfieldPlot.SetAntennaType("directional_linear")
+			'FarfieldPlot.SetAntennaType("directional_circular")
+			FarfieldPlot.SetCoordinateSystemType("ludwig3")
+			FarfieldPlot.SetAutomaticCoordinateSystem("True")
+			FarfieldPlot.SetPolarizationType("Circular")
+
+			FarfieldPlot.StoreSettings
+
 			FarfieldPlot.Plot
 			Dim DirName As String
 			Dim ChildItem As String
-			DirName = "farfield 1D plot @"
-			If Resulttree.DoesTreeItemExist("1D Results\"+DirName+FrequencyStr+"GHz") Then
-				ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName+FrequencyStr+"GHz")
+			Select Case componentValue
+		   	Case 0
+				DirName = "CP directivity\@"+FrequencyStr+"GHz"
+			Case 1
+				DirName = "CP gain\@"+FrequencyStr+"GHz"
+			Case 2
+				DirName = "CP realized gain\@"+FrequencyStr+"GHz"
+		   	End Select
+
+			If Resulttree.DoesTreeItemExist("1D Results\"+DirName) Then
+				ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName)
 
 				While ChildItem <> ""
 					With Resulttree
 						.Name ChildItem
 						.Delete
 					End With
-					ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName+FrequencyStr+"GHz")
+					ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName)
 				Wend
 
 			End If
-			FarfieldPlot.CopyFarfieldTo1DResults(DirName+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Abs")
+			FarfieldPlot.CopyFarfieldTo1DResults(DirName,"farfield (f="+FrequencyStr+")["+PortStr+"]_Abs")
 			FarfieldPlot.SelectComponent("Right")
 			'FarfieldPlot.PlotType("polar")
 			FarfieldPlot.Plot
-			FarfieldPlot.CopyFarfieldTo1DResults(DirName+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Right")
+			FarfieldPlot.CopyFarfieldTo1DResults(DirName,"farfield (f="+FrequencyStr+")["+PortStr+"]_Right")
 			FarfieldPlot.SelectComponent("Left")
 			'FarfieldPlot.PlotType("polar")
 			FarfieldPlot.Plot
-			FarfieldPlot.CopyFarfieldTo1DResults(DirName+FrequencyStr+"GHz","farfield (f="+FrequencyStr+")["+PortStr+"]_Left")
+			FarfieldPlot.CopyFarfieldTo1DResults(DirName,"farfield (f="+FrequencyStr+")["+PortStr+"]_Left")
 
-			SelectTreeItem("1D Results\"+DirName+FrequencyStr+"GHz")
+			SelectTreeItem("1D Results\"+DirName)
 
-            CurrentItem = FirstChildItem
+            'CurrentItem = FirstChildItem
+            		Dim curveLabel As String
+		Dim index As Integer
+		'Dim SelectedItem As String
+
+		SelectedItem = Resulttree.GetFirstChildName("1D Results\"+DirName)
+		While SelectedItem <> ""
+			'SelectTreeItem(selectedItem)
+			curveLabel = Right(SelectedItem,Len(SelectedItem)-InStrRev(SelectedItem,"\"))
+
+		   With Plot1D
+		      index =.GetCurveIndexOfCurveLabel(curveLabel)
+		     .SetLineStyle(index,"Solid",3) ' thick dashed line
+		     .SetFont("Tahoma","bold","16")
+		     '.SetLineColor(index,255,255,0)  ' yellow
+		     .Plot ' make changes visible
+			End With
+
+			SelectedItem = Resulttree.GetNextItemName(SelectedItem)
+		Wend
 
 		End Select
 	Case 3 ' TextBox or ComboBox text changed
