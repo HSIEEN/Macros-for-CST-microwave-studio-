@@ -2,33 +2,43 @@
 'Option Explicit
 '20220828-By Shawn in COROS
 
-Public EffiPath As String
-Public FirstChildItem As String
+Public effiPath As String
+Public childItem As String
+'Public FirstChildItem As String
 
 Sub Main ()
   'Efficiency results parent path
-
-   EffiPath = "1D Results\Efficiencies"
-   FirstChildItem = Resulttree.GetFirstChildName(EffiPath)
-   If FirstChildItem = "" Then
+	Dim ii As Integer
+	Dim portArray(100) As String
+   effiPath = "1D Results\Efficiencies"
+   childItem = Resulttree.GetFirstChildName(effiPath)
+   If childItem = "" Then
    	 MsgBox("No Efficiency results found!",vbCritical,"Warning")
    	 Exit All
    End If
 
-    Dim InformationStr As String
-    InformationStr = "请输入要计算的频段（eg L1 L5 W2 W5）："
-	Begin Dialog UserDialog 410,98,"平均效率求算",.DialogFunction ' %GRID:10,7,1,1
-		Text 10,28,340,14,InformationStr,.Text1
-		TextBox 20,49,90,14,.Band
-		OKButton 20,77,90,21
-		CancelButton 120,77,90,21
-		Text 10,7,110,14,"请选择端口：",.Text10
-		TextBox 100,7,40,14,.PortNum
+    'effiPath = "1D Results\Efficiencies"
+    'childItem = Resulttree.GetFirstChildName(effiPath)
+	ii = 1
+    While childItem <> ""
+   	 portArray(ii-1) = Mid(childItem,InStr(childItem,"[")+1,InStr(childItem,"]")-InStr(childItem,"[")-1)
+   	 ii = ii+1
+   	 childItem = Resulttree.GetNextItemName(childItem)
+    Wend
+    'InformationStr = "eg L1 L5 W2 W5"
+	Begin Dialog UserDialog 250,140,"Average Efficiency ",.DialogFunction ' %GRID:10,7,1,1
+		GroupBox 10,42,220,63,"Band selection:",.GroupBox2
+		GroupBox 10,0,220,42,"Port selection:",.GroupBox1
+		TextBox 80,77,80,14,.Band
+		OKButton 40,112,90,21
+		CancelButton 140,112,90,21
+		DropListBox 80,14,90,14,portArray(),.portNum
+		Text 30,56,130,14,"eg: L1 L5 W2 W5",.Text1
 	End Dialog
 	Dim dlg As UserDialog
 
 	dlg.Band = "L1"
-	dlg.PortNum = "1"
+	'dlg.PortNum = "1"
 
 
 	If Dialog(dlg,-2) = 0 Then
@@ -56,7 +66,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 		    Bands = DlgText("Band")
 		    PortNum = DlgText("PortNum")
 
-            CurrentItem = FirstChildItem
+            CurrentItem = Resulttree.GetFirstChildName(effiPath)
             'Dim TempStr As String, m As Integer, n As Integer
             'm = InStr(CurrentItem,"[")
             'n = InStr(CurrentItem,"]")
@@ -67,7 +77,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
             		Dim EffiType As String, FileName As String
             		Dim nPoints As Long, n As Integer, Num As Integer, Ysum As Double, Avg As Double, dBAvg As Double, X As Double, Y As Double
             		Dim O As Object
-            		EffiType = Mid(CurrentItem,Len(EffiPath)+2,InStr(CurrentItem,"[")-Len(EffiPath)-2)
+            		EffiType = Mid(CurrentItem,Len(effiPath)+2,InStr(CurrentItem,"[")-Len(effiPath)-2)
             		FileName = Resulttree.GetFileFromTreeItem(CurrentItem)
             		Set O = Result1DComplex(FileName)
             		nPoints = O.GetN
