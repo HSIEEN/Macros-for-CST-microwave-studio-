@@ -10,6 +10,8 @@ Sub Main ()
   'Efficiency results parent path
 	Dim ii As Integer
 	Dim portArray(100) As String
+	Dim element As String, Port As String
+
    effiPath = "1D Results\Efficiencies"
    childItem = Resulttree.GetFirstChildName(effiPath)
    If childItem = "" Then
@@ -21,9 +23,18 @@ Sub Main ()
     'childItem = Resulttree.GetFirstChildName(effiPath)
 	ii = 1
     While childItem <> ""
-   	 portArray(ii-1) = Mid(childItem,InStr(childItem,"[")+1,InStr(childItem,"]")-InStr(childItem,"[")-1)
-   	 ii = ii+1
-   	 childItem = Resulttree.GetNextItemName(childItem)
+
+         Port = Mid(childItem,InStr(childItem,"[")+1,InStr(childItem,"]")-InStr(childItem,"[")-1)
+	   	 If ii > 1 Then
+	   	 	For Each element In portArray
+	   	 		If element = Port Then
+	   	 			Exit While
+	   	 		End If
+	   	 	Next
+	   	 End If
+	   	 portArray(ii-1) = Port
+	   	 ii = ii+1
+	   	 childItem = Resulttree.GetNextItemName(childItem)
     Wend
     'InformationStr = "eg L1 L5 W2 W5"
 	Begin Dialog UserDialog 250,140,"Average Efficiency ",.DialogFunction ' %GRID:10,7,1,1
