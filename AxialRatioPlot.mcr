@@ -2,17 +2,27 @@
 'frequency step is not available by now
 'Axial ratio is in decible
 '2022-05-25
-'Option Explicit
+Option Explicit
 
 Public FarfieldFreq() As Double, m As Integer
+Public portArray(100) As String
+Public portNum As String
 '#include "vba_globals_all.lib"
 
 Sub Main ()
     'Get frequencies of farfield monitors
     'Dim FarfieldFreq() As Double
     Dim NumOfMonitor As Integer, i As Integer
-    Dim HasFarfiledMonitor As Boolean
+    Dim HasFarfieldMonitor As Boolean
     Dim TempStr As String
+    Dim farfieldPath As String
+
+	farfieldPath = "Farfields\"
+    'Dim portArray(100) As String
+    Dim ii As Integer
+    Dim childItem As String
+    Dim element As Variant
+    Dim Port As String
 
     NumOfMonitor = Monitor.GetNumberOfMonitors
     ReDim FarfieldFreq(NumOfMonitor-1)
@@ -49,33 +59,52 @@ Sub Main ()
     	 Exit Sub
     End If
 
+    childItem = Resulttree.GetFirstChildName(farfieldPath)
+	 ii = 1
+	childItem = Resulttree.GetNextItemName(childItem)
+    While childItem <> ""
+		Port = Mid(childItem,InStr(childItem,"[")+1,InStr(childItem,"]")-InStr(childItem,"[")-1)
+   		If ii > 1 Then
+   			For Each element In portArray
+   				If element = Port Then
+   					Exit While
+   				End If
+   			Next
+   		End If
+   		portArray(ii-1) = Port
+   		ii = ii+1
+   		childItem = Resulttree.GetNextItemName(childItem)
+
+    Wend
+
     Dim InformationStr As String
-    InformationStr = "请输入要计算的频率范围（"+CStr(FarfieldFreq(0))+"GHz到"+CStr(FarfieldFreq(m-1))+"GHz之间）:"
-	Begin Dialog UserDialog 410,231,"轴比-频率作图",.DialogFunction ' %GRID:10,7,1,1
-		Text 20,7,390,14,InformationStr,.Text1
-		TextBox 40,35,35,14,.Fmin
-		TextBox 130,35,35,14,.Fmax
-		OKButton 60,203,90,21
-		CancelButton 190,203,90,21
-		Text 20,84,40,14,"步长:",.Text2
-		TextBox 60,84,50,14,.Fstep
-		Text 20,112,220,14,"请输入要计算的远场方向：",.Text3
-		Text 20,133,30,14,"θ1=",.Text4
-		Text 20,154,30,14,"θ2=",.Text11
-		TextBox 60,133,40,14,.Theta1
-		TextBox 60,154,40,14,.Theta2
-		Text 110,133,30,14,"φ1=",.Text5
-		Text 110,154,30,14,"φ2=",.Text12
-		TextBox 150,133,40,14,.Phi1
-		TextBox 150,154,40,14,.Phi2
-		Text 20,35,20,14,"从",.Text6
-		Text 120,84,40,14,"GHz",.Text7
-		Text 80,35,50,14,"GHz 到",.Text8
-		Text 170,35,30,14,"GHz",.Text9
-		Text 20,63,110,14,"请选择端口：",.Text10
-		TextBox 110,63,40,14,.PortNum
+    InformationStr = "Input valueS should be within "+CStr(FarfieldFreq(0))+"GHz to "+CStr(FarfieldFreq(m-1))+"GHz:"
+	Begin Dialog UserDialog 420,210,"Axial Raio_Frequency Plot",.DialogFunction ' %GRID:10,7,1,1
+		GroupBox 0,0,420,70,"Frequency settings:",.GroupBox1
+		Text 10,21,390,14,InformationStr,.Text1
+		TextBox 50,42,30,14,.Fmin
+		TextBox 150,42,30,14,.Fmax
+		OKButton 80,189,90,21
+		CancelButton 190,189,90,21
+		GroupBox 0,112,420,70,"Farfield Cuts settings",.GroupBox3
+		TextBox 310,42,50,14,.Fstep
+		Text 60,133,30,14,"θ1=",.Text4
+		Text 60,161,30,14,"θ2=",.Text11
+		TextBox 100,133,40,14,.Theta1
+		TextBox 100,161,40,14,.Theta2
+		Text 180,133,30,14,"φ1=",.Text5
+		Text 180,161,30,14,"φ2=",.Text12
+		TextBox 220,133,40,14,.Phi1
+		TextBox 220,161,40,14,.Phi2
+		Text 10,42,40,14,"From",.Text6
+		Text 370,42,30,14,"GHz",.Text7
+		GroupBox 0,70,420,42,"Port settings:",.GroupBox2
+		Text 90,42,50,14,"GHz  to",.Text8
+		Text 190,42,120,14,"GHz with step of ",.Text9
+		DropListBox 150,84,90,14,portArray(),.port
 	End Dialog
 	Dim dlg As UserDialog
+
 	dlg.Fmin = CStr(FarfieldFreq(0))
 	dlg.Fmax = CStr(FarfieldFreq(m-1))
 	dlg.Fstep = CStr(FarfieldFreq(1)-FarfieldFreq(0))
@@ -83,41 +112,32 @@ Sub Main ()
 	dlg.Phi1 = "0"
 	dlg.Theta2 = "45"
 	dlg.Phi2 = "90"
-	dlg.PortNum = "1"
+	'dlg.PortNum = "1"
 
 
-	If Dialog(dlg,1) = 0 Then
+	If Dialog(dlg,-2) = 0 Then
 		Exit All
 	End If
 
 End Sub
 
 Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
-	Dim parameterFile As String
-   	Dim prjPath As String
 
 	Select Case Action
 	Case 1 ' Dialog box initialization
-		prjPath = GetProjectPath("Project")
-   		parameterFile = prjPath + "\dialog_parameter.txt"
-   		'parameterFile = file = "D:\Simulation\SXW\Research\Basics\a.txt"
-		ReStoreAllDialogSettings_LIB(parameterFile)
 	Case 2 ' Value changing or button pressed
-		'DialogFunction = True ' Prevent button press from closing the dialog box
+		Rem DialogFunction = True ' Prevent button press from closing the dialog box
 
 		Select Case DlgItem
 		Case "Cancle"
 			Exit All
 		Case "OK"
-			'DialogFunction = True
-			prjPath = GetProjectPath("Project")
-   			parameterFile = prjPath + "\dialog_parameter.txt"
-   			'parameterFile = "D:\Simulation\SXW\Research\Basics\a.txt"
-			StoreAllDialogSettings_LIB(parameterFile)
+			DialogFunction = False
+
 			Dim FreqMin As Double, FreqMax As Double, FreqStep As Double
 		    Dim Theta1 As Integer,Theta2 As Integer
 		    Dim Phi1 As Integer, Phi2 As Integer
-		    Dim PortNum As String
+		    Dim i As Integer
 
 		    FreqMin = Evaluate(DlgText("Fmin"))
 		    FreqMax = Evaluate(DlgText("Fmax"))
@@ -127,13 +147,12 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 		    Phi1 = Evaluate(DlgText("Phi1"))
 		    Theta2 = Evaluate(DlgText("Theta2"))
 		    Phi2 = Evaluate(DlgText("Phi2"))
-		    PortNum = DlgText("PortNum")
 
-
+			portNum = DlgText("port")
 
 
 		    If FreqMin < FarfieldFreq(0) Or FreqMax > FarfieldFreq(m-1) Then
-		    	MsgBox("输入的频率超出可计算范围，请重新输入",1,"警告")
+		    	MsgBox("Input frequency is out of Range",1,"Warning")
 		    	Exit All
 		    End If
 
@@ -164,7 +183,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 
 		    	If FarfieldFreq(i) >= FreqMin And FarfieldFreq(i) <= FreqMax Then
 		    		Dim FarfieldName As String
-		    		FarfieldName = "farfield (f="+ CStr(FarfieldFreq(i))+") ["+PortNum+"]"
+		    		FarfieldName = "farfield (f="+ CStr(FarfieldFreq(i))+") ["+portNum+"]"
 			    	If SelectTreeItem("Farfields\"+ FarfieldName) <> False Then
 			    		'Dim MidValue As Double
 
@@ -189,6 +208,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 		    '-------------------------For test
 
 		    '------------------------
+		    Dim o1 As Object, o2 As Object
 
 
 		    Set o1 = Result1D("")
@@ -210,9 +230,9 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 
 		    o2.xlabel("Frequency/GHz")
 
-			o1.Save("AxialRatio@Port="+PortNum+"_Theta="+CStr(Theta1)+"_Phi="+CStr(Phi1)+".sig")
+			o1.Save("AxialRatio@Port="+portNum+"_Theta="+CStr(Theta1)+"_Phi="+CStr(Phi1)+".sig")
 
-			o2.Save("AxialRatio@Port="+PortNum+"_Theta="+CStr(Theta2)+"_Phi="+CStr(Phi2)+".sig")
+			o2.Save("AxialRatio@Port="+portNum+"_Theta="+CStr(Theta2)+"_Phi="+CStr(Phi2)+".sig")
 
 			'o.AddToTree("1D Results\AxialRatio\AR_Freq("+CStr(FreqMin)+"GHz_to_"+CStr(FreqMax)+"GHz")_θ="+CStr(Theta)+"deg_φ="+CStr(Phi)+"deg")
 			'Dim ResultItem As String
