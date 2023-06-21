@@ -2,7 +2,7 @@
 'Option Explicit
 '20220828-By Shawn in COROS
 
-Public PowerPath As String
+Public powerPath As String
 'Public FirstChildItem As String
 
 Sub Main ()
@@ -11,56 +11,65 @@ Sub Main ()
    PowerPath = "1D Results\Power"
    Dim portArray(100) As String
    Dim ii As Integer
+   Dim childItem As String
 
-   For ii = 1 To Port.StartPortNumberIteration
-   		portArray(ii-1) = CStr(Port.GetNextPortNumber)
-   Next
+   childItem = Resulttree.GetFirstChildName(PowerPath)
+	ii = 1
+   While childItem <> ""
+   	portArray(ii-1) = Mid(childItem,InStr(childItem,"[")+1,InStr(childItem,"]")-InStr(childItem,"[")-1)
+   	ii = ii+1
+   	childItem = Resulttree.GetNextItemName(childItem)
+   Wend
 
-    Dim InformationStr As String
-    'InformationStr = "请输入要计算的频段（eg L1 L5 W2 W5）："
-	Begin Dialog UserDialog 200,91,"效率损失分析" ' %GRID:10,7,1,1
-		OKButton 10,63,90,21
-		CancelButton 110,63,90,21
-		GroupBox 10,7,180,49,"Please select a port",.GroupBox1
-		DropListBox 50,28,90,14,portArray(),.portNum
+   'For ii = 1 To Port.StartPortNumberIteration
+   		'portArray(ii-1) = CStr(Port.GetNextPortNumber)
+   'Next
+
+    Dim informationStr As String
+    'informationStr = "请输入要计算的频段（eg L1 L5 W2 W5）："
+	Begin Dialog UserDialog 180,91,"效率损失分析" ' %GRID:10,7,1,1
+		OKButton 10,63,80,21
+		CancelButton 110,63,70,21
+		GroupBox 10,7,160,49,"Please select a port",.GroupBox1
+		DropListBox 50,28,70,14,portArray(),.portNumber
 	End Dialog
 	Dim dlg As UserDialog
 
 	If Dialog(dlg,-2) = 0 Then
 		Exit All
 	End If
-    Dim PortNum As String
+    Dim portNumber As String
     'Dim CurrentItem As String
     Dim paths As Variant, types As Variant, files As Variant, info As Variant, nResults As Long
-    PortNum = portArray(dlg.portNum)
+    portNumber = portArray(dlg.portNumber)
 
-    PowerPath = PowerPath + "\Excitation [" + PortNum + "]"
+    PowerPath = PowerPath + "\Excitation [" + portNumber + "]"
     nResults = Resulttree.GetTreeResults(PowerPath,"0D/1D recursive","",paths,types,files,info)
 
     'data record
     Dim n As Long
     'metal material list
-    Dim MetalList As String
+    Dim metalList As String
      'dielectric  material list
-    Dim DielectricList As String
+    Dim dielectricList As String
     'Number of metal materials
-    Dim MetalNum As Integer
+    Dim metalNumber As Integer
     'Number of dielectric materials
-    Dim DielectricNum As Integer
+    Dim dielectricNumber As Integer
     'metal loss data
-    Dim MetalLoss(100,1000) As Double
+    Dim metalLoss(100,1000) As Double
     'dielectric loss data
-    Dim DielectricLoss(100,1000) As Double
-    MetalList = ""
-    DielectricList = ""
-    MetalNum = 0
-    DielectricNum = 0
+    Dim dielectricLoss(100,1000) As Double
+    metalList = ""
+    dielectricList = ""
+    metalNumber = 0
+    dielectricNumber = 0
 
     Dim filename As String
     'Dim DSfilename As String
     'Dim Path As String
-    'Path ="1D Results\S-Parameters\S"+PortNum+","+PortNum
-	filename = Resulttree.GetFileFromTreeItem("1D Results\S-Parameters\S"+PortNum+","+PortNum)
+    'Path ="1D Results\S-Parameters\S"+portNumber+","+portNumber
+	filename = Resulttree.GetFileFromTreeItem("1D Results\S-Parameters\S"+portNumber+","+portNumber)
 	'DSfilename = DSResultTree.GetFileFromTreeItem("Tasks\SPara1\S-Parameters\S")
 
     For n = 0 To nResults-1
@@ -68,44 +77,44 @@ Sub Main ()
 		'Record power Stimulated
 		If InStr(paths(n),"Power Stimulated") <> 0 Then
     		'Dim EffiType As String, FileName As String
-    		Dim nPoints As Long, losPoints As Long,radPoints As Long, X() As Double, Psti() As Double
+    		Dim nPoints As Long, losPoints As Long,radPoints As Long, X() As Double, pStimulate() As Double
     		'power stimulated object
-    		Dim oPstim As Object
+    		Dim opStimulatem As Object
 
-    		Set oPstim = Result1DComplex(files(n))
-    		nPoints = oPstim.GetN
+    		Set opStimulatem = Result1DComplex(files(n))
+    		nPoints = opStimulatem.GetN
     		ReDim X(nPoints) As Double
-    		ReDim Psti(nPoints) As Double
+    		ReDim pStimulate(nPoints) As Double
 			For m = 0 To nPoints-1
-				X(m) = oPstim.GetX(m)
-				Psti(m) = oPstim.GetYRe(m)
+				X(m) = opStimulatem.GetX(m)
+				pStimulate(m) = opStimulatem.GetYRe(m)
     		Next
     	'get Coupling power
     	ElseIf InStr(paths(n),"Power Outgoing all Ports") <> 0 Then
     		'Dim EffiType As String, FileName As String
-            Dim Pcoup() As Double
-    		Dim oPcoup As Object
-    		Set oPcoup = Result1DComplex(files(n))
-    		nPoints = oPcoup.GetN
-    		ReDim Pcoup(nPoints) As Double
+            Dim pCoupling() As Double
+    		Dim oCoupling As Object
+    		Set oCoupling = Result1DComplex(files(n))
+    		nPoints = oCoupling.GetN
+    		ReDim pCoupling(nPoints) As Double
 			For m = 0 To nPoints-1
-				'Pcoup(m) = oPcoup.GetYRe(m) - Ypref(m)
-				Pcoup(m) = oPcoup.GetYRe(m)
+				'pCoupling(m) = oCoupling.GetYRe(m) - Ypref(m)
+				pCoupling(m) = oCoupling.GetYRe(m)
     		Next
     	'Record Accepted power
     	ElseIf  (filename <> "" And Right(paths(n),Len(paths(n))-InStrRev(paths(n),"\")) = "Power Accepted") _
     	Or (filename = "" And Right(paths(n),Len(paths(n))-InStrRev(paths(n),"\")) = "Power Accepted (DS)") Then
         		'Dim Xacp() As Double
-                Dim Pacc() As Double
-                Dim Xacp() As Double
-        		Dim oPacc As Object
+                Dim pAccept() As Double
+                Dim xAccept() As Double
+        		Dim opAccept As Object
         		Dim acpPoints As Long
-        		Set oPacc = Result1DComplex(files(n))
-        		acpPoints = oPacc.GetN
-        		ReDim Pacc(acpPoints) As Double
-        		ReDim Xacp(acpPoints)
+        		Set opAccept = Result1DComplex(files(n))
+        		acpPoints = opAccept.GetN
+        		ReDim pAccept(acpPoints) As Double
+        		ReDim xAccept(acpPoints)
     			For m = 0 To acpPoints-1
-    				Pacc(m) = oPacc.GetYRe(m)
+    				pAccept(m) = opAccept.GetYRe(m)
     				'Xrad(m) = Oprad.GetX(m)
         		Next
 
@@ -114,15 +123,15 @@ Sub Main ()
 		ElseIf InStr(paths(n),"Loss in Metals") <> 0 Then
     		'Dim EffiType As String, FileName As String
             Dim lossOfMetal() As Double
-            Dim Xmtl() As Double
+            Dim xMetal() As Double
     		Dim oPmetalLoss As Object
     		Set oPmetalLoss = Result1DComplex(files(n))
     		losPoints = oPmetalLoss.GetN
     		ReDim lossOfMetal(losPoints) As Double
-    		ReDim Xmtl(losPoints) As Double
+    		ReDim xMetal(losPoints) As Double
 			For m = 0 To losPoints-1
 				lossOfMetal(m) = oPmetalLoss.GetYRe(m)
-				Xmtl(m) = oPmetalLoss.GetX(m)
+				xMetal(m) = oPmetalLoss.GetX(m)
     		Next
 
     	'Record dielectric total loss
@@ -138,43 +147,43 @@ Sub Main ()
     		Next
     	'Record loss of per metal
     	ElseIf InStr(paths(n),"Metal loss") <> 0 Then
-    		MetalList = MetalList + Right(paths(n),Len(paths(n))-InStrRev(paths(n),"\")-14)+"$"
+    		metalList = metalList + Right(paths(n),Len(paths(n))-InStrRev(paths(n),"\")-14)+"$"
             'Dim Ymtloss() As Double
-            Dim oMetalLoss As Object
-            Set oMetalLoss = Result1DComplex(files(n))
+            Dim ometalLoss As Object
+            Set ometalLoss = Result1DComplex(files(n))
             Dim MetPoints As Long
-            MetPoints = oMetalLoss.GetN
+            MetPoints = ometalLoss.GetN
             For m = 0 To MetPoints-1
-            	MetalLoss(MetalNum,m) = oMetalLoss.GetYRe(m)
+            	metalLoss(metalNumber,m) = ometalLoss.GetYRe(m)
             Next
-    		MetalNum = MetalNum+1
+    		metalNumber = metalNumber+1
 		'Record loss of per dielectric
     	ElseIf InStr(paths(n),"Volume loss") <> 0 Then
-    		DielectricList = DielectricList + Right(paths(n),Len(paths(n))-InStrRev(paths(n),"\")-15)+"$"
+    		dielectricList = dielectricList + Right(paths(n),Len(paths(n))-InStrRev(paths(n),"\")-15)+"$"
             'Dim Ydlloss() As Double
-            Dim oDielectricLoss As Object
-            Set oDielectricLoss = Result1DComplex(files(n))
-            Dim DiePoints As Long
-            DiePoints = oDielectricLoss.GetN
-            For m = 0 To DiePoints-1
-            	DielectricLoss(DielectricNum,m) = oDielectricLoss.GetYRe(m)
+            Dim odielectricLoss As Object
+            Set odielectricLoss = Result1DComplex(files(n))
+            Dim dielectricPoints As Long
+            dielectricPoints = odielectricLoss.GetN
+            For m = 0 To dielectricPoints-1
+            	dielectricLoss(dielectricNumber,m) = odielectricLoss.GetYRe(m)
             Next
-    		DielectricNum = DielectricNum+1
+    		dielectricNumber = dielectricNumber+1
     	End If
     Next
      'Calculate reflected power at feeding port
     If filename <> "" Then
-		Dim oPref As Object
-		Set oPref = Result1DComplex(filename)
-		Dim YRe() As Double, YIm() As Double, Pref() As Double
+		Dim opReflct As Object
+		Set opReflct = Result1DComplex(filename)
+		Dim YRe() As Double, YIm() As Double, pReflct() As Double
 		ReDim YRe(nPoints) As Double
 		ReDim YIm(nPoints) As Double
-		ReDim Pref(nPoints) As Double
+		ReDim pReflct(nPoints) As Double
 		'ReDim Yref(nPoints) As Double
 		For n = 0 To nPoints-1
-			YRe(n) = oPref.GetYRe(n)
-			YIm(n) = oPref.GetYIm(n)
-			Pref(n) = (YRe(n)^2+YIm(n)^2)*Psti(n)
+			YRe(n) = opReflct.GetYRe(n)
+			YIm(n) = opReflct.GetYIm(n)
+			pReflct(n) = (YRe(n)^2+YIm(n)^2)*pStimulate(n)
 
 		Next
 	'Else 'This port is postprocessing port, no sparameters
@@ -194,66 +203,68 @@ Sub Main ()
 	'Set oPlotMaterialLoss = Result1D("")
 
 	'Plot metal loss
-	ReDim oPlotMaterialLoss(MetalNum) As Object
-	For n = 0 To MetalNum-1
+	ReDim oPlotMaterialLoss(metalNumber) As Object
+	For n = 0 To metalNumber-1
         Set oPlotMaterialLoss(n) = Result1D("")
 		For m = 1 To nPoints-1
 			Dim i As Integer
 			For i = 0 To MetPoints-1
-				If Xmtl(i) <= X(m) And Xmtl(i)> (X(m-1)+X(m))/2 Then
-        			oPlotMaterialLoss(n).AppendXY(X(m),Log((Pacc(m)-MetalLoss(n,i))/Pacc(m))/Log(10)*10)
-        		ElseIf Xmtl(i) >= X(m-1) And Xmtl(i)< (X(m-1)+X(m))/2 Then
-                    oPlotMaterialLoss(n).AppendXY(X(m-1),Log((Pacc(m-1)-MetalLoss(n,i))/Pacc(m-1))/Log(10)*10)
+				If xMetal(i) <= X(m) And xMetal(i)> (X(m-1)+X(m))/2 Then
+        			oPlotMaterialLoss(n).AppendXY(X(m),Log((pAccept(m)-metalLoss(n,i))/pAccept(m))/Log(10)*10)
+        		ElseIf xMetal(i) >= X(m-1) And xMetal(i)< (X(m-1)+X(m))/2 Then
+                    oPlotMaterialLoss(n).AppendXY(X(m-1),Log((pAccept(m-1)-metalLoss(n,i))/pAccept(m-1))/Log(10)*10)
 				End If
 
 			Next
 		Next
 		oPlotMaterialLoss(n).xlabel("Frequecy/GHz")
-		oPlotMaterialLoss(n).ylabel("Loss in "+ Left(MetalList,InStr(MetalList,"$")-1)+"/dB" )
-		oPlotMaterialLoss(n).Save("RadiationEfficiencyLossIn"+Left(MetalList,InStr(MetalList,"$")-1)+ "@Port="+PortNum+".sig")
-		oPlotMaterialLoss(n).AddToTree(PowerPath+"\Radiation efficiency loss due to metal loss\Loss in "+Left(MetalList,InStr(MetalList,"$")-1))
-		MetalList = Right(MetalList,Len(MetalList)-InStr(MetalList,"$"))
+		oPlotMaterialLoss(n).ylabel("Loss in "+ Left(metalList,InStr(metalList,"$")-1)+"/dB" )
+		oPlotMaterialLoss(n).Save("RadiationEfficiencyLossIn"+Left(metalList,InStr(metalList,"$")-1)+ "@Port="+portNumber+".sig")
+		oPlotMaterialLoss(n).AddToTree(PowerPath+"\Radiation efficiency loss due to metal loss\Loss in "+Left(metalList,InStr(metalList,"$")-1))
+		metalList = Right(metalList,Len(metalList)-InStr(metalList,"$"))
 	Next
 
 	'Plot dielectric loss
-	ReDim oPlotMaterialLoss(DielectricNum) As Object
-	For n = 0 To DielectricNum-1
+	ReDim oPlotMaterialLoss(dielectricNumber) As Object
+	For n = 0 To dielectricNumber-1
         Set oPlotMaterialLoss(n) = Result1D("")
 		For m = 1 To nPoints-1
 
 			For i = 0 To MetPoints-1
-				If Xmtl(i) <= X(m) And Xmtl(i)> X(m-1) Then
-        			oPlotMaterialLoss(n).AppendXY(X(m),Log((Pacc(m)-DielectricLoss(n,i))/Pacc(m))/Log(10)*10)
-        		ElseIf Xmtl(i) >= X(m-1) And Xmtl(i)< (X(m-1)+X(m))/2 Then
-                    oPlotMaterialLoss(n).AppendXY(X(m-1),Log((Pacc(m-1)-DielectricLoss(n,i))/Pacc(m-1))/Log(10)*10)
+				If xMetal(i) <= X(m) And xMetal(i)> X(m-1) Then
+        			oPlotMaterialLoss(n).AppendXY(X(m),Log((pAccept(m)-dielectricLoss(n,i))/pAccept(m))/Log(10)*10)
+        		ElseIf xMetal(i) >= X(m-1) And xMetal(i)< (X(m-1)+X(m))/2 Then
+                    oPlotMaterialLoss(n).AppendXY(X(m-1),Log((pAccept(m-1)-dielectricLoss(n,i))/pAccept(m-1))/Log(10)*10)
 				End If
 
 			Next
 		Next
 		oPlotMaterialLoss(n).xlabel("Frequecy/GHz")
-		oPlotMaterialLoss(n).ylabel("Loss in "+ Left(DielectricList,InStr(DielectricList,"$")-1)+"/dB" )
-		oPlotMaterialLoss(n).Save("RadiationEfficiencyLossIn"+Left(DielectricList,InStr(DielectricList,"$")-1)+ "@Port="+PortNum+".sig")
-		oPlotMaterialLoss(n).AddToTree(PowerPath+"\Radiation efficiency loss due to dielectric loss\Loss in "+Left(DielectricList,InStr(DielectricList,"$")-1))
-		DielectricList = Right(DielectricList,Len(DielectricList)-InStr(DielectricList,"$"))
+		oPlotMaterialLoss(n).ylabel("Loss in "+ Left(dielectricList,InStr(dielectricList,"$")-1)+"/dB" )
+		'Dim temp As String
+		'temp = Left(dielectricList,InStr(dielectricList,"$")-1)
+		oPlotMaterialLoss(n).Save("RadiationEfficiencyLossIn"+Left(dielectricList,InStr(dielectricList,"$")-1)+ "@Port="+portNumber+".sig")
+		oPlotMaterialLoss(n).AddToTree(PowerPath+"\Radiation efficiency loss due to dielectric loss\Loss in "+Left(dielectricList,InStr(dielectricList,"$")-1))
+		dielectricList = Right(dielectricList,Len(dielectricList)-InStr(dielectricList,"$"))
 	Next
 
     If filename <> "" Then
         'Plot reflection and coupling loss as well as total metal and dielectric loss
 		For n = 0 To nPoints-1
-			If (Psti(n)-Pref(n))<=0 Then
-				Psti(n) = Pref(n) + 1e-3
+			If (pStimulate(n)-pReflct(n))<=0 Then
+				pStimulate(n) = pReflct(n) + 1e-3
 
 			End If
-			oPlotRefLoss.AppendXY(X(n),Log((Psti(n)-Pref(n))/Psti(n))/Log(10)*10)
-			oPlotCouLoss.AppendXY(X(n),Log((Psti(n)-Pcoup(n)+Pref(n))/Psti(n))/Log(10)*10)
-            If X(n) >= Xmtl(0) Then
+			oPlotRefLoss.AppendXY(X(n),Log((pStimulate(n)-pReflct(n))/pStimulate(n))/Log(10)*10)
+			oPlotCouLoss.AppendXY(X(n),Log((pStimulate(n)-pCoupling(n)+pReflct(n))/pStimulate(n))/Log(10)*10)
+            If X(n) >= xMetal(0) Then
             	For m = 0 To losPoints-1
-            		If Xmtl(m) <= X(n) And Xmtl(m)> (X(n-1)+X(n))/2 Then
-            			oPlotMetLoss.AppendXY(X(n),Log((Psti(n)-lossOfMetal(m))/Psti(n))/Log(10)*10)
-						oPlotDieLoss.AppendXY(X(n),Log((Psti(n)-lossOfDielectric(m))/Psti(n))/Log(10)*10)
-					ElseIf Xmtl(m) >= X(n-1) And Xmtl(m)< (X(n-1)+X(n))/2 Then
-						oPlotMetLoss.AppendXY(X(n-1),Log((Psti(n-1)-lossOfMetal(m))/Psti(n-1))/Log(10)*10)
-						oPlotDieLoss.AppendXY(X(n-1),Log((Psti(n-1)-lossOfDielectric(m))/Psti(n-1))/Log(10)*10)
+            		If xMetal(m) <= X(n) And xMetal(m)> (X(n-1)+X(n))/2 Then
+            			oPlotMetLoss.AppendXY(X(n),Log((pStimulate(n)-lossOfMetal(m))/pStimulate(n))/Log(10)*10)
+						oPlotDieLoss.AppendXY(X(n),Log((pStimulate(n)-lossOfDielectric(m))/pStimulate(n))/Log(10)*10)
+					ElseIf xMetal(m) >= X(n-1) And xMetal(m)< (X(n-1)+X(n))/2 Then
+						oPlotMetLoss.AppendXY(X(n-1),Log((pStimulate(n-1)-lossOfMetal(m))/pStimulate(n-1))/Log(10)*10)
+						oPlotDieLoss.AppendXY(X(n-1),Log((pStimulate(n-1)-lossOfDielectric(m))/pStimulate(n-1))/Log(10)*10)
 					End If
            		 Next
            	End If
@@ -268,10 +279,10 @@ Sub Main ()
 	    oPlotMetLoss.xlabel("Frequency/GHz")
 	    oPlotDieLoss.xlabel("Frequency/GHz")
 
-		oPlotRefLoss.Save("TotalEfficiencyLossDueToReflection @Port="+PortNum+".sig")
-		oPlotCouLoss.Save("TotoalEfficiencyLossDueToCoupling @Port="+PortNum+".sig")
-		oPlotMetLoss.Save("TotoalEfficiencyLossDueToMetalLoss @Port="+PortNum+".sig")
-		oPlotDieLoss.Save("TotoalEfficiencyLossDueToDielectricLoss @Port="+PortNum+".sig")
+		oPlotRefLoss.Save("TotalEfficiencyLossDueToReflection @Port="+portNumber+".sig")
+		oPlotCouLoss.Save("TotoalEfficiencyLossDueToCoupling @Port="+portNumber+".sig")
+		oPlotMetLoss.Save("TotoalEfficiencyLossDueTometalLoss @Port="+portNumber+".sig")
+		oPlotDieLoss.Save("TotoalEfficiencyLossDueTodielectricLoss @Port="+portNumber+".sig")
 
 		oPlotRefLoss.AddToTree(PowerPath+"\Total Efficiency Loss\Loss due to Reflection")
 		oPlotCouLoss.AddToTree(PowerPath+"\Total Efficiency Loss\Loss due to Coupling")
@@ -279,18 +290,18 @@ Sub Main ()
 		oPlotDieLoss.AddToTree(PowerPath+"\Total Efficiency Loss\Loss due to Dielectric Loss")
 	End If
     'Change Plot Styles
-	Dim SelectedItem As String
-	Dim CurveLabel As String
+	Dim selectedItem As String
+	Dim curveLabel As String
 	Dim index As Integer
 
-	SelectedItem = Resulttree.GetFirstChildName(PowerPath+"\Radiation efficiency loss due to dielectric loss")
-	While SelectedItem <> ""
-		SelectTreeItem(SelectedItem)
-        CurveLabel = Right(SelectedItem,Len(SelectedItem)-InStrRev(SelectedItem,"\"))
+	selectedItem = Resulttree.GetFirstChildName(PowerPath+"\Radiation efficiency loss due to dielectric loss")
+	While selectedItem <> ""
+		SelectTreeItem(selectedItem)
+        curveLabel = Right(selectedItem,Len(selectedItem)-InStrRev(selectedItem,"\"))
 
 	      With Plot1D
 
-		      index =.GetCurveIndexOfCurveLabel(CurveLabel)
+		      index =.GetCurveIndexOfcurveLabel(curveLabel)
 
 		     .SetLineStyle(index,"Solid",2) ' thick dashed line
 
@@ -301,16 +312,16 @@ Sub Main ()
 		End With
 
 
-		SelectedItem = Resulttree.GetNextItemName(SelectedItem)
+		selectedItem = Resulttree.GetNextItemName(selectedItem)
 	Wend
 
-	SelectedItem = Resulttree.GetFirstChildName(PowerPath+"\Radiation efficiency loss due to metal loss")
-	While SelectedItem <> ""
-		SelectTreeItem(SelectedItem)
-        CurveLabel = Right(SelectedItem,Len(SelectedItem)-InStrRev(SelectedItem,"\"))
+	selectedItem = Resulttree.GetFirstChildName(PowerPath+"\Radiation efficiency loss due to metal loss")
+	While selectedItem <> ""
+		SelectTreeItem(selectedItem)
+        curveLabel = Right(selectedItem,Len(selectedItem)-InStrRev(selectedItem,"\"))
         With Plot1D
 
-		      index =.GetCurveIndexOfCurveLabel(CurveLabel)
+		      index =.GetCurveIndexOfcurveLabel(curveLabel)
 
 		     .SetLineStyle(index,"Solid",2) ' thick dashed line
 
@@ -320,7 +331,7 @@ Sub Main ()
 
 		End With
 
-		SelectedItem = Resulttree.GetNextItemName(SelectedItem)
+		selectedItem = Resulttree.GetNextItemName(selectedItem)
 	Wend
 
 End Sub
