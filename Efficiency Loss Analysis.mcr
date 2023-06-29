@@ -2,7 +2,7 @@
 'Option Explicit
 '20220828-By Shawn in COROS
 
-Public powerPath As String
+Public PowerPath As String
 'Public FirstChildItem As String
 
 Sub Main ()
@@ -217,8 +217,10 @@ Sub Main ()
 
 			Next
 		Next
-		oPlotMaterialLoss(n).xlabel("Frequecy/GHz")
-		oPlotMaterialLoss(n).ylabel("Loss in "+ Left(metalList,InStr(metalList,"$")-1)+"/dB" )
+		oPlotMaterialLoss(n).Xlabel("Frequecy/GHz")
+		'oPlotMaterialLoss(n).ylabel("Loss in "+ Left(metalList,InStr(metalList,"$")-1)+"/dB" )
+		oPlotMaterialLoss(n).Title("Loss in "+ Left(metalList,InStr(metalList,"$")-1)+"/dB")
+		oPlotMaterialLoss(n).Ylabel("dB" )
 		oPlotMaterialLoss(n).Save("RadiationEfficiencyLossIn"+Left(metalList,InStr(metalList,"$")-1)+ "@Port="+portNumber+".sig")
 		oPlotMaterialLoss(n).AddToTree(PowerPath+"\Radiation efficiency loss due to metal loss\Loss in "+Left(metalList,InStr(metalList,"$")-1))
 		metalList = Right(metalList,Len(metalList)-InStr(metalList,"$"))
@@ -240,7 +242,9 @@ Sub Main ()
 			Next
 		Next
 		oPlotMaterialLoss(n).xlabel("Frequecy/GHz")
-		oPlotMaterialLoss(n).ylabel("Loss in "+ Left(dielectricList,InStr(dielectricList,"$")-1)+"/dB" )
+		'oPlotMaterialLoss(n).ylabel("Loss in "+ Left(dielectricList,InStr(dielectricList,"$")-1)+"/dB" )
+		oPlotMaterialLoss(n).Title("Loss in "+ Left(dielectricList,InStr(dielectricList,"$")-1)+"/dB" )
+		oPlotMaterialLoss(n).ylabel("dB" )
 		'Dim temp As String
 		'temp = Left(dielectricList,InStr(dielectricList,"$")-1)
 		oPlotMaterialLoss(n).Save("RadiationEfficiencyLossIn"+Left(dielectricList,InStr(dielectricList,"$")-1)+ "@Port="+portNumber+".sig")
@@ -269,10 +273,16 @@ Sub Main ()
            		 Next
            	End If
 		Next
-	    oPlotRefLoss.ylabel("Total efficiency Loss due to reflection/dB")
-	    oPlotCouLoss.ylabel("Total efficiency Loss due to coupling/dB")
-	    oPlotMetLoss.ylabel("Total efficiency Loss due to Metal Loss/dB")
-	    oPlotDieLoss.ylabel("Total efficiency Loss due to Dielectric Loss/dB")
+
+		oPlotRefLoss.Title("Total efficiency Loss due to reflection/dB")
+	    oPlotCouLoss.Title("Total efficiency Loss due to coupling/dB")
+	    oPlotMetLoss.Title("Total efficiency Loss due to Metal Loss/dB")
+	    oPlotDieLoss.Title("Total efficiency Loss due to Dielectric Loss/dB")
+
+	    oPlotRefLoss.ylabel("dB")
+	    oPlotCouLoss.ylabel("dB")
+	    oPlotMetLoss.ylabel("dB")
+	    oPlotDieLoss.ylabel("dB")
 
 	    oPlotRefLoss.xlabel("Frequency/GHz")
 	    oPlotCouLoss.xlabel("Frequency/GHz")
