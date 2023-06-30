@@ -66,7 +66,29 @@ ElseIf n_of_ppoints Mod 2 <> 0 Then
 
 
  For i = 0 To n_of_ppoints/2-1 STEP 1
+	Dim deltax As Double, deltay As Double, deltaz As Double
 
+	deltax = Abs(Array_x(i*2)-Array_x(i*2+1))
+	deltay = Abs(Array_y(i*2)-Array_y(i*2+1))
+	deltaz = Abs(Array_z(i*2)-Array_z(i*2+1))
+
+    If Abs(Array_x(i*2)-Array_x(i*2+1))< 0.1 And Abs(Array_y(i*2)-Array_y(i*2+1))< 0.1 And deltaz >= deltay And deltaz >= deltax  Then
+    'along axis Z
+		Array_x(i*2) = Array_x(i*2)-0.05
+		Array_x(i*2+1) = Array_x(i*2+1)+0.05
+		Array_y(i*2) = Array_y(i*2)-0.05
+		Array_y(i*2+1) = Array_y(i*2+1)+0.05
+	ElseIf Abs(Array_x(i*2)-Array_x(i*2+1))< 0.1 And Abs(Array_z(i*2)-Array_z(i*2+1))< 0.1 And deltay >= deltaz And deltay >= deltax  Then
+		Array_x(i*2) = Array_x(i*2)-0.05
+		Array_x(i*2+1) = Array_x(i*2+1)+0.05
+		Array_z(i*2) = Array_z(i*2)-0.05
+		Array_z(i*2+1) = Array_z(i*2+1)+0.05
+	ElseIf Abs(Array_y(i*2)-Array_y(i*2+1))< 0.1 And Abs(Array_z(i*2)-Array_z(i*2+1))< 0.1 And deltax >= deltay And deltax >= deltaz  Then
+		Array_z(i*2) = Array_z(i*2)-0.05
+		Array_z(i*2+1) = Array_z(i*2+1)+0.05
+		Array_y(i*2) = Array_y(i*2)-0.05
+		Array_y(i*2+1) = Array_y(i*2+1)+0.05
+	End If
 	sCommand = ""
     sCommand = sCommand + "With Brick" + vbLf
     sCommand = sCommand + "     .Reset" + vbLf
@@ -83,11 +105,11 @@ ElseIf n_of_ppoints Mod 2 <> 0 Then
 	sCommand = "Group.AddItem ""solid$9 Mesh box:PortMesh_"+CStr(i+1+port_nr_offset)+""", ""Excluded from Simulation"""+ vbLf
 	AddToHistory "Exclude PortMesh_"+ CStr(i+1+port_nr_offset)+" from simulation", sCommand
 
-	Dim deltax As Double, deltay As Double, deltaz As Double
+	'Dim deltax As Double, deltay As Double, deltaz As Double
 
-	deltax = Abs(Array_x(i*2)-Array_x(i*2+1))
-	deltay = Abs(Array_y(i*2)-Array_y(i*2+1))
-	deltaz = Abs(Array_z(i*2)-Array_z(i*2+1))
+	'deltax = Abs(Array_x(i*2)-Array_x(i*2+1))
+	'deltay = Abs(Array_y(i*2)-Array_y(i*2+1))
+	'deltaz = Abs(Array_z(i*2)-Array_z(i*2+1))
 	sCommand = ""
 
 	If deltax >= deltay And deltax >= deltaz Then
@@ -105,7 +127,7 @@ ElseIf n_of_ppoints Mod 2 <> 0 Then
 
  'Mesh.Update
  'Mesh.ViewMeshMode(False)
-
+ Pick.ClearAllPicks
  If isLocalWCSActive = True Then
  	WCS.ActivateWCS("local")
  End If
