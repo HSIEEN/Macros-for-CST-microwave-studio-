@@ -128,8 +128,10 @@ ElseIf n_of_ppoints Mod 2 <> 0 Then
 	End If
 
  Next i
-
- Pick.ClearAllPicks
+ sCommand = ""
+ sCommand = sCommand + "Pick.ClearAllPicks"
+ AddToHistory "Clear all picked points", sCommand
+ 'Pick.ClearAllPicks
 
  'Mesh.Update
  'Mesh.ViewMeshMode(False)
