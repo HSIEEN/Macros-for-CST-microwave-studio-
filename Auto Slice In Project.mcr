@@ -6,7 +6,7 @@ Option Explicit
 Sub Main
 
 
-    If MsgBox("Please select a component which only contains a shape and then run this macro!!!",vbYesNo,"Notice") <> vbYes Then
+    If MsgBox("Please select a component which only contains a solid.",vbYesNo,"Notice") <> vbYes Then
     	Exit Sub
     End If
 
@@ -18,6 +18,10 @@ Sub Main
 	Dim xStep As Double, yStep As Double, zStep As Double
 	Dim anStep As Double
 	Dim sSolid As String
+	Dim isWCS As Boolean
+
+	IIf(WCS.IsWCSActive()="global",isWCS = False, isWCS=True)
+
 	'Dim fullName As String
 	'fullName = Solid.GetNameOfShapeFromIndex(0)
 	'fullName = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
@@ -89,6 +93,7 @@ Sub Main
     	AutoSliceByAngle(sComponent,anStep)
     End If
     'WCS.ActivateWCS("global")
+    IIf(isWCS, WCS.ActivateWCS("local"),WCS.ActivateWCS("global"))
 
 
 	
@@ -169,7 +174,7 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer, 
 End Function
 Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,zStep As Double,wStep As Double)
 	Dim fullName As String
-	Dim pth As String
+	Dim path As String
 	Dim sn As Integer, i As Integer
 	Dim sCommand As String, commandName As String, tCommand As String
 	Dim isSliced As Boolean
@@ -209,7 +214,7 @@ Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,
 	isSliced = False
 	sCommand = ""
 	If WCS.IsWCSActive() = "global" Then
-		commandName = "Set loacal WCS"
+		commandName = "Set local WCS"
 		sCommand = sCommand + "WCS.ActivateWCS ""local""" + vbLf
 		AddToHistory(commandName,sCommand)
 		sCommand = ""
@@ -224,9 +229,9 @@ Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,
 	    If sn > 0 Then
 	    	For i = 0 To sn-1 STEP 1
 				fullName = Solid.GetNameOfShapeFromIndex(i)
-				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+				'path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
+				path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
+				If Right(path,Len(path)-InStrRev(path,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
 					tCommand = AutoSliceAlongAxis(fullName,xStep,0,gxMin, gxMax, gyMin, gyMax, gzMin, gzMax)
 					If tCommand <>""Then
 						sCommand = sCommand + tCommand
@@ -251,9 +256,9 @@ Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,
 	    If sn > 0 Then
 	    	For i = 0 To sn-1 STEP 1
 				fullName = Solid.GetNameOfShapeFromIndex(i)
-				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+				'path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
+				path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
+				If Right(path,Len(path)-InStrRev(path,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
 					tCommand = AutoSliceAlongAxis(fullName,yStep,1,gxMin, gxMax, gyMin, gyMax, gzMin, gzMax)
 					If tCommand <>""Then
 						sCommand = sCommand + tCommand
@@ -277,9 +282,9 @@ Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,
 	    If sn > 0 Then
 	    	For i = 0 To sn-1 STEP 1
 				fullName = Solid.GetNameOfShapeFromIndex(i)
-				'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+				'path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
+				path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
+				If Right(path,Len(path)-InStrRev(path,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
 					tCommand = AutoSliceAlongAxis(fullName,zStep,2,gxMin, gxMax, gyMin, gyMax, gzMin, gzMax)
 					If tCommand <>""Then
 						sCommand = sCommand + tCommand
@@ -306,7 +311,7 @@ Function AutoSliceByAngle(sComponent As String, anStep As Double)
 	Dim Angle As Double
 	Dim xcenter As Double,ycenter As Double,zcenter As Double
 	Dim sn As Integer, i As Integer
-	Dim pth As String
+	Dim path As String
 	Dim sCommand As String, commandName As String
 	sCommand = ""
 
@@ -324,29 +329,29 @@ Function AutoSliceByAngle(sComponent As String, anStep As Double)
 
 	If deltaxy < deltayz And deltaxy < deltaxz Then
 		Axis = "z"
-		xcenter = (xmax+xmin)/2
-		ycenter = (ymax+ymin)/2
+		xcenter = (xMax+xMin)/2
+		ycenter = (yMax+yMin)/2
 		'WCS.SetNormal(0,0,1)
 		sCommand = sCommand + "WCS.SetNormal ""0"", ""0"", ""1""" + vbLf
 		'WCS.SetOrigin(xcenter,ycenter,zmin)
-		sCommand = sCommand + "WCS.SetOrigin """+CStr(xcenter)+""","""+CStr(ycenter)+""","""+Cstr(zmin)+""""+vbLf
+		sCommand = sCommand + "WCS.SetOrigin """+CStr(xcenter)+""","""+CStr(ycenter)+""","""+Cstr(zMin)+""""+vbLf
 
 	ElseIf deltaxz < deltayz And deltaxz < deltaxy Then
 		Axis = "y"
-		xcenter = (xmax+xmin)/2
-		zcenter = (zmax+zmin)/2
+		xcenter = (xMax+xMin)/2
+		zcenter = (zMax+zMin)/2
 		'WCS.SetNormal(0,1,0)
 		sCommand = sCommand + "WCS.SetNormal ""0"", ""1"", ""0""" + vbLf
 		'WCS.SetOrigin(xcenter,ymin,zcenter)
-		sCommand = sCommand + "WCS.SetOrigin """+CStr(xcenter)+""","""+CStr(ymin)+""","""+Cstr(zcenter)+""""+vbLf
+		sCommand = sCommand + "WCS.SetOrigin """+CStr(xcenter)+""","""+CStr(yMin)+""","""+Cstr(zcenter)+""""+vbLf
 	ElseIf deltayz < deltaxy And deltayz < deltaxz Then
 		Axis = "x"
-		ycenter = (ymax+ymin)/2
-		zcenter = (zmax+zmin)/2
+		ycenter = (yMax+yMin)/2
+		zcenter = (zMax+zMin)/2
 		'WCS.SetNormal(1,0,0)
 		sCommand = sCommand + "WCS.SetNormal ""1"", ""0"", ""0""" + vbLf
 		'WCS.SetOrigin(xmin,ycenter,zcenter)
-		sCommand = sCommand + "WCS.SetOrigin """+CStr(xmin)+""","""+CStr(ycenter)+""","""+Cstr(zcenter)+""""+vbLf
+		sCommand = sCommand + "WCS.SetOrigin """+CStr(xMin)+""","""+CStr(ycenter)+""","""+Cstr(zcenter)+""""+vbLf
 	End If
 	'Initialize the total rotated angle, this angle should be less than 180 degree
 	Angle = 0
@@ -356,9 +361,9 @@ Function AutoSliceByAngle(sComponent As String, anStep As Double)
 		sn = Solid.GetNumberOfShapes
 		For i = 0 To sn-1 STEP 1
 			fName = Solid.GetNameOfShapeFromIndex(i)
-			'pth = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-			pth = Replace(Left(fName,InStr(fName,":")-1),"/","\")
-			If Right(pth,Len(pth)-InStrRev(pth,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+			'path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
+			path = Replace(Left(fName,InStr(fName,":")-1),"/","\")
+			If Right(path,Len(path)-InStrRev(path,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
 				sName = Right(fName,Len(fName)-InStr(fName,":"))
 				CompName = Left(fName,InStr(fName,":")-1)
 				'Solid.SliceShape(sName,CompName)
