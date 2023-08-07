@@ -8,6 +8,7 @@ Option Explicit
 Public antennaElement_array() As AntennaElement
 Public aSolidArray_CST() As String
 Public nSolids_CST As Integer
+Public ant_material As String
 Sub Main
 	antennaElement_initialize()
 	'Select operating frequency and feed point
@@ -24,7 +25,7 @@ Sub Main
 	Dim tgtFreq As Double
 	Dim feedingSolid As String
 	Dim feeding As AntennaElement
-	Dim ant_material As String
+	'Dim ant_material As String
 	ant_material = "Metal/Copper (annealed)"
 
 	dlg.Freq = "1.56"
@@ -43,7 +44,13 @@ Sub Main
 		'Solid.ChangeMaterial "1 Antenna:Antenna", "Metal/Copper (annealed)"
 		'feeding.solidMaterial = ant_material
 		'Solid.ChangeMaterial(feeding.solidName,ant_material)
-	antennaGenerator(feeding)
+	Dim X As Integer
+	X=0
+	While X<100
+		X+=1
+		antennaGenerator(feeding)
+	Wend
+
 	MsgBox "OOO"
 End Sub
 Sub antennaElement_initialize()
@@ -109,19 +116,76 @@ Function antennaGenerator(feed As AntennaElement)
 	'Int((6*Rnd)+1)
 	'mFaceNeighbor-->metal face neighbors; mEdgeNeighbor--> mEdgeNeighbors
 	'faceNeighbor--> face Neighbors; edgeNeighbor--> edge Neighbor
-	Dim n_neighbor As Integer, n_NMneighbor As Integer, n_Mneighbor As Integer
-	Dim i As Integer
-	Dim neighbors() As AntennaElement, nonMetalNeighbors() As AntennaElement
-	Dim MetalNeighbor() As AntennaElement
-	Dim current_element As AntennaElement
-	Set current_element = feed
-	neighbors = current_element.getFaceNeighbors(n_neighbor)
-	nonMetalNeighbors = current_element.getNonMetalFaceNeighbors(n_NMneighbor)
-	'While n_NMneighbor >= 1
-		'For i = 0 To UBound(nonMetalNeighbor)
+	'Materials of all elements are set to be vacuum
+	Dim i As Integer, j As Integer,ii As Integer, jj As Integer
+	Dim n_faceNeighbors As Integer
+	Dim n_metalFaceNeighbors As Integer, n_nonMetalFaceNeighbors As Integer
+	Dim n_metalEdgeNeighbors As Integer
 
-		'Next
+	Dim faceNeighbors() As AntennaElement
+	Dim metalFaceneighbors() As AntennaElement, nonMetalFaceNeighbors() As AntennaElement
+	Dim metalEdgeNeighbors() As AntennaElement, nonMetalEdgeNeighbors() As AntennaElement
+	Dim currentElement As AntennaElement
+	Set currentElement = feed
 
-	'Wend
+	'metalEdgeNeighbors = currentElement.getNonMetalFaceNeighbors(n_NMneighbor)
+	Dim n_metalFaceNeighborsOfNonMetalFaceNeighbors As Integer
+	Dim n_metalEdgeNeighborsOfNonMetalFaceNeighbors As Integer
+	Dim metalFaceNeighborsOfNonMetalFaceNeighbors() As AntennaElement
+	Dim metalEdgeNeighborsOfNonMetalFaceNeighbors() As AntennaElement
+	'number of valid face neighbors
+	Dim n_validFaceNeighbors As Integer
+	Dim randomNumber As Integer
+	'list of validities of face neighbors
+	Dim validityOfFaceNeighbors() As Boolean
+	'current element has more than 1 non-metal face neighbors
+	Do
+		faceNeighbors = currentElement.getFaceNeighbors(n_faceNeighbors)
+		nonMetalFaceNeighbors = currentElement.getNonMetalFaceNeighbors(n_nonMetalFaceNeighbors)
+		n_validFaceNeighbors = n_nonMetalFaceNeighbors
+		ReDim validityOfFaceNeighbors(n_validFaceNeighbors)
+		For i=0 To n_nonMetalFaceNeighbors-1
+			validityOfFaceNeighbors(i)=True
+		Next
+		For i = 0 To n_nonMetalFaceNeighbors-1
+			'If there are more than one metal face neighbors, the non metal face neighbors are invalid
+			'for being used as an antenna element
+			metalFaceNeighborsOfNonMetalFaceNeighbors = _
+			nonMetalFaceNeighbors(i).getMetalFaceNeighbors(n_metalFaceNeighborsOfNonMetalFaceNeighbors)
+			If n_metalFaceNeighborsOfNonMetalFaceNeighbors>1 Then
+				n_validFaceNeighbors -= 1
+				validityOfFaceNeighbors(i)=False
+			Else
+				'Check whether metal edge neighbors of non-metal face neighbors are among
+				'face neighbors of current element
+				metalEdgeNeighborsOfNonMetalFaceNeighbors = _
+				nonMetalFaceNeighbors(i).getMetalEdgeNeighbors(n_metalEdgeNeighborsOfNonMetalFaceNeighbors)
+				If n_metalEdgeNeighborsOfNonMetalFaceNeighbors >= 1 Then
+					For j=0 To n_metalEdgeNeighborsOfNonMetalFaceNeighbors-1
+						If metalEdgeNeighborsOfNonMetalFaceNeighbors(j).DoesTouchWith(currentElement)=False Then
+							n_validFaceNeighbors -= 1
+							validityOfFaceNeighbors(i)=False
+							Exit For
+						End If
+					Next
+				End If
+			End If
+		Next
+		If n_validFaceNeighbors>0 Then
+			randomNumber=Int((n_validFaceNeighbors)*Rnd)
+			jj=0
+			For i = 0 To n_nonMetalFaceNeighbors-1
+				If validityOfFaceNeighbors(i)=True Then
+					If randomNumber=jj Then
+						nonMetalFaceNeighbors(i).setMaterial(ant_material)
+						Set currentElement = nonMetalFaceNeighbors(i)
+					End If
+					jj+=1
+				End If
+			Next
+		Else
+			Exit All
+		End If
+	Loop
 
 End Function
