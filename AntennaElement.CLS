@@ -1,12 +1,3 @@
-VERSION 1.0 CLASS
-BEGIN
-  MultiUse = -1 'True
-END
-Attribute VB_PredeclaredId = False
-Attribute VB_Creatable = True
-Attribute VB_Exposed = False
-Attribute VB_GlobalNameSpace = False
-Attribute VB_Name = "AntennaElement"
 '#Language "WWB-COM"
 Option Explicit
 Private sName As String
@@ -149,8 +140,8 @@ Property Get nnn2pnn() As Double()
 	Next
 	nnn2pnn = edge
 End Property
-'npp2npn
-Property Get npp2npn() As Double()
+'npp2nnp
+Property Get npp2nnp() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -159,10 +150,10 @@ Property Get npp2npn() As Double()
 			edge(i,j)=edges(3,i,j)
 		Next
 	Next
-	npp2npn = edge
+	npp2nnp = edge
 End Property
-'npp2nnp
-Property Get npp2nnp() As Double()
+'npp2npn
+Property Get npp2npn() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -171,7 +162,7 @@ Property Get npp2nnp() As Double()
 			edge(i,j)=edges(4,i,j)
 		Next
 	Next
-	npp2nnp = edge
+	npp2npn = edge
 End Property
 'npp2ppp
 Property Get npp2ppp() As Double()
@@ -185,8 +176,8 @@ Property Get npp2ppp() As Double()
 	Next
 	npp2ppp = edge
 End Property
-'pnp2pnn
-Property Get pnp2pnn() As Double()
+'pnp2nnp
+Property Get pnp2nnp() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -195,10 +186,10 @@ Property Get pnp2pnn() As Double()
 			edge(i,j)=edges(6,i,j)
 		Next
 	Next
-	pnp2pnn = edge
+	pnp2nnp = edge
 End Property
-'pnp2nnp
-Property Get pnp2nnp() As Double()
+'pnp2pnn
+Property Get pnp2pnn() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -207,7 +198,7 @@ Property Get pnp2nnp() As Double()
 			edge(i,j)=edges(7,i,j)
 		Next
 	Next
-	pnp2nnp = edge
+	pnp2pnn = edge
 End Property
 'pnp2ppp
 Property Get pnp2ppp() As Double()
@@ -786,34 +777,35 @@ Private Function DoesTouchWith(A As AntennaElement) As Boolean
 End Function
 Public Sub defineVertices()
 	ReDim vertices(8,3)
+	'nnn
 	vertices(0,0) = startPoint(0)
 	vertices(0,1) = startPoint(1)
 	vertices(0,2) = startPoint(2)
-
+	'nnp
 	vertices(1,0) = startPoint(0)
 	vertices(1,1) = startPoint(1)
 	vertices(1,2) = endPoint(2)
-
+	'npn
 	vertices(2,0) = startPoint(0)
 	vertices(2,1) = endPoint(1)
 	vertices(2,2) = startPoint(2)
-
+	'npp
 	vertices(3,0) = startPoint(0)
 	vertices(3,1) = endPoint(1)
 	vertices(3,2) = endPoint(2)
-
+	'pnn
 	vertices(4,0) = endPoint(0)
 	vertices(4,1) = startPoint(1)
 	vertices(4,2) = startPoint(2)
-
+	'pnp
 	vertices(5,0) = endPoint(0)
 	vertices(5,1) = startPoint(1)
 	vertices(5,2) = endPoint(2)
-
+	'ppn
 	vertices(6,0) = endPoint(0)
 	vertices(6,1) = endPoint(1)
 	vertices(6,2) = startPoint(2)
-
+	'ppp
 	vertices(7,0) = endPoint(0)
 	vertices(7,1) = endPoint(1)
 	vertices(7,2) = endPoint(2)
