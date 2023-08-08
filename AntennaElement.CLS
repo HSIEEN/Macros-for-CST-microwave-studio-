@@ -324,10 +324,68 @@ Property Get zpFace() As Double()
 	Next
 	zpFace = nFace
 End Property
+'vertice neighbors
+Private verticeNeighbors(8) As AntennaElement
+'nnnNeighbor
+Property Get nnnNeighbor() As AntennaElement
+	Set nnnNeighbor = verticeNeighbors(0)
+End Property
+Property Set nnnNeighbor(value As AntennaElement)
+	Set verticeNeighbors(0) = value
+End Property
+'nnpNeighbor
+Property Get nnpNeighbor() As AntennaElement
+	Set nnpNeighbor = verticeNeighbors(1)
+End Property
+Property Set nnpNeighbor(value As AntennaElement)
+	Set verticeNeighbors(1) = value
+End Property
+'npnNeighbor
 
-'faceNeighbors--> xnFaceNeighbor, xpFaceNeighbor, ynFaceNeighbor, ypFaceNeighbor, znFaceNeighbor, zpFaceNeighbor
-'Private faceNeighbors() As AntennaElement
-'Private faceNeighborXp As AntennaElement
+Property Get npnNeighbor() As AntennaElement
+	Set npnNeighbor = verticeNeighbors(2)
+End Property
+Property Set npnNeighbor(value As AntennaElement)
+	Set verticeNeighbors(2) = value
+End Property
+'nppNeighbor
+Property Get nppNeighbor() As AntennaElement
+	Set nppNeighbor = verticeNeighbors(3)
+End Property
+Property Set nppNeighbor(value As AntennaElement)
+	Set verticeNeighbors(3) = value
+End Property
+'pnnNeighbor
+
+Property Get pnnNeighbor() As AntennaElement
+	Set pnnNeighbor = verticeNeighbors(4)
+End Property
+Property Set pnnNeighbor(value As AntennaElement)
+	Set verticeNeighbors(4) = value
+End Property
+'pnpNeighbor
+Property Get pnpNeighbor() As AntennaElement
+	Set pnpNeighbor = verticeNeighbors(5)
+End Property
+Property Set pnpNeighbor(value As AntennaElement)
+	Set verticeNeighbors(5) = value
+End Property
+'ppnNeighbor
+
+Property Get ppnNeighbor() As AntennaElement
+	Set ppnNeighbor = verticeNeighbors(6)
+End Property
+Property Set ppnNeighbor(value As AntennaElement)
+	Set verticeNeighbors(6) = value
+End Property
+'pppNeighbor
+Property Get pppNeighbor() As AntennaElement
+	Set pppNeighbor = verticeNeighbors(7)
+End Property
+Property Set pppNeighbor(value As AntennaElement)
+	Set verticeNeighbors(7) = value
+End Property
+
 Private faceNeighbors(6) As AntennaElement
 'Private faceNeighborXn As AntennaElement
 'Private ReDim faceNeighbors(6)
@@ -495,6 +553,67 @@ Public Sub setEndPoint(xMax As Double, yMax As Double, zMax As Double)
 	endPoint(1) = yMax
 	endPoint(2) = zMax
 End Sub
+Public Sub createVerticeNeighborWith(A As AntennaElement)
+	If DoesTouchWith(A) = False Then
+		Exit Sub
+	End If
+    'edgeNeighbors-->nnn,nnp,npn,npp,pnn,pnp,ppn,ppp
+	If StrComp(A.solidName, solidName) <> 0 Then
+		'Debug.Print TypeName(A.xnNeighbor)
+		If (A.nnnNeighbor Is Nothing) And isArrayIdentical(A.nnn, ppp)=True Then
+			'A.xn<--> xp
+			A.nnnNeighbor = Me
+			 pppNeighbor = A
+		ElseIf (A.nnpNeighbor Is Nothing) And isArrayIdentical(A.nnp, ppn)=True Then
+			'A.xp<--> xn
+			A.nnpNeighbor = Me
+			 ppnNeighbor = A
+		ElseIf (A.npnNeighbor Is Nothing) And isArrayIdentical(A.npn, pnp)=True Then
+			'A.yp<--> yn
+			A.npnNeighbor = Me
+			 pnpNeighbor = A
+		ElseIf (A.nppNeighbor Is Nothing) And isArrayIdentical(A.npp, pnn)=True Then
+			'A.yn<--> yp
+			A.nppNeighbor = Me
+			 pnnNeighbor = A
+		ElseIf (A.pnnNeighbor Is Nothing) And isArrayIdentical(A.pnn, npp)=True Then
+			'A.zp<--> zn
+			A.pnnNeighbor= Me
+			 nppNeighbor = A
+		ElseIf (A.pnpNeighbor Is Nothing) And isArrayIdentical(A.pnp, npn)=True Then
+			'A.zn<--> zp
+			A.pnpNeighbor = Me
+			 npnNeighbor = A
+		ElseIf (A.ppnNeighbor Is Nothing) And isArrayIdentical(A.ppn, nnp)=True Then
+			'A.zn<--> zp
+			A.ppnNeighbor = Me
+			 nnpNeighbor = A
+		ElseIf (A.pppNeighbor Is Nothing) And isArrayIdentical(A.ppp, nnn)=True Then
+			'A.zn<--> zp
+			A.pppNeighbor = Me
+			 nnnNeighbor = A
+		End If
+	End If
+End Sub
+Public Function iSVerticeNeighborWith(A As AntennaElement) As Boolean
+	If DoesTouchWith(A) = False Then
+		Return False
+		Exit Function
+	End If
+	If StrComp(A.solidName, solidName) <> 0 Then
+		'Debug.Print TypeName(A.xnNeighbor)
+		If isArrayIdentical(A.nnn, ppp)=True Or isArrayIdentical(A.nnp, ppn)=True _
+		Or isArrayIdentical(A.npn, pnp)=True Or isArrayIdentical(A.npp, pnn)=True _
+		Or isArrayIdentical(A.pnn, npp)=True Or isArrayIdentical(A.pnp, npn)=True _
+		Or isArrayIdentical(A.ppn, nnp)=True Or isArrayIdentical(A.ppp, nnn)=True Then
+			Return True
+		Else
+			Return False
+		End If
+
+	End If
+End Function
+
 Public Sub createFaceNeighborWith(A As AntennaElement)
 	'ReDim faceNeighbors(6)
 	If DoesTouchWith(A) = False Then
@@ -530,6 +649,23 @@ Public Sub createFaceNeighborWith(A As AntennaElement)
 		End If
 	End If
 End Sub
+Public Function iSFaceNeighborWith(A As AntennaElement) As Boolean
+	If DoesTouchWith(A) = False Then
+		Return False
+		Exit Function
+	End If
+	If StrComp(A.solidName, solidName) <> 0 Then
+		'Debug.Print TypeName(A.xnNeighbor)
+		If isArrayIdentical(A.xnFace, xpFace)=True Or isArrayIdentical(A.xpFace, xnFace)=True _
+		Or isArrayIdentical(A.ypFace, ynFace)=True Or isArrayIdentical(A.ynFace, ypFace)=True _
+		Or isArrayIdentical(A.zpFace, znFace)=True Or isArrayIdentical(A.znFace, zpFace)=True Then
+			Return True
+		Else
+			Return False
+		End If
+
+	End If
+End Function
 
 Public Sub createEdgeNeighborWith(A As AntennaElement)
 	'ReDim edgeNeighbors(12)
@@ -601,6 +737,26 @@ Public Sub createEdgeNeighborWith(A As AntennaElement)
 		End If
 	End If
 End Sub
+Public Function iSEdgeNeighborWith(A As AntennaElement) As Boolean
+	If DoesTouchWith(A) = False Then
+		Return False
+		Exit Function
+	End If
+	If StrComp(A.solidName, solidName) <> 0 Then
+		'Debug.Print TypeName(A.xnNeighbor)
+		If isArrayIdentical(A.nnn2nnp, Me.ppn2ppp)=True Or isArrayIdentical(A.nnn2npn,Me.pnp2ppp)=True _
+		Or isArrayIdentical(A.nnn2pnn,Me.npp2ppp)=True Or isArrayIdentical(A.npp2nnp,Me.ppn2pnn)=True _
+		Or isArrayIdentical(A.npp2ppp,Me.nnn2pnn)=True Or isArrayIdentical(A.pnp2nnp,Me.ppn2npn)=True _
+		Or isArrayIdentical(A.npp2npn,Me.pnp2pnn)=True Or isArrayIdentical(A.pnp2pnn,Me.npp2npn)=True _
+		Or isArrayIdentical(A.pnp2ppp,Me.nnn2npn)=True Or isArrayIdentical(A.ppn2npn,Me.pnp2nnp)=True _
+		Or isArrayIdentical(A.ppn2pnn,Me.npp2nnp)=True Or isArrayIdentical(A.ppn2ppp,Me.nnn2nnp)=True Then
+			Return True
+		Else
+			Return False
+		End If
+
+	End If
+End Function
 
 Private Function isArrayIdentical(A() As Double, B() As Double) As Boolean
 	Dim i As Integer, j As Integer
@@ -614,8 +770,27 @@ Private Function isArrayIdentical(A() As Double, B() As Double) As Boolean
 		Next
 	Next
 End Function
+'get the number of all vertice neighbors
+Public Function getVerticeNeighbors(ByRef neighborNum As Integer) As Variant
+
+	Dim i As Integer
+	Dim neighbor() As AntennaElement
+    ReDim neighbor(8)
+    neighborNum = 0
+
+    For i=0 To 7
+    	If verticeNeighbors(i) IsNot Nothing Then
+			Set neighbor(neighborNum)=verticeNeighbors(i)
+			neighborNum += 1
+    	End If
+    Next
+    'neighbor = "", old codes
+
+    ReDim Preserve neighbor(neighborNum)
+    Return neighbor
+End Function
 'get the number of all edge neighbors
-Public Function getEdgeNeighbors(ByRef neighborNum As Integer) As AntennaElement
+Public Function getEdgeNeighbors(ByRef neighborNum As Integer) As Variant
 
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
@@ -656,8 +831,29 @@ Public Function getFaceNeighbors(ByRef neighborNum As Integer) As Variant
 
     getFaceNeighbors = neighbor
 End Function
+'get the number of all non metal edge neighbors
+Public Function getNonMetalVerticeNeighbors(ByRef neighborNum As Integer) As Variant
+
+	Dim i As Integer
+	Dim neighbor() As AntennaElement
+    ReDim neighbor(8)
+    neighborNum = 0
+
+    For i=0 To 7
+	    If verticeNeighbors(i) IsNot Nothing Then
+	    	If IsMetal(verticeNeighbors(i).solidMaterial)=False Then
+				Set neighbor(neighborNum)=verticeNeighbors(i)
+				neighborNum += 1
+			End If
+	    End If
+    Next
+    'neighbor = "", old codes
+
+    ReDim Preserve neighbor(neighborNum)
+    Return neighbor
+End Function
 'get the number of all Non-Metal edge neighbors
-Public Function getNonMetalEdgeNeighbors(ByRef neighborNum As Integer) As AntennaElement
+Public Function getNonMetalEdgeNeighbors(ByRef neighborNum As Integer) As Variant
 		' 0-nnn2nnp(2,3)
 		' 1-nnn2npn(2,3)
 		' 2-nnn2pnn(2,3)
@@ -705,8 +901,29 @@ Public Function getNonMetalFaceNeighbors(ByRef neighborNum As Integer) As Varian
     ReDim Preserve neighbor(neighborNum)
     Return neighbor
 End Function
+'get the number of all metal edge neighbors
+Public Function getMetalVerticeNeighbors(ByRef neighborNum As Integer) As Variant
+
+	Dim i As Integer
+	Dim neighbor() As AntennaElement
+    ReDim neighbor(8)
+    neighborNum = 0
+
+    For i=0 To 7
+	    If verticeNeighbors(i) IsNot Nothing Then
+	    	If IsMetal(verticeNeighbors(i).solidMaterial)=True Then
+				Set neighbor(neighborNum)=verticeNeighbors(i)
+				neighborNum += 1
+			End If
+	    End If
+    Next
+    'neighbor = "", old codes
+
+    ReDim Preserve neighbor(neighborNum)
+    Return neighbor
+End Function
 'get the number of all Metal edge neighbors
-Public Function getMetalEdgeNeighbors(ByRef neighborNum As Integer) As AntennaElement
+Public Function getMetalEdgeNeighbors(ByRef neighborNum As Integer) As Variant
 		' 0-nnn2nnp(2,3)
 		' 1-nnn2npn(2,3)
 		' 2-nnn2pnn(2,3)
@@ -738,7 +955,7 @@ Public Function getMetalEdgeNeighbors(ByRef neighborNum As Integer) As AntennaEl
     Return neighbor
 End Function
 'get the number of all Metal face neighbors
-Public Function getMetalFaceNeighbors(ByRef neighborNum As Integer) As AntennaElement
+Public Function getMetalFaceNeighbors(ByRef neighborNum As Integer) As Variant
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
     ReDim neighbor(6)
@@ -756,15 +973,16 @@ Public Function getMetalFaceNeighbors(ByRef neighborNum As Integer) As AntennaEl
     ReDim Preserve neighbor(neighborNum)
     Return neighbor
 End Function
+
 Public Function IsMetal(sMaterial As String) As Boolean
 	If Material.GetTypeOfMaterial(sMaterial) = "PEC" Or _
-	Material.GetTypeOfMaterial(sMaterial) = "Lossy Metal" Then
+	Material.GetTypeOfMaterial(sMaterial) = "Lossy metal" Then
 		Return True
 	Else
 		Return False
 	End If
 End Function
-Private Function DoesTouchWith(A As AntennaElement) As Boolean
+Public Function DoesTouchWith(A As AntennaElement) As Boolean
 	'verticeNum = 0
 	'If isArrayIdentical(Me.xnynzn, A.) Then
 	DoesTouchWith = True
