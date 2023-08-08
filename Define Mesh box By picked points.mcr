@@ -1,6 +1,3 @@
-' *Construct / Discrete Ports / Multiple discrete Ports
-' !!! Do not change the line above !!!
-
 Option Explicit
 
 '#include "vba_globals_all.lib"
@@ -58,9 +55,11 @@ ElseIf n_of_ppoints Mod 2 <> 0 Then
  Dim isLocalWCSActive As Boolean
 
   isLocalWCSActive = False
-
+  'sCommand=""
   If WCS.IsWCSActive() = "local" Then
-	  WCS.ActivateWCS("global")
+	  'WCS.ActivateWCS("global")
+	  sCommand = "WCS.ActivateWCS ""global"""
+	  AddToHistory "Activate global coordinates system", sCommand
 	  isLocalWCSActive = True
   End If
 
@@ -92,7 +91,7 @@ ElseIf n_of_ppoints Mod 2 <> 0 Then
 	sCommand = ""
     sCommand = sCommand + "With Brick" + vbLf
     sCommand = sCommand + "     .Reset" + vbLf
-    sCommand = sCommand + "     .Name ""PortMesh_"+CStr(i+1+port_nr_offset)+"""" + vbLf
+    sCommand = sCommand + "     .Name ""MeshBox_"+CStr(i+1+port_nr_offset)+"""" + vbLf
     sCommand = sCommand + "     .Component """ + "9 Mesh box"+""""+ vbLf
     sCommand = sCommand + "     .Material """ + "Vacuum"+""""+ vbLf
     sCommand = sCommand + "     .Xrange """ +StrValue(Array_x(i*2))+""", """+StrValue(Array_x(i*2+1))+"""" + vbLf
@@ -100,10 +99,10 @@ ElseIf n_of_ppoints Mod 2 <> 0 Then
     sCommand = sCommand + "     .Zrange""" +StrValue(Array_z(i*2))+""", """+StrValue(Array_z(i*2+1))+"""" + vbLf
     sCommand = sCommand + "     .Create" + vbLf
     sCommand = sCommand + "End With" + vbLf
-    AddToHistory "define Port mesh: "+ CStr(i+1+port_nr_offset), sCommand
+    AddToHistory "define MeshBox_"+ CStr(i+1+port_nr_offset), sCommand
 
-	sCommand = "Group.AddItem ""solid$9 Mesh box:PortMesh_"+CStr(i+1+port_nr_offset)+""", ""Excluded from Simulation"""+ vbLf
-	AddToHistory "Exclude PortMesh_"+ CStr(i+1+port_nr_offset)+" from simulation", sCommand
+	sCommand = "Group.AddItem ""solid$9 Mesh box:MeshBox_"+CStr(i+1+port_nr_offset)+""", ""Excluded from Simulation"""+ vbLf
+	AddToHistory "Exclude MeshBox_"+ CStr(i+1+port_nr_offset)+" from simulation", sCommand
 
 	'Dim deltax As Double, deltay As Double, deltaz As Double
 
@@ -113,25 +112,29 @@ ElseIf n_of_ppoints Mod 2 <> 0 Then
 	sCommand = ""
 
 	If deltax >= deltay And deltax >= deltaz Then
-		sCommand = "Group.AddItem ""solid$9 Mesh box:PortMesh_"+CStr(i+1+port_nr_offset)+""", ""7 XBox"""+ vbLf
-		AddToHistory "Add Portmesh_"+ CStr(i+1+port_nr_offset)+" to 7 XBox", sCommand
+		sCommand = "Group.AddItem ""solid$9 Mesh box:MeshBox_"+CStr(i+1+port_nr_offset)+""", ""7 XBox"""+ vbLf
+		AddToHistory "Add MeshBox_"+ CStr(i+1+port_nr_offset)+" to 7 XBox", sCommand
 	ElseIf deltay >= deltax And deltay >= deltaz Then
-		sCommand = "Group.AddItem ""solid$9 Mesh box:PortMesh_"+CStr(i+1+port_nr_offset)+""", ""8 YBox"""+ vbLf
-		AddToHistory "Add Portmesh_"+ CStr(i+1+port_nr_offset)+" to 8 YBox", sCommand
+		sCommand = "Group.AddItem ""solid$9 Mesh box:MeshBox_"+CStr(i+1+port_nr_offset)+""", ""8 YBox"""+ vbLf
+		AddToHistory "Add MeshBox_"+ CStr(i+1+port_nr_offset)+" to 8 YBox", sCommand
 	ElseIf deltaz >= deltay And deltaz >= deltax Then
-		sCommand = "Group.AddItem ""solid$9 Mesh box:PortMesh_"+CStr(i+1+port_nr_offset)+""", ""9 ZBox"""+ vbLf
-		AddToHistory "Add Portmesh_"+ CStr(i+1+port_nr_offset)+" to 9 ZBox", sCommand
+		sCommand = "Group.AddItem ""solid$9 Mesh box:MeshBox_"+CStr(i+1+port_nr_offset)+""", ""9 ZBox"""+ vbLf
+		AddToHistory "Add MeshBox_"+ CStr(i+1+port_nr_offset)+" to 9 ZBox", sCommand
 	End If
 
  Next i
+
+ 'Mesh.Update
+ 'Mesh.ViewMeshMode(False)
  sCommand = ""
  sCommand = sCommand + "Pick.ClearAllPicks"
  AddToHistory "Clear all picked points", sCommand
- 'Mesh.Update
- 'Mesh.ViewMeshMode(False)
- Pick.ClearAllPicks
+' Pick.ClearAllPicks
+ 'sCommand=""
  If isLocalWCSActive = True Then
- 	WCS.ActivateWCS("local")
+ 	'WCS.ActivateWCS("local")
+	sCommand="WCS.ActivateWCS ""local"""
+	AddToHistory "Activate local coordinates system", sCommand
  End If
 
 End Sub
