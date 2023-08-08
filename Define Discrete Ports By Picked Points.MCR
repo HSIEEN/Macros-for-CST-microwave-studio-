@@ -50,9 +50,11 @@ ElseIf n_of_ppoints Mod 2 <> 0 Then
  Dim isLocalWCSActive As Boolean
 
   isLocalWCSActive = False
-
+  sCommand=""
   If WCS.IsWCSActive() = "local" Then
-	  WCS.ActivateWCS("global")
+	  'WCS.ActivateWCS("global")
+	  sCommand = "WCS.ActivateWCS ""global"""
+	  AddToHistory "Activate global coordinates system", sCommand
 	  isLocalWCSActive = True
   End If
 
@@ -128,16 +130,21 @@ ElseIf n_of_ppoints Mod 2 <> 0 Then
 	End If
 
  Next i
+
  sCommand = ""
  sCommand = sCommand + "Pick.ClearAllPicks"
  AddToHistory "Clear all picked points", sCommand
+
  'Pick.ClearAllPicks
 
  'Mesh.Update
  'Mesh.ViewMeshMode(False)
 
+ sCommand=""
  If isLocalWCSActive = True Then
- 	WCS.ActivateWCS("local")
+ 	'WCS.ActivateWCS("local")
+	sCommand="WCS.ActivateWCS ""local"""
+	AddToHistory "Activate local coordinates system", sCommand
  End If
 
 End Sub
