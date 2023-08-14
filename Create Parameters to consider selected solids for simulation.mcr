@@ -38,12 +38,13 @@ Sub Main ()
 
 		sCommand = ""
 		' create the group to add the solids to; additionally set up the meshing special
+		'when a variable is set to be 0, the corresponding solid is moved into this group
 		sCommand = sCommand + "Group.Add ""materialindependent-meshing"", ""mesh""" + vbLf
 		sCommand = sCommand + "With MeshSettings" + vbLf
-		sCommand = sCommand + " With .ItemMeshSettings (""group$materialindependent-meshing"")" + vbLf
-		sCommand = sCommand + "  .SetMeshType ""Tet""" + vbLf
-		sCommand = sCommand + "  .Set ""MaterialIndependent"", 1" + vbLf
-		sCommand = sCommand + " End With" + vbLf + "End With" + vbLf
+		sCommand = sCommand + "	With .ItemMeshSettings (""group$materialindependent-meshing"")" + vbLf
+		sCommand = sCommand + "		.SetMeshType ""Tet""" + vbLf
+		sCommand = sCommand + "		.Set ""MaterialIndependent"", 1" + vbLf
+		sCommand = sCommand + "	End With" + vbLf + "End With" + vbLf
 		
 		ParaNameMaxLength = 1
 
@@ -70,8 +71,8 @@ Sub Main ()
 				'sCommand = sCommand + "IIf(" + sParaName + "," + """True""" + "," + """False""" + ")" + vbLf
 				' add something to change the material if the vaiables are set
 				sCommand = sCommand + "If (" + sParaName + "=0) Then" + vbLf
-				sCommand = sCommand + " Solid.ChangeMaterial(""" + sFullSolidName + """, ""Vacuum"")" + vbLf + "End If" + vbLf
-				sCommand = sCommand + "Group.AddItem(""solid$" + sFullSolidName + """, ""materialindependent-meshing"")" + vbLf
+				sCommand = sCommand + "	Solid.ChangeMaterial(""" + sFullSolidName + """, ""Vacuum"")" + vbLf
+				sCommand = sCommand + "	Group.AddItem(""solid$" + sFullSolidName + """, ""materialindependent-meshing"")" + vbLf + "End If" + vbLf
 
 				cst_parnames_pretty  = cst_parnames_pretty  + CST_Print(sParaName, ParaNameMaxLength+1)
 				cst_parvalues_pretty = cst_parvalues_pretty + CST_Print("1", ParaNameMaxLength+1)
