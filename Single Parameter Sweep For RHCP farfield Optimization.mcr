@@ -4,7 +4,7 @@
 Option Explicit
 Public startTime As String, parameter As String, portStr As String
 Public cutPlaneValue As Integer, farfieldComponentValue As Integer, cutAngle As Double
-Public mismatchLoss As Double
+Public missmatchLoss As Double
 
 Sub Main ()
 	Dim parameterArray(1000) As String
@@ -164,6 +164,9 @@ Sub Main ()
 		FarfieldPlot.SetPlotMode("realized gain")
    	End Select
 
+	If FarfieldPlot.IsScaleLinear = True Then
+		FarfieldPlot.SetScaleLinear(False)
+   	End If
 
     While rotateAngle <= xMax And rotateAngle < xMin+360
 		Print #2, "%-%-% On step "+CStr(n+1)+": "+parameter+"="+Cstr(rotateAngle)+"."
@@ -390,7 +393,7 @@ Sub savefarfieldComponent(rotateAngle As Double,frequency As Double)
          '10*CST_Log10(upperHemisphereLHCPdirectivity(n))'Log(upperHemisphereLHCPdirectivity(n)/AVGPower)/Log(10)*10
     Next n
 
-    mismatchLoss = FarfieldPlot.GetTotalEfficiency - FarfieldPlot.GetRadiationEfficiency
+    missmatchLoss = Round(FarfieldPlot.GetTotalEfficiency - FarfieldPlot.GetRadiationEfficiency,2)
 	 '==============================write directivity data============================
 	projectPath = GetProjectPath("Project")
 
@@ -532,7 +535,7 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 			'=======================Axial ratio estimating and coloring============================
 			deltaDirectivity = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value - sheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).Value
 
-			axialRatio = Sgn(deltaDirectivity+0.01)*20*CST_Log10((10^(deltaDirectivity/20)+1)/(Abs(10^(deltaDirectivity/20)-1)+0.001))
+			axialRatio = Sgn(deltaDirectivity-0.001)*20*CST_Log10((10^(deltaDirectivity/20)+1)/(Abs(10^(deltaDirectivity/20)-1)+0.001))
 
 			sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).value = Round(axialRatio,2)
 
@@ -559,10 +562,10 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 			Dvalue = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value
 
 			Select Case farfieldComponentValue
-		   	Case 0	'reference total efficiency -8dB when the directivity is selected as the farfield component
-				Dvalue = Dvalue-8
+		   	Case 0	'reference total efficiency -10dB when the directivity is selected as the farfield component
+				Dvalue = Dvalue-10
 			Case 1
-				Dvalue = Dvalue+mismatchLoss
+				Dvalue = Dvalue+missmatchLoss
 			Case 2
 				Dvalue = Dvalue
 		   	End Select
@@ -673,16 +676,16 @@ Sub writeAverageFarfieldComponentAndRating(sheet As Object, Columns As String)
 	"10^(J12/10)+10^(J13/10)+10^(J14/10))*(COS(15*PI()/24)-COS(16*PI()/24))*PI()/6)/(2*PI()*(1-COS(2*PI()/3)))),2)"
 
 	Select Case farfieldComponentValue
-   	Case 0	'reference total efficiency -8dB when the directivity is selected as the farfield component
+   	Case 0	'reference total efficiency -10dB when the directivity is selected as the farfield component
 		sheet.Range("Q8").Formula = _
-		"=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=-9)*(B3:E15>-100))+1.25*SUMPRODUCT((B3:E15<=-8)*(B3:E15>-9))"+ _
-		"+SUMPRODUCT((B3:E15<=-7)*(B3:E15>-8))+0.75*SUMPRODUCT((B3:E15<=-6)*(B3:E15>-7))+0.5*SUMPRODUCT((B3:E15<=-5)"+ _
-		"*(B3:E15>-6))+0.25*SUMPRODUCT((B3:E15<=-4)*(B3:E15>-5)))+1.5*SUMPRODUCT((F3:H15<=-9)*(F3:H15>-100))+"+ _
-		"1.25*SUMPRODUCT((F3:H15<=-8)*(F3:H15>-9))+SUMPRODUCT((F3:H15<=-7)*(F3:H15>-8))+0.75*SUMPRODUCT((F3:H15<=-6)"+ _
-		"*(F3:H15>-7))+0.5*SUMPRODUCT((F3:H15<=-5)*(F3:H15>-6))+0.25*SUMPRODUCT((F3:H15<=-4)*(F3:H15>-5))+0.5*"+ _
-		"(1.5*SUMPRODUCT((I3:J15<=-9)*(I3:J15>-100))+1.25*SUMPRODUCT((I3:J15<=-8)*(I3:J15>-9))+SUMPRODUCT((I3:J15<=-7)*"+ _
-		"(I3:J15>-8))+0.75*SUMPRODUCT((I3:J15<=-6)*(I3:J15>-7))+0.5*SUMPRODUCT((I3:J15<=-5)*(I3:J15>-6))"+ _
-		"+0.25*SUMPRODUCT((I3:J15<=-4)*(I3:J15>-5)))))/117*100,2)"
+		"=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=-7)*(B3:E15>-100))+1.25*SUMPRODUCT((B3:E15<=-6)*(B3:E15>-7))"+ _
+		"+SUMPRODUCT((B3:E15<=-5)*(B3:E15>-6))+0.75*SUMPRODUCT((B3:E15<=-4)*(B3:E15>-5))+0.5*SUMPRODUCT((B3:E15<=-3)"+ _
+		"*(B3:E15>-4))+0.25*SUMPRODUCT((B3:E15<=-2)*(B3:E15>-3)))+1.5*SUMPRODUCT((F3:H15<=-7)*(F3:H15>-100))+"+ _
+		"1.25*SUMPRODUCT((F3:H15<=-6)*(F3:H15>-7))+SUMPRODUCT((F3:H15<=-5)*(F3:H15>-6))+0.75*SUMPRODUCT((F3:H15<=-4)"+ _
+		"*(F3:H15>-5))+0.5*SUMPRODUCT((F3:H15<=-3)*(F3:H15>-4))+0.25*SUMPRODUCT((F3:H15<=-2)*(F3:H15>-3))+0.5*"+ _
+		"(1.5*SUMPRODUCT((I3:J15<=-7)*(I3:J15>-100))+1.25*SUMPRODUCT((I3:J15<=-6)*(I3:J15>-7))+SUMPRODUCT((I3:J15<=-5)*"+ _
+		"(I3:J15>-6))+0.75*SUMPRODUCT((I3:J15<=-4)*(I3:J15>-5))+0.5*SUMPRODUCT((I3:J15<=-3)*(I3:J15>-4))"+ _
+		"+0.25*SUMPRODUCT((I3:J15<=-2)*(I3:J15>-3)))))/117*100,2)"
 	Case 1
 		sheet.Range("Q8").Formula = _
 		"=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=(-17-"+CStr(missmatchLoss)+"))*(B3:E15>-100))+"+ _
