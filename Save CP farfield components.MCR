@@ -44,6 +44,10 @@ Sub Main ()
 		FarfieldPlot.SetPlotMode("realized gain")
    	End Select
 
+   	If FarfieldPlot.IsScaleLinear = True Then
+		FarfieldPlot.SetScaleLinear(False)
+   	End If
+
 	'FarfieldPlot.SetPlotMode("Directivity")
 	'FarfieldPlot.SetAntennaType("directional_linear")
 	'FarfieldPlot.SetAntennaType("directional_circular")
