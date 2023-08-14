@@ -4,7 +4,7 @@
 Sub Main ()
 	Dim xmin As Double, xmax As Double, ymin As Double, ymax As Double, zmin As Double, zmax As Double
 	Dim sn As Integer, i As Integer, m As Integer
-	Dim sname As String, SelectedItem As String, tmpname As String, tmpname1 As String, tmpname2 As String, compname As String, solidname As String
+	Dim sname As String, SelectedItem As String, tmpname As String, compname As String, solidname As String
 	Dim smaterial As String
 	Dim historycontent As String, historyname As String
 	Dim Radius As Double,xcenter As Double, ycenter As Double, zcenter As Double
@@ -16,7 +16,7 @@ Sub Main ()
 
 	sn = GetNumberOfSelectedTreeItems
     SelectedItem = GetSelectedTreeItem
-	WCS.ActivateWCS("global")
+	'WCS.ActivateWCS("global")
 	While SelectedItem <> ""
 		tmpname =Replace(Right(SelectedItem,Len(SelectedItem)-InStr(SelectedItem,"\")),"\","/")
 		i = InStrRev(tmpname,"/")
@@ -25,10 +25,10 @@ Sub Main ()
 			Exit All
 		End If
 
-		tmpname1 = Left(tmpname,i-1)
-		tmpname2 = Right(tmpname,Len(tmpname)-i+1)
-        tmpname2 = Replace(tmpname2,"/",":")
-        sname = tmpname1 + tmpname2
+		'tmpname1 = Left(tmpname,i-1)
+		'tmpname2 =
+        'tmpname2 = Replace(Right(tmpname,Len(tmpname)-i+1),"/",":")
+        sname = Left(tmpname,i-1)+Replace(Right(tmpname,Len(tmpname)-i+1),"/",":")
         smaterial = Solid.GetMaterialNameForShape(sname)
         compname = Left(sname,InStr(sname,":")-1)
         solidname = Right(sname,Len(sname)-InStr(sname,":"))+"_Cylinder"
@@ -60,29 +60,29 @@ Sub Main ()
 		historycontent = ""
 		historycontent = historycontent + "WCS.ActivateWCS("""+"global"+""")"+ vbLf
 		historycontent = historycontent + "With Cylinder" + vbLf
-		historycontent = historycontent + ".Reset" + vbLf
-		historycontent = historycontent + ".Name("""+ solidname + """)" + vbLf
-		historycontent = historycontent + ".Component("""+ compname +""")" + vbLf
-		historycontent = historycontent + ".Material(""" + smaterial + """)" + vbLf
-		historycontent = historycontent + ".OuterRadius(" + CStr(Radius) + ")" + vbLf
-		historycontent = historycontent + ".InnerRadius(" + "0" + ")" + vbLf
-		historycontent = historycontent + ".Axis(""" + Axis + """)" + vbLf
+		historycontent = historycontent + "   .Reset" + vbLf
+		historycontent = historycontent + "   .Name("""+ solidname + """)" + vbLf
+		historycontent = historycontent + "   .Component("""+ compname +""")" + vbLf
+		historycontent = historycontent + "   .Material(""" + smaterial + """)" + vbLf
+		historycontent = historycontent + "   .OuterRadius(" + CStr(Radius) + ")" + vbLf
+		historycontent = historycontent + "   .InnerRadius(" + "0" + ")" + vbLf
+		historycontent = historycontent + "   .Axis(""" + Axis + """)" + vbLf
 		Select Case Axis
 		Case "x"
-			historycontent = historycontent + ".Xrange(" + CStr(xmin)+"," + CStr(xmax)+ ")" + vbLf
-			historycontent = historycontent + ".Ycenter(" + CStr(ycenter)+ ")" + vbLf
-			historycontent = historycontent + ".Zcenter(" + CStr(zcenter)+")" + vbLf
+			historycontent = historycontent + "   .Xrange(" + CStr(xmin)+"," + CStr(xmax)+ ")" + vbLf
+			historycontent = historycontent + "   .Ycenter(" + CStr(ycenter)+ ")" + vbLf
+			historycontent = historycontent + "   .Zcenter(" + CStr(zcenter)+")" + vbLf
 		Case "y"
-			historycontent = historycontent + ".Yrange(" + CStr(ymin)+"," + CStr(ymax) +")" + vbLf
-			historycontent = historycontent + ".Xcenter(" + CStr(xcenter)+ ")" + vbLf
-			historycontent = historycontent + ".Zcenter(" + CStr(zcenter)+")" + vbLf
+			historycontent = historycontent + "   .Yrange(" + CStr(ymin)+"," + CStr(ymax) +")" + vbLf
+			historycontent = historycontent + "   .Xcenter(" + CStr(xcenter)+ ")" + vbLf
+			historycontent = historycontent + "   .Zcenter(" + CStr(zcenter)+")" + vbLf
 		Case "z"
-			historycontent = historycontent + ".Zrange(" + CStr(zmin)+"," + CStr(zmax) +")" + vbLf
-			historycontent = historycontent + ".Xcenter(" + CStr(xcenter)+ ")" + vbLf
-			historycontent = historycontent + ".Ycenter(" + CStr(ycenter)+")" + vbLf
+			historycontent = historycontent + "   .Zrange(" + CStr(zmin)+"," + CStr(zmax) +")" + vbLf
+			historycontent = historycontent + "   .Xcenter(" + CStr(xcenter)+ ")" + vbLf
+			historycontent = historycontent + "   .Ycenter(" + CStr(ycenter)+")" + vbLf
 		End Select
-		historycontent = historycontent + ".Segments(0)" + vbLf
-		historycontent = historycontent + ".Create" + vbLf
+		historycontent = historycontent + "   .Segments(0)" + vbLf
+		historycontent = historycontent + "   .Create" + vbLf
 		historycontent = historycontent + "End With" + vbLf
         historycontent = historycontent + "WCS.ActivateWCS("""+"local"+""")"+ vbLf
 		historyname = "Create solid box: " + solidname
@@ -100,7 +100,8 @@ Sub Main ()
 
 	Wend
 
-	WCS.ActivateWCS("local")
+	'Mesh.Update
+	'WCS.ActivateWCS("local")
 	Exit All
 
 	Message:
