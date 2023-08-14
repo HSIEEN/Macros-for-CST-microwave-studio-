@@ -13,7 +13,7 @@ Sub Main ()
 
 	sn = GetNumberOfSelectedTreeItems
     SelectedItem = GetSelectedTreeItem
-	WCS.ActivateWCS("global")
+	'WCS.ActivateWCS("global")
 	While SelectedItem <> ""
 		tmpname =Replace(Right(SelectedItem,Len(SelectedItem)-InStr(SelectedItem,"\")),"\","/")
 		i = InStrRev(tmpname,"/")
@@ -64,7 +64,7 @@ Sub Main ()
 
 	'Mesh.Update
 
-	WCS.ActivateWCS("local")
+	'WCS.ActivateWCS("local")
 	Exit All
 
 	Message:
