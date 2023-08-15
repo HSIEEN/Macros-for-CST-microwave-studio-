@@ -21,8 +21,10 @@ Sub Main
 	Dim isWCS As Boolean
 	Dim sCommand As String
 
-	IIf(WCS.IsWCSActive()="global",isWCS = False, isWCS=True)
-
+	isWCS=IIf(WCS.IsWCSActive()="local",True,False)
+	If isWCS=True Then
+		WCS.Store("originalWCS")
+	End If
 	'Dim fullName As String
 	'fullName = Solid.GetNameOfShapeFromIndex(0)
 	'fullName = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
@@ -95,10 +97,11 @@ Sub Main
     End If
     'WCS.ActivateWCS("global")
     'IIf(isWCS, WCS.ActivateWCS("local"),WCS.ActivateWCS("global"))
-     If isWCS = False Then
+     If isWCS = True Then
 	 	'WCS.ActivateWCS("local")
 		sCommand="WCS.ActivateWCS ""local"""
 		AddToHistory "Activate local coordinates system", sCommand
+		WCS.Restore("originalWCS")
 	 Else
 	 	sCommand="WCS.ActivateWCS ""global"""
 		AddToHistory "Activate global coordinates system", sCommand
