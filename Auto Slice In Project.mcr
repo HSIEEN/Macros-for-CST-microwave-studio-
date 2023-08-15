@@ -441,11 +441,11 @@ Function AutoSliceByAngle(sComponent As String, anStep As Double)
 End Function
 Function HasChildren( Item As String ) As Boolean
 
-	Dim Name As String
+	Dim xName As String
 	Dim sChild As String
 
-	Name = Item
-	sChild = Resulttree.GetFirstChildName ( Name )
+	xName = Item
+	sChild = Resulttree.GetFirstChildName ( xName )
 	If sChild = "" Then
 		HasChildren = False
 	Else
