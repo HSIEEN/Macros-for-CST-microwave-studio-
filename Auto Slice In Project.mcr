@@ -19,6 +19,7 @@ Sub Main
 	Dim anStep As Double
 	Dim sSolid As String
 	Dim isWCS As Boolean
+	Dim sCommand As String
 
 	IIf(WCS.IsWCSActive()="global",isWCS = False, isWCS=True)
 
@@ -93,7 +94,16 @@ Sub Main
     	AutoSliceByAngle(sComponent,anStep)
     End If
     'WCS.ActivateWCS("global")
-    IIf(isWCS, WCS.ActivateWCS("local"),WCS.ActivateWCS("global"))
+    'IIf(isWCS, WCS.ActivateWCS("local"),WCS.ActivateWCS("global"))
+     If isWCS = False Then
+	 	'WCS.ActivateWCS("local")
+		sCommand="WCS.ActivateWCS ""local"""
+		AddToHistory "Activate local coordinates system", sCommand
+	 Else
+	 	sCommand="WCS.ActivateWCS ""global"""
+		AddToHistory "Activate global coordinates system", sCommand
+
+	 End If
 
 
 	
@@ -109,6 +119,7 @@ Function AutoSliceAlongAxis(fName As String, sStep As Double, sAxis As Integer, 
 	sCommand = ""
     'WCS.ActivateWCS("local")
 	sName = Right(fName,Len(fName)-InStr(fName,":"))
+	'sName = Right(fName,Len(fName)-InStrRev(fName,"\"))
 	CompName = Left(fName,InStr(fName,":")-1)
 
 	Select Case sAxis
@@ -175,11 +186,12 @@ End Function
 Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,zStep As Double,wStep As Double)
 	Dim fullName As String
 	Dim path As String
-	Dim sn As Integer, i As Integer
+	Dim sn As Integer, i As Integer, n As Integer
 	Dim sCommand As String, commandName As String, tCommand As String
 	Dim isSliced As Boolean
 	Dim xMin As Double, xMax As Double, yMin As Double, yMax As Double, zMin As Double, zMax As Double
 	Dim gxMin As Double, gxMax As Double, gyMin As Double, gyMax As Double, gzMin As Double, gzMax As Double
+	Dim solidsInComponent() As String, group_sname As String
 	gxMin = 1e200
 	gxMax = -1e200
 	gyMin = 1e200
@@ -187,9 +199,15 @@ Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,
 	gzMin = 1e200
 	gzMax = -1e200
 	'When xStep is not less than wStep, slice once with step of wStep
-	sn = Solid.GetNumberOfShapes
-	For i = 0 To sn-1 STEP 1
-		fullName = Solid.GetNameOfShapeFromIndex(i)
+	solidsInComponent=getChildSolidsInComponent(sComponent, n)
+	'sn = Solid.GetNumberOfShapes
+	For i = 0 To n-1 STEP 1
+		'fullName = Solid.GetNameOfShapeFromIndex(i)
+		fullName=solidsInComponent(i)
+		group_sname = GetQualifiedNameFromTreeName(fullName)
+		fullName = Right(group_sname,Len(group_sname)-InStrRev(group_sname, "$"))
+		'path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
+		'If Right(path,Len(path)-InStrRev(path,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
 		Solid.GetLooseBoundingBoxOfShape(fullName,xMin,xMax,yMin,yMax,zMin,zMax)
 		If xMin < gxMin Then
 			gxMin = xMin
@@ -209,6 +227,7 @@ Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,
 		If zMax > gzMax Then
 			gzMax = zMax
 		End If
+		'End If
 	Next
 
 	isSliced = False
@@ -225,19 +244,24 @@ Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,
 	If xStep <> 0 Then
 		commandName = "Slice Shape in " +sComponent+" with xStep of "+Cstr(xStep)
 		sCommand = sCommand + "WCS.SetNormal ""1"", ""0"", ""0""" + vbLf
-		sn =  Solid.GetNumberOfShapes
-	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
+		'sn =  Solid.GetNumberOfShapes
+		solidsInComponent=getChildSolidsInComponent(sComponent, n)
+	    If n > 0 Then
+	    	For i = 0 To n-1 STEP 1
+				'fullName = Solid.GetNameOfShapeFromIndex(i)
+				fullName=solidsInComponent(i)
+
+				group_sname = GetQualifiedNameFromTreeName(fullName)
+				fullName = Right(group_sname,Len(group_sname)-InStrRev(group_sname, "$"))
 				'path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If Right(path,Len(path)-InStrRev(path,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
-					tCommand = AutoSliceAlongAxis(fullName,xStep,0,gxMin, gxMax, gyMin, gyMax, gzMin, gzMax)
-					If tCommand <>""Then
-						sCommand = sCommand + tCommand
-						isSliced = True
-					End If
+				'path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
+				'If Right(path,Len(path)-InStrRev(path,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+				tCommand = AutoSliceAlongAxis(fullName,xStep,0,gxMin, gxMax, gyMin, gyMax, gzMin, gzMax)
+				If tCommand <>""Then
+					sCommand = sCommand + tCommand
+					isSliced = True
 				End If
+				'End If
 
 	    	Next i
 	    End If
@@ -251,20 +275,25 @@ Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,
 	'When yStep is not less than wStep, slice once with step of yStep
 	If yStep <> 0 Then
 		sCommand = sCommand + "WCS.SetNormal ""0"", ""1"", ""0""" + vbLf
-		sn =  Solid.GetNumberOfShapes
+		'sn =  Solid.GetNumberOfShapes
+		solidsInComponent=getChildSolidsInComponent(sComponent, n)
 		commandName = "Slice Shape in " +sComponent+" with yStep of "+Cstr(yStep)
-	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
+	    If n > 0 Then
+	    	For i = 0 To n-1 STEP 1
+				'fullName = Solid.GetNameOfShapeFromIndex(i)
+				fullName=solidsInComponent(i)
+
+				group_sname = GetQualifiedNameFromTreeName(fullName)
+				fullName = Right(group_sname,Len(group_sname)-InStrRev(group_sname, "$"))
 				'path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If Right(path,Len(path)-InStrRev(path,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
-					tCommand = AutoSliceAlongAxis(fullName,yStep,1,gxMin, gxMax, gyMin, gyMax, gzMin, gzMax)
-					If tCommand <>""Then
-						sCommand = sCommand + tCommand
-						isSliced = True
-					End If
+				'path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
+				'If Right(path,Len(path)-InStrRev(path,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+				tCommand = AutoSliceAlongAxis(fullName,yStep,1,gxMin, gxMax, gyMin, gyMax, gzMin, gzMax)
+				If tCommand <>""Then
+					sCommand = sCommand + tCommand
+					isSliced = True
 				End If
+				'End If
 	    	Next i
 	    End If
 	    If isSliced = True Then
@@ -277,20 +306,25 @@ Function AutoSliceBySteps(sComponent As String, xStep As Double,yStep As Double,
 	'When zStep is not less than wStep, slice once with step of zStep
 	If zStep <> 0 Then
 		sCommand = sCommand + "WCS.SetNormal ""0"", ""0"", ""1""" + vbLf
-		sn =  Solid.GetNumberOfShapes
+		'sn =  Solid.GetNumberOfShapes
+		solidsInComponent=getChildSolidsInComponent(sComponent, n)
 		commandName = "Slice Shape in " +sComponent+" with zStep of "+Cstr(zStep)
-	    If sn > 0 Then
-	    	For i = 0 To sn-1 STEP 1
-				fullName = Solid.GetNameOfShapeFromIndex(i)
+	    If n > 0 Then
+	    	For i = 0 To n-1 STEP 1
+				'fullName = Solid.GetNameOfShapeFromIndex(i)
+				fullName=solidsInComponent(i)
+
+				group_sname = GetQualifiedNameFromTreeName(fullName)
+				fullName = Right(group_sname,Len(group_sname)-InStrRev(group_sname, "$"))
 				'path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-				If Right(path,Len(path)-InStrRev(path,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
-					tCommand = AutoSliceAlongAxis(fullName,zStep,2,gxMin, gxMax, gyMin, gyMax, gzMin, gzMax)
-					If tCommand <>""Then
-						sCommand = sCommand + tCommand
-						isSliced = True
-					End If
+				'path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
+				'If Right(path,Len(path)-InStrRev(path,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+				tCommand = AutoSliceAlongAxis(fullName,zStep,2,gxMin, gxMax, gyMin, gyMax, gzMin, gzMax)
+				If tCommand <>""Then
+					sCommand = sCommand + tCommand
+					isSliced = True
 				End If
+				'End If
 	    	Next i
 	    End If
 	    If isSliced = True Then
@@ -310,13 +344,19 @@ Function AutoSliceByAngle(sComponent As String, anStep As Double)
 	Dim Axis As String
 	Dim Angle As Double
 	Dim xcenter As Double,ycenter As Double,zcenter As Double
-	Dim sn As Integer, i As Integer
+	Dim sn As Integer, i As Integer, n As Integer
 	Dim path As String
 	Dim sCommand As String, commandName As String
+	Dim group_sname As String
+	Dim solidsInComponent() As String
+	Dim maximalSolid As String
+	Dim minimalSolid As String
 	sCommand = ""
 
-	sn = Solid.GetNumberOfShapes
-	fName = Solid.GetNameOfShapeFromIndex(0)
+	'sn = Solid.GetNumberOfShapes
+	fName = Resulttree.GetFirstChildName(sComponent)
+	group_sname = GetQualifiedNameFromTreeName(fName)
+	fName = Right(group_sname,Len(group_sname)-InStrRev(group_sname, "$"))
 	'WCS.ActivateWCS("local")
 	sCommand = sCommand + "WCS.ActivateWCS ""local""" + vbLf
 	sName = Right(fName,Len(fName)-InStr(fName,":"))
@@ -324,8 +364,8 @@ Function AutoSliceByAngle(sComponent As String, anStep As Double)
 	Solid.GetLooseBoundingBoxOfShape(fName,xMin,xMax,yMin,yMax,zMin,zMax)
 
 	deltaxy = Abs(Abs(xMax-xMin)-Abs(yMax-yMin))
-	deltaxz = Abs(Abs(xmax-xmin)-Abs(zmax-zmin))
-	deltayz = Abs(Abs(ymax-ymin)-Abs(zmax-zmin))
+	deltaxz = Abs(Abs(xMax-xMin)-Abs(zMax-zMin))
+	deltayz = Abs(Abs(yMax-yMin)-Abs(zMax-zMin))
 
 	If deltaxy < deltayz And deltaxy < deltaxz Then
 		Axis = "z"
@@ -358,19 +398,32 @@ Function AutoSliceByAngle(sComponent As String, anStep As Double)
 	'WCS.RotateWCS("u",90)
 	sCommand = sCommand + "WCS.RotateWCS ""u"", ""90.0"""+vbLf
 	While Angle < 180
-		sn = Solid.GetNumberOfShapes
-		For i = 0 To sn-1 STEP 1
-			fName = Solid.GetNameOfShapeFromIndex(i)
+		'sn = Solid.GetNumberOfShapes
+		solidsInComponent=getChildSolidsInComponent(sComponent, n)
+		getSolidsWithExtremalNameLength(solidsInComponent, n, minimalSolid, maximalSolid)
+		'For i = 0 To n-1 STEP 1
+			'fName = Solid.GetNameOfShapeFromIndex(i)
+			'fName=solidsInComponent(i)
+			fName=minimalSolid
 			'path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
-			path = Replace(Left(fName,InStr(fName,":")-1),"/","\")
-			If Right(path,Len(path)-InStrRev(path,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
-				sName = Right(fName,Len(fName)-InStr(fName,":"))
-				CompName = Left(fName,InStr(fName,":")-1)
+			'path = Replace(Left(fName,InStr(fName,":")-1),"/","\")
+			'If Right(path,Len(path)-InStrRev(path,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+			sName = Right(fName,Len(fName)-InStrRev(fName,"\"))
+			'CompName = Left(fName,InStr(fName,":")-1)
+			'Solid.SliceShape(sName,CompName)
+			sCommand = sCommand + "Solid.SliceShape """ + sName+""","""+CompName+""""+vbLf
+			If StrComp(maximalSolid,minimalSolid) <> 0 Then
+				fName=maximalSolid
+				'path = Replace(Left(fullName,InStr(fullName,":")-1),"/","\")
+				'path = Replace(Left(fName,InStr(fName,":")-1),"/","\")
+				'If Right(path,Len(path)-InStrRev(path,"\")) = Right(sComponent,Len(sComponent)-InStrRev(sComponent,"\")) Then
+				sName = Right(fName,Len(fName)-InStrRev(fName,"\"))
+				'CompName = Left(fName,InStr(fName,":")-1)
 				'Solid.SliceShape(sName,CompName)
 				sCommand = sCommand + "Solid.SliceShape """ + sName+""","""+CompName+""""+vbLf
 			End If
 
-		Next
+		'Next
 
 		'WCS.RotateWCS("v",anStep)
 		commandName = "Slice Shape in " +sComponent+" with angle of "+ Cstr(Angle)
@@ -397,18 +450,33 @@ Function HasChildren( Item As String ) As Boolean
 	End If
 
 End Function
-'Function DoChildrenContainComponent( Item As String ) As Boolean
-'
-'	Dim Name As String
-'	Dim sChild As String
-'	DoChildrenContainComponent = False
-'	Name = Item
-'	sChild = Resulttree.GetFirstChildName ( Name )
-'	While sChild <> ""
-'		If HasChildren(sChild) = True Then
-'			DoChildrenContainComponent = True
-'		End If
-'		sChild = Resulttree.GetNextItemName(sChild)
-'	Wend
 
-'End Function
+Function getChildSolidsInComponent(sComponent As String, n As Integer)
+	Dim selectedTreeItems(1000) As String
+	Dim tmpItem As String
+	'Dim n As Integer
+	n=0
+	selectedTreeItems(n) = Resulttree.GetFirstChildName(sComponent)
+	While selectedTreeItems(n) <> ""
+		'selectTreeItem(selectedTreeItems(n))
+		tmpItem = selectedTreeItems(n)
+		n = n+1
+		selectedTreeItems(n) = Resulttree.GetNextItemName(tmpItem)
+	Wend
+	'ReDim Preserve selectedTreeItems(n)
+	getChildSolidsInComponent=selectedTreeItems
+End Function
+Function getSolidsWithExtremalNameLength(solids() As String, n As Integer, solidWithMinima As String, solidWithMaxima As String)
+	Dim i As Integer
+	'Dim n As Integer
+	solidWithMinima=solids(0)
+	solidWithMaxima=solids(0)
+	For i=1 To n-1 STEP 1
+		If Len(solids(i))>=Len(solidWithMaxima) Then
+			solidWithMaxima=solids(i)
+		End If
+		If Len(solids(i))<=Len(solidWithMinima) Then
+			solidWithMinima=solids(i)
+		End If
+	Next
+End Function
