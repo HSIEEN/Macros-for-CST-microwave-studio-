@@ -116,7 +116,7 @@ Sub Main ()
 	Next
 
 	If (f1 <> 0  And flag1 = False) Or (f2 <> 0 And flag2 = False) Then
-		MsgBox("The input frequencies do not exist!!",vbCritical,"Error")
+		MsgBox("The input frequencies do not exist in farfield monitors!!",vbCritical,"Error")
 		Exit All
 	End If
 
@@ -237,6 +237,10 @@ Function Copy1DFarfieldResult(rotateAngle As Double, freq As Double)
 
 		FarfieldPlot.Reset
 		FarfieldPlot.PlotType("polar")
+
+		If FarfieldPlot.IsScaleLinear = True Then
+			FarfieldPlot.SetScaleLinear(False)
+	   	End If
 
 		If cutPlaneValue = 0 Then
 
