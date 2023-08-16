@@ -96,17 +96,20 @@ Sub Main ()
 
 	'============Check validity of frequency================
 	Dim monitorNumber As Integer, i As Integer
+	Dim monitorFrequency As Double
 	Dim flag1 As Boolean, flag2 As Boolean
 
 	flag1 = False
 	flag2 = False
 	monitorNumber = Monitor.GetNumberOfMonitors()
 	For i = 0 To monitorNumber-1 STEP 1
+
 		If Monitor.GetMonitorTypeFromIndex(i)="Farfield" Then
-			If Monitor.GetMonitorFrequencyFromIndex(i) = f1 Then
+			monitorFrequency = Monitor.GetMonitorFrequencyFromIndex(i)
+			If Abs(monitorFrequency-f1)<1e-5 Then
 				flag1 = True
 			End If
-			If Monitor.GetMonitorFrequencyFromIndex(i) = f2 Then
+			If Abs(monitorFrequency-f2)<1e-5 Then
 				flag2 = True
 			End If
 		End If
