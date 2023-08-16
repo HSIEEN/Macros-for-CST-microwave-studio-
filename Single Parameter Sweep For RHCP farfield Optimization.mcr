@@ -102,7 +102,7 @@ Sub Main ()
 	flag2 = False
 	monitorNumber = Monitor.GetNumberOfMonitors()
 	For i = 0 To monitorNumber-1 STEP 1
-		If Monitor.GetMonitorTypeFromIndex(i)="Farfield" Then
+		If Monitor.GetMonitorTypeFromIndex(i)="farfield" Then
 			If Monitor.GetMonitorFrequencyFromIndex(i) = f1 Then
 				flag1 = True
 			End If
