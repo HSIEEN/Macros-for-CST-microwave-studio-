@@ -31,7 +31,7 @@ Sub Main
 	Dim feedSolid As String
 	Dim feed As AntennaElement
 	'Dim ant_material As String
-	ant_material = "Metal/Copper (annealed)"
+	'ant_material = "Metal/Copper (annealed)"
 
 	dlg.Freq = "1.56"
 	If Dialog(dlg,-2) = 0 Then
@@ -90,9 +90,9 @@ Sub antennaElement_initialize()
 			With antElem_arr(iSolid_CST-1)
 				.solidName = sFullSolidName
 				.solidMaterial = Solid.GetMaterialNameForShape(sFullSolidName)
-			If .IsMetal(.solidMaterial) = True Then
-				.setMaterial("Vacuum")
-			End If
+			'If .IsMetal(.solidMaterial) = True Then
+				.setMaterial(sub_material)
+			'End If
 				.setStartPoint(xMin,yMin,zMin)
 				.setEndPoint(xMax,yMax,zMax)
 				.defineVertices()
@@ -234,22 +234,22 @@ Function antennaDestructor(ant As Antenna)
 	For i=0 To ant.elementNumber-2
 		Select Case Mid(ant.conLogics,2*i+1,2)
 		Case "xn"
-			A.xnNeighbor.setMaterial("Vacuum")
+			A.xnNeighbor.setMaterial(sub_material)
 			Set A=A.xnNeighbor
 		Case "xp"
-			A.xpNeighbor.setMaterial("Vacuum")
+			A.xpNeighbor.setMaterial(sub_material)
 			Set A=A.xpNeighbor
 		Case "yn"
-			A.ynNeighbor.setMaterial("Vacuum")
+			A.ynNeighbor.setMaterial(sub_material)
 			Set A=A.ynNeighbor
 		Case "yp"
-			A.ypNeighbor.setMaterial("Vacuum")
+			A.ypNeighbor.setMaterial(sub_material)
 			Set A=A.ypNeighbor
 		Case "zn"
-			A.znNeighbor.setMaterial("Vacuum")
+			A.znNeighbor.setMaterial(sub_material)
 			Set A=A.znNeighbor
 		Case "zp"
-			A.zpNeighbor.setMaterial("Vacuum")
+			A.zpNeighbor.setMaterial(sub_material)
 			Set A=A.zpNeighbor
 		End Select
 
