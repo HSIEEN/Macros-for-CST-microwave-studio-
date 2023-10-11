@@ -14,8 +14,9 @@ Public nSolids_CST As Integer
 Public ant_material As String
 Public sub_material As String
 Public ant As Antenna
+Public tgtFreq As Double
 Sub Main
-	antennaElement_initialize()
+	antennaDesign_initialize()
 	'Select operating frequency and feed point
 	Begin Dialog UserDialog 330,140,"Frquency and feeding part settings" ' %GRID:10,7,1,1
 		GroupBox 0,0,330,49,"Frequency settings:",.GroupBox1
@@ -27,9 +28,10 @@ Sub Main
 		DropListBox 60,70,210,14,aSolidArray_CST(),.feedingPart
 	End Dialog
 	Dim dlg As UserDialog
-	Dim tgtFreq As Double
+	'Dim tgtFreq As Double
 	Dim feedSolid As String
 	Dim feed As AntennaElement
+	Dim tgtLength As Double
 	'Dim ant_material As String
 	'ant_material = "Metal/Copper (annealed)"
 
@@ -51,34 +53,49 @@ Sub Main
 		'Solid.ChangeMaterial(feed.solidName,ant_material)
 	Dim X As Integer
 	X=0
+	tgtLength = Round(3e8/(tgtFreq*1e6)/1,1) ' unit mm
+	ReportInformationToWindow "Antenna initial length: "+CStr(tgtLength)+"mm"
+	'tgtLength = 80
 	While X<100
-
-		antennaConstructor(ant)
 		X+=1
-		If	MsgBox("Go on?",vbOkCancel,"Notice")<>vbOK Then
-			Exit While
+		If ant.antennaConstructor(tgtLength, nSolids_CST, 1, 1) = True Then
+			ReportInformationToWindow "loop "+Cstr(X)+ _
+			" is done and the antenna length target is met, simulation will begin now"
+			If	MsgBox("Go on?",vbOkCancel,"Notice")<>vbOK Then
+				Exit While
+			End If
+		Else
+			ReportInformationToWindow "loop "+Cstr(X)+ _
+			" is done but the antnena Length is not met, another trial starts"
 		End If
-		antennaDestructor(ant)
+		'Plot.Update
+		'Plot.ExportImage ("E:\image.bmp", 1024, 768)
+		ant.antennaDestructor()
 
 	Wend
 
-	MsgBox "OOO"
+	MsgBox "OOOps"
 End Sub
-Sub antennaElement_initialize()
-	If MsgBox("Please select a all solids contained in the antenna.",vbYesNo,"Notice") <> vbYes Then
-    	Exit Sub
-    End If
+Sub antennaDesign_initialize()
+
 	'Dim aSolidArray_CST() As String, nSolids_CST As Integer
 	Dim iSolid_CST As Integer
 	Dim sFullSolidName As String
 	Dim iMaterial_CST As Integer
 	'Dim sFullMaterialName As String
 	Dim xMin As Double, xMax As Double, yMin As Double, yMax As Double, zMin As Double, zMax As Double
+	If MsgBox("Please assign materials for antenna and substrate.",vbYesNo,"Notice") <> vbYes Then
+    	Exit All
+    End If
 	selectMaterial(ant_material,"Pick a material for antenna")
 	selectMaterial(sub_material,"Pick a material for substrate")
+	If MsgBox("Please select all solids contained in the antenna.",vbYesNo,"Notice") <> vbYes Then
+    	Exit All
+    End If
 	SelectSolids_LIB(aSolidArray_CST(), nSolids_CST)
 	'SelectSolids_LIB
 	'SelectMaterials_LIB(aMaterialArray_CST(), nMaterials_CST)
+	ReportInformationToWindow "Number of solids for antenna elements: "+CStr(nSolids_CST)
 	ReDim antElem_arr(nSolids_CST)
 
 	'Construct class instances from solids
@@ -115,8 +132,8 @@ Sub antennaElement_initialize()
 			antElem_arr(iSolid_CST-1).createFaceNeighborWith(antElem_arr(ii-1))
 			'createEdgeNeighbors
 			antElem_arr(iSolid_CST-1).createEdgeNeighborWith(antElem_arr(ii-1))
-
 		Next
+		Plot.Update
 	Next
 	MsgBox "Antenann element array initialization completed!!",vbInformation,"Initializing done"
 End Sub
@@ -130,132 +147,7 @@ Function getElementFromSolid(elementArray() As AntennaElement,solidName As Strin
 	Next
 	getElementFromSolid = Nothing
 End Function
-Function antennaConstructor(ant As Antenna)
-	'Int((6*Rnd)+1)
-	'mFaceNeighbor-->metal face neighbors; mEdgeNeighbor--> mEdgeNeighbors
-	'faceNeighbor--> face Neighbors; edgeNeighbor--> edge Neighbor
-	'Materials of all elements are set to be vacuum
-	Dim i As Integer, j As Integer,ii As Integer, jj As Integer
-	'If ant.elementNubmer > 1 Then
-		'For i=1 To ant.elementNumber-1
 
-		'Next
-	'End If
-
-	Dim n_faceNeighbors As Integer
-	Dim n_metalFaceNeighbors As Integer, n_nonMetalFaceNeighbors As Integer
-	Dim n_metalEdgeNeighbors As Integer
-
-	Dim faceNeighbors() As AntennaElement
-	Dim metalFaceneighbors() As AntennaElement, nonMetalFaceNeighbors() As AntennaElement
-	Dim metalEdgeNeighbors() As AntennaElement, nonMetalEdgeNeighbors() As AntennaElement
-	Dim currentElement As AntennaElement
-	Set currentElement = ant.feedElement
-
-	'metalEdgeNeighbors = currentElement.getNonMetalFaceNeighbors(n_NMneighbor)
-	Dim n_metalFaceNeighborsOfNonMetalFaceNeighbors As Integer
-	Dim n_metalEdgeNeighborsOfNonMetalFaceNeighbors As Integer
-	Dim nonMetalFaceNeighborsStr() As String
-	Dim metalFaceNeighborsOfNonMetalFaceNeighbors() As AntennaElement
-	Dim metalEdgeNeighborsOfNonMetalFaceNeighbors() As AntennaElement
-	'number of valid face neighbors
-	Dim n_validFaceNeighbors As Integer
-	Dim randomNumber As Integer
-	'list of validities of face neighbors
-	Dim validityOfFaceNeighbors() As Boolean
-	'current element has more than 1 non-metal face neighbors
-	Do
-		'faceNeighbors = currentElement.getFaceNeighbors(n_faceNeighbors)
-		nonMetalFaceNeighbors = currentElement.getNonMetalFaceNeighbors(n_nonMetalFaceNeighbors, nonMetalFaceNeighborsStr)
-		n_validFaceNeighbors = n_nonMetalFaceNeighbors
-		ReDim validityOfFaceNeighbors(n_validFaceNeighbors)
-		For i=0 To n_nonMetalFaceNeighbors-1
-			validityOfFaceNeighbors(i)=True
-		Next
-		For i = 0 To n_nonMetalFaceNeighbors-1
-			'If there are more than one metal face neighbors, the non metal face neighbors are invalid
-			'for being used as an antenna element
-			metalFaceNeighborsOfNonMetalFaceNeighbors = _
-			nonMetalFaceNeighbors(i).getMetalFaceNeighbors(n_metalFaceNeighborsOfNonMetalFaceNeighbors)
-			If n_metalFaceNeighborsOfNonMetalFaceNeighbors>1 Then
-				n_validFaceNeighbors -= 1
-				validityOfFaceNeighbors(i)=False
-			Else
-				'Check whether metal edge neighbors of non-metal face neighbors are among
-				'face neighbors of current element
-				metalEdgeNeighborsOfNonMetalFaceNeighbors = _
-				nonMetalFaceNeighbors(i).getMetalEdgeNeighbors(n_metalEdgeNeighborsOfNonMetalFaceNeighbors)
-				If n_metalEdgeNeighborsOfNonMetalFaceNeighbors >= 1 Then
-					For j=0 To n_metalEdgeNeighborsOfNonMetalFaceNeighbors-1
-						If metalEdgeNeighborsOfNonMetalFaceNeighbors(j).isFaceNeighborWith(currentElement)=False Then
-							n_validFaceNeighbors -= 1
-							validityOfFaceNeighbors(i)=False
-							Exit For
-						End If
-					Next
-				End If
-			End If
-		Next
-		'Random pick one of appropriate non metal face neighbors to be among antenna parts
-		If n_validFaceNeighbors>0 Then
-			randomNumber=Int((n_validFaceNeighbors)*Rnd)
-			jj=0
-			For i = 0 To n_nonMetalFaceNeighbors-1
-				If validityOfFaceNeighbors(i)=True Then
-					If randomNumber=jj Then
-						'Set antenna element
-						nonMetalFaceNeighbors(i).setMaterial(ant_material)
-						'Set antnena
-						ant.elementNumber+=1
-						ant.conLogics+=nonMetalFaceNeighborsStr(i)
-						Set ant.tailElement=nonMetalFaceNeighbors(i)
-						If InStr(nonMetalFaceNeighborsStr(i),"x")<>0 Then
-							ant.length+=Abs(currentElement.minPoint(0)-currentElement.maxPoint(0))
-						ElseIf InStr(nonMetalFaceNeighborsStr(i),"y")<>0 Then
-							ant.length+=Abs(currentElement.minPoint(1)-currentElement.maxPoint(1))
-						ElseIf InStr(nonMetalFaceNeighborsStr(i),"z")<>0 Then
-							ant.length+=Abs(currentElement.minPoint(2)-currentElement.maxPoint(2))
-						End If
-						'ant.length+=Abs(currentElement.-currentElement.)
-						Set currentElement = nonMetalFaceNeighbors(i)
-
-					End If
-					jj+=1
-				End If
-			Next
-		Else
-			Exit Function
-		End If
-	Loop
-End Function
-Function antennaDestructor(ant As Antenna)
-	Dim A As AntennaElement, i As Integer
-	Set A=ant.feedElement
-	For i=0 To ant.elementNumber-2
-		Select Case Mid(ant.conLogics,2*i+1,2)
-		Case "xn"
-			A.xnNeighbor.setMaterial(sub_material)
-			Set A=A.xnNeighbor
-		Case "xp"
-			A.xpNeighbor.setMaterial(sub_material)
-			Set A=A.xpNeighbor
-		Case "yn"
-			A.ynNeighbor.setMaterial(sub_material)
-			Set A=A.ynNeighbor
-		Case "yp"
-			A.ypNeighbor.setMaterial(sub_material)
-			Set A=A.ypNeighbor
-		Case "zn"
-			A.znNeighbor.setMaterial(sub_material)
-			Set A=A.znNeighbor
-		Case "zp"
-			A.zpNeighbor.setMaterial(sub_material)
-			Set A=A.zpNeighbor
-		End Select
-
-	Next
-	ant.antennaInitialize(ant.feedElement)
-End Function
 Function selectMaterial(pickedMaterial As String, notice As String)
 	'Dim cst_button As Integer
 	'Dim cst_Operation As String
