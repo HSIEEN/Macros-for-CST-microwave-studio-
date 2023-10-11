@@ -1,3 +1,12 @@
+VERSION 1.0 CLASS
+BEGIN
+  MultiUse = -1 'True
+END
+Attribute VB_PredeclaredId = False
+Attribute VB_Creatable = True
+Attribute VB_Exposed = False
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Name = "AntennaElement"
 '#Language "WWB-COM"
 Option Explicit
 Private sName As String
@@ -775,12 +784,16 @@ Public Function getVerticeNeighbors(ByRef neighborNum As Integer) As Variant
 
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
+	'Dim vNeighborStr() As Variant
+	'vNeighborStr()=Array("nnn","nnp","npn","npp","pnn","pnp","ppn","ppp")
     ReDim neighbor(8)
+    'neighborStr=""
     neighborNum = 0
 
     For i=0 To 7
     	If verticeNeighbors(i) IsNot Nothing Then
 			Set neighbor(neighborNum)=verticeNeighbors(i)
+			'neighborStr(neighborNum)=vNeighborStr(i)
 			neighborNum += 1
     	End If
     Next
@@ -815,6 +828,8 @@ End Function
 Public Function getFaceNeighbors(ByRef neighborNum As Integer) As Variant
 	Dim i As Integer
     Dim neighbor() As AntennaElement
+	'Dim fNeighborStr() As Variant
+	'fNeighborStr()=Array("xn","xp","yn","yp","zn","zp")
     ReDim neighbor(6)
     neighborNum = 0
     'neighbor = ""
@@ -822,6 +837,7 @@ Public Function getFaceNeighbors(ByRef neighborNum As Integer) As Variant
     	If faceNeighbors(i) IsNot Nothing Then
 
 			Set neighbor(neighborNum)=faceNeighbors(i)
+			'neighborStr(neighborNum)=fNeihgborStr(i)
 			neighborNum += 1
 
     	End If
@@ -884,21 +900,26 @@ Public Function getNonMetalEdgeNeighbors(ByRef neighborNum As Integer) As Varian
     Return neighbor
 End Function
 'get the number of all Non-Metal face neighbors
-Public Function getNonMetalFaceNeighbors(ByRef neighborNum As Integer) As Variant
+Public Function getNonMetalFaceNeighbors(ByRef neighborNum As Integer, ByRef neighborStr() As String) As Variant
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
+	Dim fNeighborStr() As Variant
+	fNeighborStr()=Array("xn","xp","yn","yp","zn","zp")
     ReDim neighbor(6)
+    ReDim neighborStr(6)
     neighborNum = 0
     'neighbor = ""
     For i=0 To 5
 	    If faceNeighbors(i) IsNot Nothing Then
 	    	If IsMetal(faceNeighbors(i).solidMaterial)=False Then
 				Set neighbor(neighborNum)=faceNeighbors(i)
+				neighborStr(neighborNum)=fNeighborStr(i)
 				neighborNum += 1
 			End If
 	    End If
     Next
     ReDim Preserve neighbor(neighborNum)
+    ReDim Preserve neighborStr(neighborNum)
     Return neighbor
 End Function
 'get the number of all metal edge neighbors
@@ -958,6 +979,8 @@ End Function
 Public Function getMetalFaceNeighbors(ByRef neighborNum As Integer) As Variant
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
+	'Dim fNeighborStr() As Variant
+	'fNeighborStr()=Array("xn","xp","yn","yp","zn","zp")
     ReDim neighbor(6)
     neighborNum = 0
     'neighbor = ""
@@ -965,6 +988,7 @@ Public Function getMetalFaceNeighbors(ByRef neighborNum As Integer) As Variant
 	    If faceNeighbors(i) IsNot Nothing Then
 	    	If IsMetal(faceNeighbors(i).solidMaterial)=True Then
 				Set neighbor(neighborNum)=faceNeighbors(i)
+				'neighborStr(neighborNum)=fNeighborStr(i)
 				neighborNum += 1
 			End If
 	    End If
@@ -1146,4 +1170,84 @@ Public Sub defineFaces()
 	Next
 
 End Sub
+'Get valid face neighhors which could be used as possible antnenaElements
+Function getValidNonMetalFaceNeighbors(nonMetalFaceNeighbors() As AntennaElement, n_nonMetalFaceNeighbors As Integer, _
+nonMetalFaceNeighborsStr() As String, validFaceNeighborsArray() As Integer, n_validFaceNeighbors As Integer) As Boolean
 
+	'Dim currentElement As AntennaElement
+	'Set currentElement = ant.feedElement
+	Dim n_metalFaceNeighborsOfNonMetalFaceNeighbors As Integer
+	Dim n_metalEdgeNeighborsOfNonMetalFaceNeighbors As Integer
+	Dim n_metalVerticeNeighborsOfNonMetalFaceNeighbors As Integer
+	'Dim nonMetalFaceNeighborsStr() As String
+	Dim metalFaceNeighborsOfNonMetalFaceNeighbors() As AntennaElement
+	Dim metalEdgeNeighborsOfNonMetalFaceNeighbors() As AntennaElement
+	Dim metalVerticeNeighborsOfNonMetalFaceNeighbors() As AntennaElement
+	'Dim n_nonMetalFaceNeighbors As Integer
+	Dim i As Integer, j As Integer, k As Integer
+
+	nonMetalFaceNeighbors = Me.getNonMetalFaceNeighbors(n_nonMetalFaceNeighbors, nonMetalFaceNeighborsStr)
+	n_validFaceNeighbors = n_nonMetalFaceNeighbors
+	ReDim validFaceNeighborsArray(n_validFaceNeighbors-1)
+	'Initialize the validity of nonMetalFaceNeighbors
+	For i=0 To n_nonMetalFaceNeighbors-1
+		validFaceNeighborsArray(i)=-1
+	Next
+	'Re-Check the validity of nonMetalFaceNeighgors
+	k = 0
+	For i = 0 To n_nonMetalFaceNeighbors-1
+		'If there are more than one metal face neighbors, the non metal face neighbors are invalid
+		'for being used as an antenna element
+		metalFaceNeighborsOfNonMetalFaceNeighbors = _
+		nonMetalFaceNeighbors(i).getMetalFaceNeighbors(n_metalFaceNeighborsOfNonMetalFaceNeighbors)
+		If n_metalFaceNeighborsOfNonMetalFaceNeighbors>1 And n_validFaceNeighbors>=1 Then
+			n_validFaceNeighbors -= 1
+			'validityOfFaceNeighbors(i)=False
+			'ReDim Preserve validFaceNeighborsArray(n_validFaceNeighbors-1)
+			GoTo continueLoop
+		End If
+
+		'Check whether metal edge neighbors of non-metal face neighbors are among
+		'face neighbors of current element, if not, set invalid
+		metalEdgeNeighborsOfNonMetalFaceNeighbors = _
+		nonMetalFaceNeighbors(i).getMetalEdgeNeighbors(n_metalEdgeNeighborsOfNonMetalFaceNeighbors)
+		If n_metalEdgeNeighborsOfNonMetalFaceNeighbors >= 1 And n_validFaceNeighbors>=1 Then
+			For j=0 To n_metalEdgeNeighborsOfNonMetalFaceNeighbors-1
+				'If metalEdgeNeighborsOfNonMetalFaceNeighbors(j).iSFaceNeighborWith(Me)=False Then
+				If Me.iSFaceNeighborWith(metalEdgeNeighborsOfNonMetalFaceNeighbors(j))=False Then
+					n_validFaceNeighbors -= 1
+					'validityOfFaceNeighbors(i)=False
+					'ReDim Preserve validFaceNeighborsArray(n_validFaceNeighbors-1)
+					GoTo continueLoop
+				End If
+			Next
+		End If
+		'Check whether a non_metal face neighbor gets a metal vertice neighbor
+		'if yes, set invalid
+		metalVerticeNeighborsOfNonMetalFaceNeighbors = _
+		nonMetalFaceNeighbors(i).getMetalVerticeNeighbors(n_metalVerticeNeighborsOfNonMetalFaceNeighbors)
+		If n_metalVerticeNeighborsOfNonMetalFaceNeighbors >= 1 And n_validFaceNeighbors>=1 Then
+			'For j=0 To n_metalVerticeNeighborsOfNonMetalFaceNeighbors-1
+				'If metalVerticeNeighborsOfNonMetalFaceNeighbors(j).iSFaceNeighborWith(Me)=False Then
+				'If Me.iSFaceNeighborWith(metalVerticeNeighborsOfNonMetalFaceNeighbors(j))=False Then
+			n_validFaceNeighbors -= 1
+			'ReDim Preserve validFaceNeighborsArray(n_validFaceNeighbors-1)
+			GoTo continueLoop
+			'validityOfFaceNeighbors(i)=False
+					'Exit For
+				'End If
+			'Next
+		End If
+		validFaceNeighborsArray(k) = i
+		k += 1
+	continueLoop:
+	Next
+	If n_validFaceNeighbors >=1 Then
+		ReDim Preserve validFaceNeighborsArray(n_validFaceNeighbors-1)
+	End If
+	If n_validFaceNeighbors = 0 Then
+		Return False
+	Else
+		Return True
+	End If
+End Function
