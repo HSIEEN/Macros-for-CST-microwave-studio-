@@ -545,6 +545,16 @@ Public Sub setMaterial(mMaterial As String)
 	Me.solidMaterial = mMaterial
 	Solid.ChangeMaterial(Me.solidName,mMaterial)
 End Sub
+Public Function setMaterialPermanently(mMaterial As String) As String
+	'Dim historyCaption As String
+	Dim sCommand As String
+	Me.solidMaterial = mMaterial
+	sCommand = ""
+	sCommand = sCommand + "Solid.ChangeMaterial """ + Me.solidName + """,""" + mMaterial + """"+vbLf
+	'historyCaption = "$SMP" + " " + Me.solidName + "---" + mMaterial
+	'AddToHistory(historyCaption,sCommand)
+	Return sCommand
+End Function
 
 Sub GetDimension()
 	MsgBox "GetDimension."
@@ -779,8 +789,8 @@ Private Function isArrayIdentical(A() As Double, B() As Double) As Boolean
 		Next
 	Next
 End Function
-'get the number of all vertice neighbors
-Public Function getVerticeNeighbors(ByRef neighborNum As Integer) As Variant
+'get all vertice neighbors
+Public Function getVerticeNeighbors(ByRef NeighborNum As Integer) As Variant
 
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
@@ -788,88 +798,159 @@ Public Function getVerticeNeighbors(ByRef neighborNum As Integer) As Variant
 	'vNeighborStr()=Array("nnn","nnp","npn","npp","pnn","pnp","ppn","ppp")
     ReDim neighbor(8)
     'neighborStr=""
-    neighborNum = 0
+    NeighborNum = 0
 
     For i=0 To 7
     	If verticeNeighbors(i) IsNot Nothing Then
-			Set neighbor(neighborNum)=verticeNeighbors(i)
+			Set neighbor(NeighborNum)=verticeNeighbors(i)
 			'neighborStr(neighborNum)=vNeighborStr(i)
-			neighborNum += 1
+			NeighborNum += 1
     	End If
     Next
     'neighbor = "", old codes
 
-    ReDim Preserve neighbor(neighborNum)
+    ReDim Preserve neighbor(NeighborNum)
     Return neighbor
 End Function
-'get the number of all edge neighbors
-Public Function getEdgeNeighbors(ByRef neighborNum As Integer) As Variant
+'get number of all vertice neighbors
+Public Function getNumberOfVerticeNeighbors() As Integer
+
+	Dim i As Integer, NeighborNum As Integer
+    NeighborNum = 0
+
+    For i=0 To 7
+    	If verticeNeighbors(i) IsNot Nothing Then
+			NeighborNum += 1
+    	End If
+    Next
+    'neighbor = "", old codes
+	Return NeighborNum
+End Function
+'get all edge neighbors
+Public Function getEdgeNeighbors(ByRef NeighborNum As Integer) As Variant
 
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
     ReDim neighbor(12)
-    neighborNum = 0
+    NeighborNum = 0
 
     For i=0 To 11
     	If edgeNeighbors(i) IsNot Nothing Then
 
-			Set neighbor(neighborNum)=edgeNeighbors(i)
-			neighborNum += 1
+			Set neighbor(NeighborNum)=edgeNeighbors(i)
+			NeighborNum += 1
 
     	End If
     Next
     'neighbor = "", old codes
 
-    ReDim Preserve neighbor(neighborNum)
+    ReDim Preserve neighbor(NeighborNum)
     Return neighbor
 End Function
+'get the number of all edge neighbors
+Public Function getNumberOfEdgeNeighbors() As Integer
 
-'get the number of all face neighbors
-Public Function getFaceNeighbors(ByRef neighborNum As Integer) As Variant
+	Dim i As Integer, NeighborNum As Integer
+    NeighborNum = 0
+
+    For i=0 To 11
+    	If edgeNeighbors(i) IsNot Nothing Then
+			NeighborNum += 1
+    	End If
+    Next
+    'neighbor = "", old codes
+	Return NeighborNum
+End Function
+'get all face neighbors
+Public Function getFaceNeighbors(ByRef NeighborNum As Integer) As Variant
 	Dim i As Integer
     Dim neighbor() As AntennaElement
 	'Dim fNeighborStr() As Variant
 	'fNeighborStr()=Array("xn","xp","yn","yp","zn","zp")
     ReDim neighbor(6)
-    neighborNum = 0
+    NeighborNum = 0
     'neighbor = ""
     For i=0 To 5
     	If faceNeighbors(i) IsNot Nothing Then
 
-			Set neighbor(neighborNum)=faceNeighbors(i)
+			Set neighbor(NeighborNum)=faceNeighbors(i)
 			'neighborStr(neighborNum)=fNeihgborStr(i)
-			neighborNum += 1
+			NeighborNum += 1
 
     	End If
     Next
 
-    ReDim Preserve neighbor(neighborNum)
+    ReDim Preserve neighbor(NeighborNum)
 
     getFaceNeighbors = neighbor
 End Function
-'get the number of all non metal edge neighbors
-Public Function getNonMetalVerticeNeighbors(ByRef neighborNum As Integer) As Variant
+'get the number of all face neighbors
+Public Function getNumberOfFaceNeighbors() As Integer
+	Dim i As Integer, NeighborNum As Integer
+    'Dim neighbor() As AntennaElement
+	'Dim fNeighborStr() As Variant
+	'fNeighborStr()=Array("xn","xp","yn","yp","zn","zp")
+    'ReDim neighbor(6)
+    NeighborNum = 0
+    'neighbor = ""
+    For i=0 To 5
+    	If faceNeighbors(i) IsNot Nothing Then
+
+			NeighborNum += 1
+
+    	End If
+    Next
+
+	Return NeighborNum
+    'ReDim Preserve neighbor(NeighborNum)
+
+    'getFaceNeighbors = neighbor
+End Function
+'get all non metal edge neighbors
+Public Function getNonMetalVerticeNeighbors(ByRef NeighborNum As Integer) As Variant
 
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
     ReDim neighbor(8)
-    neighborNum = 0
+    NeighborNum = 0
 
     For i=0 To 7
 	    If verticeNeighbors(i) IsNot Nothing Then
-	    	If IsMetal(verticeNeighbors(i).solidMaterial)=False Then
-				Set neighbor(neighborNum)=verticeNeighbors(i)
-				neighborNum += 1
+	    	If verticeNeighbors(i).isMetal()=False Then
+				Set neighbor(NeighborNum)=verticeNeighbors(i)
+				NeighborNum += 1
 			End If
 	    End If
     Next
     'neighbor = "", old codes
 
-    ReDim Preserve neighbor(neighborNum)
+    ReDim Preserve neighbor(NeighborNum)
     Return neighbor
 End Function
-'get the number of all Non-Metal edge neighbors
-Public Function getNonMetalEdgeNeighbors(ByRef neighborNum As Integer) As Variant
+'get Number of all non metal edge neighbors
+Public Function getNumberOfNonMetalVerticeNeighbors() As Integer
+
+	Dim i As Integer, NeighborNum As Integer
+	'Dim neighbor() As AntennaElement
+   ' ReDim neighbor(8)
+    NeighborNum = 0
+
+    For i=0 To 7
+	    If verticeNeighbors(i) IsNot Nothing Then
+	    	If verticeNeighbors(i).isMetal()=False Then
+				'Set neighbor(NeighborNum)=verticeNeighbors(i)
+				NeighborNum += 1
+			End If
+	    End If
+    Next
+    'neighbor = "", old codes
+	Return NeighborNum
+    'ReDim Preserve neighbor(NeighborNum)
+    'Return neighbor
+End Function
+
+'get  all Non-Metal edge neighbors
+Public Function getNonMetalEdgeNeighbors(ByRef NeighborNum As Integer) As Variant
 		' 0-nnn2nnp(2,3)
 		' 1-nnn2npn(2,3)
 		' 2-nnn2pnn(2,3)
@@ -885,66 +966,142 @@ Public Function getNonMetalEdgeNeighbors(ByRef neighborNum As Integer) As Varian
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
     ReDim neighbor(12)
-    neighborNum = 0
+    NeighborNum = 0
     'neighbor = ""
     For i=0 To 11
 	    If edgeNeighbors(i) IsNot Nothing Then
-	    	If IsMetal(edgeNeighbors(i).solidMaterial)=False Then
-				Set neighbor(neighborNum)=edgeNeighbors(i)
-				neighborNum += 1
+	    	If edgeNeighbors(i).isMetal()=False Then
+				Set neighbor(NeighborNum)=edgeNeighbors(i)
+				NeighborNum += 1
 			End If
 	    End If
     Next
 
-    ReDim Preserve neighbor(neighborNum)
+    ReDim Preserve neighbor(NeighborNum)
     Return neighbor
 End Function
-'get the number of all Non-Metal face neighbors
-Public Function getNonMetalFaceNeighbors(ByRef neighborNum As Integer, ByRef neighborStr() As String) As Variant
+'get Number of all Non-Metal edge neighbors
+Public Function getNumberOfNonMetalEdgeNeighbors() As Integer
+		' 0-nnn2nnp(2,3)
+		' 1-nnn2npn(2,3)
+		' 2-nnn2pnn(2,3)
+		' 3-npp2nnp(2,3)
+		' 4-npp2npn(2,3)
+		' 5-npp2ppp(2,3)
+		' 6-pnp2nnp(2,3)
+		' 7-pnp2pnn(2,3)
+		' 8-pnp2ppp(2,3)
+		' 9-ppn2npn(2,3)
+		' 10-ppn2pnn(2,3)
+		' 11-ppn2ppp(2,3)
+	Dim i As Integer, NeighborNum As Integer
+	'Dim neighbor() As AntennaElement
+    'ReDim neighbor(12)
+    NeighborNum = 0
+    'neighbor = ""
+    For i=0 To 11
+	    If edgeNeighbors(i) IsNot Nothing Then
+	    	If edgeNeighbors(i).isMetal()=False Then
+				'Set neighbor(NeighborNum)=edgeNeighbors(i)
+				NeighborNum += 1
+			End If
+	    End If
+    Next
+	Return NeighborNum
+    'ReDim Preserve neighbor(NeighborNum)
+    'Return neighbor
+End Function
+'get all Non-Metal face neighbors
+Public Function getNonMetalFaceNeighbors(ByRef NeighborNum As Integer, ByRef neighborStr() As String) As Variant
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
 	Dim fNeighborStr() As Variant
 	fNeighborStr()=Array("xn","xp","yn","yp","zn","zp")
     ReDim neighbor(6)
     ReDim neighborStr(6)
-    neighborNum = 0
+    NeighborNum = 0
     'neighbor = ""
     For i=0 To 5
 	    If faceNeighbors(i) IsNot Nothing Then
-	    	If IsMetal(faceNeighbors(i).solidMaterial)=False Then
-				Set neighbor(neighborNum)=faceNeighbors(i)
-				neighborStr(neighborNum)=fNeighborStr(i)
-				neighborNum += 1
+	    	If faceNeighbors(i).isMetal()=False Then
+				Set neighbor(NeighborNum)=faceNeighbors(i)
+				neighborStr(NeighborNum)=fNeighborStr(i)
+				NeighborNum += 1
 			End If
 	    End If
     Next
-    ReDim Preserve neighbor(neighborNum)
-    ReDim Preserve neighborStr(neighborNum)
+    ReDim Preserve neighbor(NeighborNum)
+    ReDim Preserve neighborStr(NeighborNum)
     Return neighbor
 End Function
-'get the number of all metal edge neighbors
-Public Function getMetalVerticeNeighbors(ByRef neighborNum As Integer) As Variant
+'get number of all Non-Metal face neighbors
+Public Function getNumberOfNonMetalFaceNeighbors() As Integer
+	Dim i As Integer, NeighborNum As Integer
+	'Dim neighbor() As AntennaElement
+	'Dim fNeighborStr() As Variant
+	'fNeighborStr()=Array("xn","xp","yn","yp","zn","zp")
+    'ReDim neighbor(6)
+    'ReDim neighborStr(6)
+    NeighborNum = 0
+    'neighbor = ""
+    For i=0 To 5
+	    If faceNeighbors(i) IsNot Nothing Then
+	    	If faceNeighbors(i).isMetal()=False Then
+				'Set neighbor(NeighborNum)=faceNeighbors(i)
+				'neighborStr(NeighborNum)=fNeighborStr(i)
+				NeighborNum += 1
+			End If
+	    End If
+    Next
+    Return NeighborNum
+    'ReDim Preserve neighbor(NeighborNum)
+    'ReDim Preserve neighborStr(NeighborNum)
+    'Return neighbor
+End Function
+'get all metal edge neighbors
+Public Function getMetalVerticeNeighbors(ByRef NeighborNum As Integer) As Variant
 
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
     ReDim neighbor(8)
-    neighborNum = 0
+    NeighborNum = 0
 
     For i=0 To 7
 	    If verticeNeighbors(i) IsNot Nothing Then
-	    	If IsMetal(verticeNeighbors(i).solidMaterial)=True Then
-				Set neighbor(neighborNum)=verticeNeighbors(i)
-				neighborNum += 1
+	    	If verticeNeighbors(i).isMetal()=True Then
+				Set neighbor(NeighborNum)=verticeNeighbors(i)
+				NeighborNum += 1
 			End If
 	    End If
     Next
     'neighbor = "", old codes
 
-    ReDim Preserve neighbor(neighborNum)
+    ReDim Preserve neighbor(NeighborNum)
     Return neighbor
 End Function
-'get the number of all Metal edge neighbors
-Public Function getMetalEdgeNeighbors(ByRef neighborNum As Integer) As Variant
+'get number of all metal edge neighbors
+Public Function getNumberOfMetalVerticeNeighbors() As Integer
+
+	Dim i As Integer, NeighborNum As Integer
+	'Dim neighbor() As AntennaElement
+    'ReDim neighbor(8)
+    NeighborNum = 0
+
+    For i=0 To 7
+	    If verticeNeighbors(i) IsNot Nothing Then
+	    	If verticeNeighbors(i).isMetal()=True Then
+				'Set neighbor(NeighborNum)=verticeNeighbors(i)
+				NeighborNum += 1
+			End If
+	    End If
+    Next
+    'neighbor = "", old codes
+	Return NeighborNum
+    'ReDim Preserve neighbor(NeighborNum)
+    'Return neighbor
+End Function
+'get all Metal edge neighbors
+Public Function getMetalEdgeNeighbors(ByRef NeighborNum As Integer) As Variant
 		' 0-nnn2nnp(2,3)
 		' 1-nnn2npn(2,3)
 		' 2-nnn2pnn(2,3)
@@ -960,22 +1117,54 @@ Public Function getMetalEdgeNeighbors(ByRef neighborNum As Integer) As Variant
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
     ReDim neighbor(12)
-    neighborNum = 0
+    NeighborNum = 0
     For i=0 To 11
 	    If edgeNeighbors(i) IsNot Nothing Then
-	    	If IsMetal(edgeNeighbors(i).solidMaterial)=True Then
-				Set neighbor(neighborNum)=edgeNeighbors(i)
-				neighborNum += 1
+	    	If edgeNeighbors(i).isMetal()=True Then
+				Set neighbor(NeighborNum)=edgeNeighbors(i)
+				NeighborNum += 1
 			End If
 	    End If
 
     Next
     'neighbor = ""
 
-    ReDim Preserve neighbor(neighborNum)
+    ReDim Preserve neighbor(NeighborNum)
     Return neighbor
 End Function
-'get the number of all Metal face neighbors
+'get Number of all Metal edge neighbors
+Public Function getNumberOfMetalEdgeNeighbors() As Integer
+		' 0-nnn2nnp(2,3)
+		' 1-nnn2npn(2,3)
+		' 2-nnn2pnn(2,3)
+		' 3-npp2nnp(2,3)
+		' 4-npp2npn(2,3)
+		' 5-npp2ppp(2,3)
+		' 6-pnp2nnp(2,3)
+		' 7-pnp2pnn(2,3)
+		' 8-pnp2ppp(2,3)
+		' 9-ppn2npn(2,3)
+		' 10-ppn2pnn(2,3)
+		' 11-ppn2ppp(2,3)
+	Dim i As Integer, NeighborNum As Integer
+	'Dim neighbor() As AntennaElement
+    'ReDim neighbor(12)
+    NeighborNum = 0
+    For i=0 To 11
+	    If edgeNeighbors(i) IsNot Nothing Then
+	    	If edgeNeighbors(i).isMetal()=True Then
+				'Set neighbor(neighborNum)=edgeNeighbors(i)
+				NeighborNum += 1
+			End If
+	    End If
+
+    Next
+    'neighbor = ""
+	Return neighborNum
+    'ReDim Preserve neighbor(neighborNum)
+    'Return neighbor
+End Function
+'get all Metal face neighbors
 Public Function getMetalFaceNeighbors(ByRef neighborNum As Integer) As Variant
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
@@ -986,21 +1175,43 @@ Public Function getMetalFaceNeighbors(ByRef neighborNum As Integer) As Variant
     'neighbor = ""
     For i=0 To 5
 	    If faceNeighbors(i) IsNot Nothing Then
-	    	If IsMetal(faceNeighbors(i).solidMaterial)=True Then
-				Set neighbor(neighborNum)=faceNeighbors(i)
+	    	If faceNeighbors(i).isMetal()=True Then
+				Set neighbor(NeighborNum)=faceNeighbors(i)
 				'neighborStr(neighborNum)=fNeighborStr(i)
-				neighborNum += 1
+				NeighborNum += 1
 			End If
 	    End If
     Next
 
-    ReDim Preserve neighbor(neighborNum)
+    ReDim Preserve neighbor(NeighborNum)
     Return neighbor
 End Function
+'get Number Of all Metal face neighbors
+Public Function getNumberOfMetalFaceNeighbors() As Integer
+	Dim i As Integer, NeighborNum As Integer
+	'Dim neighbor() As AntennaElement
+	'Dim fNeighborStr() As Variant
+	'fNeighborStr()=Array("xn","xp","yn","yp","zn","zp")
+    'ReDim neighbor(6)
+    NeighborNum = 0
+    'neighbor = ""
+    For i=0 To 5
+	    If faceNeighbors(i) IsNot Nothing Then
+	    	If faceNeighbors(i).isMetal()=True Then
+				'Set neighbor(neighborNum)=faceNeighbors(i)
+				'neighborStr(neighborNum)=fNeighborStr(i)
+				NeighborNum += 1
+			End If
+	    End If
+    Next
+	Return NeighborNum
+    'ReDim Preserve neighbor(neighborNum)
+    'Return neighbor
+End Function
 
-Public Function IsMetal(sMaterial As String) As Boolean
-	If Material.GetTypeOfMaterial(sMaterial) = "PEC" Or _
-	Material.GetTypeOfMaterial(sMaterial) = "Lossy metal" Then
+Public Function isMetal() As Boolean
+	If Material.GetTypeOfMaterial(solidMaterial) = "PEC" Or _
+	Material.GetTypeOfMaterial(solidMaterial) = "Lossy metal" Then
 		Return True
 	Else
 		Return False
