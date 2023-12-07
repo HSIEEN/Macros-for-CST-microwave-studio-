@@ -15,9 +15,22 @@ Public ant_material As String
 Public sub_material As String
 Public ant As Antenna
 Public tgtFreq As Double
+Public fileNumber As Integer
+Const macrofile = "C:\Program Files (x86)\CST Studio Suite 2021\Library\Macros\Coros\Post-Process\Store Resonant Frequency and Q.mcr"
 Sub Main
 	Rebuild
+	Dim prjPath As String
+	Dim logFile As String
+
+	prjPath = GetProjectPath("Project")
+   	logFile = prjPath + "\Progress log.txt"
+   	fileNumber = FreeFile
+   	Open logFile For Output As #fileNumber
+	ReportInformationToWindow "***********Initializing of antenna begins at " + CStr(Now) +"*************"
+   	Print #fileNumber, "************Initializing of antenna begins at " + CStr(Now) +"****************"
 	antennaDesign_initialize()
+	ReportInformationToWindow "**********Initializing of antenna finishes at " + CStr(Now) +"************"
+	Print #fileNumber, "************Initializing of antenna finishes at " + CStr(Now) +"************"
 	'Select operating frequency and feed point
 	Begin Dialog UserDialog 330,140,"Frquency and feeding part settings" ' %GRID:10,7,1,1
 		GroupBox 0,0,330,49,"Frequency settings:",.GroupBox1
@@ -33,6 +46,10 @@ Sub Main
 	Dim feedSolid As String
 	Dim feed As AntennaElement
 	Dim tgtLength As Double
+	Dim deltaX As Double, deltaY As Double, deltaZ As Double
+	Dim resFreq As Double
+	Dim ifSuccess As Boolean
+
 	'Dim ant_material As String
 	'ant_material = "Metal/Copper (annealed)"
 
@@ -43,52 +60,101 @@ Sub Main
 
 	tgtFreq = CDbl(dlg.Freq)
 	feedSolid = aSolidArray_CST(dlg.feedingPart)
+	ReportInformationToWindow "%% Target frequency: " + dlg.Freq + "GHz"
+	Print #fileNumber, "%% Target frequency: " + dlg.Freq + "GHz"
+	ReportInformationToWindow "%% Feed element: " + feedSolid
+	Print #fileNumber, "%% Feed element: " + feedSolid
 	Set feed = getElementFromSolid(antElem_arr, feedSolid)
 	If feed Is Nothing Then
 		MsgBox "Set feed part failed!", vbCritical,"Error"
 	End If
+
 	Set ant=New Antenna
 	ant.initialize(feed, ant_material, sub_material)
 		'Solid.ChangeMaterial "1 Antenna:Antenna", "Metal/Copper (annealed)"
 		'feed.solidMaterial = ant_material
 		'Solid.ChangeMaterial(feed.solidName,ant_material)
 	Dim X As Integer
+	Dim Y As Integer
+	'***************Add a choice to recover antenna routing from the progress log*********************
+	feed.getDimensions(deltaX,deltaY,deltaZ)
 	X=0
 	tgtLength = Round(3e8/(tgtFreq*1e6)/4,1) ' unit mm
-	ReportInformationToWindow "Antenna target length: "+CStr(tgtLength)+"mm"
+	resFreq = 0
+	'ReportInformationToWindow "%% Antenna target length: "+CStr(tgtLength)+"mm"
+	'Print #fileNumber, "%% Antenna target length: "+CStr(tgtLength)+"mm"
 	'tgtLength = 80
-	While X<100
+	ReportInformationToWindow "*********Routing of antenna starts at " + CStr(Now) +"************"
+	Print #fileNumber, "***********Routing of antenna starts at " + CStr(Now) +"**********"
+	Do
 		X+=1
+		ReportInformationToWindow "####### Round#"+CStr(X)+" of antenna routing starts at " + CStr(Now) +" #######"
+		Print #fileNumber, "####### Round#"+CStr(X)+" of antenna routing starts at " + CStr(Now) +" #######"
+		ReportInformationToWindow "%% The target length is: "+CStr(Round(tgtLength,2))+"mm"
+		Print #fileNumber, "%% The target length is: "+CStr(Round(tgtLength,2))+"mm"
 		If X>1 Then
 			ant.destructor()
 		End If
-		If ant.constructor(tgtLength, nSolids_CST, Abs(feed.maxPoint(0)-feed.minPoint(0)), _
-		Abs(feed.maxPoint(1)-feed.minPoint(1)), Abs(feed.maxPoint(2)-feed.minPoint(2))) = True Then
-			ReportInformationToWindow "loop "+Cstr(X)+ _
+		ifSuccess = False
+		Y=0
+		While ant.constructor(tgtLength, nSolids_CST, deltaX, deltaY, deltaZ) = True
+			Y += 1
+			ifSuccess = True
+			ReportInformationToWindow "%% Loop#"+CStr(Y)+" of antenna routing ends at " + CStr(Now)
+			Print #fileNumber, "%% Loop#"+CStr(Y)+" of antenna routing ends at " + CStr(Now)
+			ReportInformationToWindow "%% loop# "+Cstr(Y)+ _
 			" is done and the antenna length target is met, simulation will begin now"
-			ant.toHistoryList()
+			Print #fileNumber, "%% loop# "+Cstr(Y)+ _
+			" is done and the antenna length target is met, simulation will begin now"
 			'ant.patcher()
 			'Rebuild, start simulating
+			Print #fileNumber, "%% Achieved antenna length: " + CStr(Round(ant.length,2))
+			ant.toHistoryList()
 			Solver.MeshAdaption(False)
 			Solver.SteadyStateLimit(-40)
 			Solver.Start
+			ReportInformationToWindow "%% Simulation#"+CStr(Y)+" of antenna ends at " + CStr(Now)
+			Print #fileNumber, "%% Simulation#"+CStr(Y)+" of antenna ends at " + CStr(Now)
+			MacroRun(macrofile)
+			resFreq = getFrequencyValue()(0)
+			ReportInformationToWindow "%% Simulation done, the resonance frequency is: " + CStr(Round(resFreq,2)) + "GHz"
+			Print #fileNumber, "%% Simulation done, the resonance frequency is: " + CStr(Round(resFreq,2)) + "GHz"
+			'Amend the target length when the resonance frequency does not meet the target
+			If Abs((resFreq-tgtFreq)/tgtFreq)>0.02 Then
+				tgtLength = (resFreq/tgtFreq)*tgtLength
+				ReportInformationToWindow "%% The resonance frequency does not meet the target and optimization of length will begin."
+				Print #fileNumber, "%% The resonance frequency does not meet the target and optimization of length will begin."
+				DeleteResults
+				ReportInformationToWindow "%% New target length is: "+CStr(Round(tgtLength,2))+"mm"
+				Print #fileNumber, "%% New target length is: "+CStr(Round(tgtLength,2))+"mm"
+			Else
+				If	MsgBox("Go on?",vbOkCancel,"Notice")<>vbOK Then
+					Exit Do
+				Else
+					ReportInformationToWindow "%% The resonance frequency has been met @"+ CStr(Round(resFreq,2)) + "GHz"
+					Print #fileNumber, "%% The resonance frequency has been met @"+ CStr(Round(resFreq,2)) + "GHz"
+					'*********Record more data such as radiation efficiency and connection logics string to the progress log************
 
-			If	MsgBox("Go on?",vbOkCancel,"Notice")<>vbOK Then
-				Exit While
-			End If
+					DeleteResults
+					Exit While
+				End If
 			'Rebuild
+			End If
 			Plot.Update
-		Else
-			ReportInformationToWindow "loop "+Cstr(X)+ _
-			" is done but the antnena Length is not met, another trial starts"
-			'If	MsgBox("Go on?",vbOkCancel,"Notice")<>vbOK Then
-			'	Exit While
-			'End If
+			ifSuccess = False
+		Wend
+		If ifSuccess = False Then
+			ReportInformationToWindow "####### Round "+Cstr(X)+ _
+				" is done but the antnena Length is not met, another trial starts #######"
+			Print #fileNumber, "####### Round "+Cstr(X)+ _
+				" is done but the antnena Length is not met, another trial starts ########"
 		End If
 		'Plot.Update
 		'Plot.ExportImage ("E:\image.bmp", 1024, 768)
-	Wend
-
+	Loop Until X>=100
+	ReportInformationToWindow "************Routing of antenna ends at " + CStr(Now) +"************"
+	Print #fileNumber, "************Routing of antenna ends at " + CStr(Now) +"***************"
+	Close #fileNumber
 	MsgBox "OOOps"
 End Sub
 Sub antennaDesign_initialize()
@@ -106,7 +172,11 @@ Sub antennaDesign_initialize()
     	Exit All
     End If
 	selectMaterial(ant_material,"Pick a material for antenna")
+	ReportInformationToWindow "%% Antenna material: " + ant_material
+	Print #fileNumber, "%% Antenna material: " + ant_material
 	selectMaterial(sub_material,"Pick a material for substrate")
+	ReportInformationToWindow "%% Substrate material: " + sub_material
+	Print #fileNumber, "%% Substrate material: " + sub_material
 	If MsgBox("Please select all solids contained in the antenna.",vbYesNo,"Notice") <> vbYes Then
     	Exit All
     End If
@@ -114,7 +184,8 @@ Sub antennaDesign_initialize()
 	'For i=0 to Ubound(aSolidArray_CST)
 	'SelectSolids_LIB
 	'SelectMaterials_LIB(aMaterialArray_CST(), nMaterials_CST)
-	ReportInformationToWindow "Number of solids for antenna elements: "+CStr(nSolids_CST)
+	ReportInformationToWindow "%% Number of solids for antenna elements: "+CStr(nSolids_CST)
+	Print #fileNumber, "%% Number of solids for antenna elements: "+CStr(nSolids_CST)
 	ReDim antElem_arr(nSolids_CST)
 	sCommand = ""
 	'Construct class instances from solids
@@ -136,6 +207,7 @@ Sub antennaDesign_initialize()
 				.defineVertices()
 				.defineEdges()
 				.defineFaces()'xMin,yMin,zMin,xMax,yMax,zMax
+				.flag = False
 			End With
 			Plot.Update
 			'Debug.Print antennaEle
@@ -410,3 +482,31 @@ Sub SelectSolids_Antenna(aSolidArray_LIB() As String, nSolids_LIB As Integer)
 	End If
 
 End Sub
+Function getFrequencyValue() As Variant
+    Dim prjPath As String
+	Dim dataFile As String
+	Dim freq() As Double
+	Dim resStr As String
+	Dim n As Integer
+	Dim lineRead As String
+	prjPath = GetProjectPath("Project")
+   	dataFile = prjPath + "\freq_Q.txt"
+   	n = 1
+	Open dataFile For Input As #1
+	While Not EOF(1)
+		Line Input #1, lineRead
+		While Not EOF(1) And Left(lineRead,1)<>"F"
+			Line Input #1, lineRead
+		Wend
+
+		If Left(lineRead,1) = "F" Then
+			ReDim Preserve freq(n)
+			resStr = Split(lineRead, "=")(1)
+			freq(n-1) = CDbl(resStr) 'realized resonance frequency
+
+		End If
+		n = n+1
+	Wend
+	getFrequencyValue = freq
+	Close #1
+End Function
