@@ -23,6 +23,13 @@ End Property
 Property Let solidMaterial(value As String)
 		aMaterial = value
 End Property
+Private ele_flag As Boolean
+Property Get flag() As Boolean
+	flag = ele_flag
+End Property
+Property Let flag(value As Boolean)
+		ele_flag = value
+End Property
 Private startPoint() As Double
 Property Get minPoint() As Double()
 	minPoint = startPoint
@@ -556,10 +563,6 @@ Public Function setMaterialPermanently(mMaterial As String) As String
 	Return sCommand
 End Function
 
-Sub GetDimension()
-	MsgBox "GetDimension."
-End Sub
-
 Public Sub setStartPoint(xMin As Double, yMin As Double, zMin As Double)
 	ReDim startPoint(3)
 	startPoint(0) = xMin
@@ -572,8 +575,161 @@ Public Sub setEndPoint(xMax As Double, yMax As Double, zMax As Double)
 	endPoint(1) = yMax
 	endPoint(2) = zMax
 End Sub
+Public Sub defineVertices()
+	ReDim vertices(8,3)
+	'nnn
+	vertices(0,0) = startPoint(0)
+	vertices(0,1) = startPoint(1)
+	vertices(0,2) = startPoint(2)
+	'nnp
+	vertices(1,0) = startPoint(0)
+	vertices(1,1) = startPoint(1)
+	vertices(1,2) = endPoint(2)
+	'npn
+	vertices(2,0) = startPoint(0)
+	vertices(2,1) = endPoint(1)
+	vertices(2,2) = startPoint(2)
+	'npp
+	vertices(3,0) = startPoint(0)
+	vertices(3,1) = endPoint(1)
+	vertices(3,2) = endPoint(2)
+	'pnn
+	vertices(4,0) = endPoint(0)
+	vertices(4,1) = startPoint(1)
+	vertices(4,2) = startPoint(2)
+	'pnp
+	vertices(5,0) = endPoint(0)
+	vertices(5,1) = startPoint(1)
+	vertices(5,2) = endPoint(2)
+	'ppn
+	vertices(6,0) = endPoint(0)
+	vertices(6,1) = endPoint(1)
+	vertices(6,2) = startPoint(2)
+	'ppp
+	vertices(7,0) = endPoint(0)
+	vertices(7,1) = endPoint(1)
+	vertices(7,2) = endPoint(2)
+End Sub
+Public Sub defineEdges()
+	ReDim edges(12,2,3)
+	Dim i As Integer, j As Integer
+	'nnn2nnp
+	For i=0 To 2
+		edges(0,0,i)=nnn(i)
+		edges(0,1,i)=nnp(i)
+	Next
+	'nnn2npn
+	For i=0 To 2
+		edges(1,0,i)=nnn(i)
+		edges(1,1,i)=npn(i)
+	Next
+	'nnn2pnn
+	For i=0 To 2
+		edges(2,0,i)=nnn(i)
+		edges(2,1,i)=pnn(i)
+	Next
+	'npp2nnp
+	For i=0 To 2
+		edges(3,0,i)=npp(i)
+		edges(3,1,i)=nnp(i)
+	Next
+	'npp2npn
+	For i=0 To 2
+		edges(4,0,i)=npp(i)
+		edges(4,1,i)=npn(i)
+	Next
+	'npp2ppp
+	For i=0 To 2
+		edges(5,0,i)=npp(i)
+		edges(5,1,i)=ppp(i)
+	Next
+	'pnp2nnp
+	For i=0 To 2
+		edges(6,0,i)=pnp(i)
+		edges(6,1,i)=nnp(i)
+	Next
+	'pnp2pnn
+	For i=0 To 2
+		edges(7,0,i)=pnp(i)
+		edges(7,1,i)=pnn(i)
+	Next
+	'pnp2ppp
+	For i=0 To 2
+		edges(8,0,i)=pnp(i)
+		edges(8,1,i)=ppp(i)
+	Next
+	'ppn2npn
+	For i=0 To 2
+		edges(9,0,i)=ppn(i)
+		edges(9,1,i)=npn(i)
+	Next
+	'ppn2pnn
+	For i=0 To 2
+		edges(10,0,i)=ppn(i)
+		edges(10,1,i)=pnn(i)
+	Next
+	'ppn2ppp
+	For i=0 To 2
+		edges(11,0,i)=ppn(i)
+		edges(11,1,i)=ppp(i)
+	Next
+
+End Sub
+
+'The changes made include using the   +=   operator To concatenate the strings, And using   IsNot   instead of   Not   For Null/Nothing checks.
+Public Sub defineFaces()
+	ReDim faces(6,4,3)
+	Dim i As Integer, j As Integer, m As Integer
+	'faceXn --> (xmin, ymin, zmin),(xmin,ymin, zmax),(xmin,ymax,zmin),(xmin,ymax,zmax)
+	'faceXp --> (xmax, ymin, zmin),(xmax,ymin, zmax),(xmax,ymax,zmin),(xmax,ymax,zmax)
+	'...
+	'etc
+	'===========xnface, face(0,:,:), nnn,nnp,npn,npp===============
+	For i=0 To 3
+		For j=0 To 2
+			faces(0,i,j)=vertices(i,j)
+		Next
+
+	Next
+	'===========xpface, face(1,:,:), pnn,pnp,ppn,ppp===============
+	For i=0 To 3
+		For j=0 To 2
+			faces(1,i,j)=vertices(i+4,j)
+		Next
+
+	Next
+	'===========ynface, face(2,:,:), nnn,nnp,pnn,pnp===============
+	For i=0 To 3
+		For j=0 To 2
+			faces(2,i,j)=vertices(i+Int(i/2)*2,j)
+		Next
+
+	Next
+	'===========ypface, face(3,:,:), npn,npp,ppn,ppp===============
+	For i=0 To 3
+		For j=0 To 2
+			faces(3,i,j)=vertices(i+2+Int(i/2)*2,j)
+		Next
+
+	Next
+	'===========znface, face(4,:,:), nnn,npn,pnn,ppn===============
+	For i=0 To 3
+		For j=0 To 2
+			faces(4,i,j)=vertices(i*2,j)
+		Next
+
+	Next
+	'===========zpface, face(5,:,:), nnp,npp,pnp,ppp===============
+	For i=0 To 3
+		For j=0 To 2
+			faces(5,i,j)=vertices(2*i+1,j)
+		Next
+
+	Next
+
+End Sub
 Public Sub createVerticeNeighborWith(A As AntennaElement)
-	If DoesTouchWith(A) = False Then
+	If doesTouchWith(A) = False Then
 		Exit Sub
 	End If
     'edgeNeighbors-->nnn,nnp,npn,npp,pnn,pnp,ppn,ppp
@@ -614,8 +770,8 @@ Public Sub createVerticeNeighborWith(A As AntennaElement)
 		End If
 	End If
 End Sub
-Public Function iSVerticeNeighborWith(A As AntennaElement) As Boolean
-	If DoesTouchWith(A) = False Then
+Public Function isVerticeNeighborWith(A As AntennaElement) As Boolean
+	If doesTouchWith(A) = False Then
 		Return False
 		Exit Function
 	End If
@@ -635,7 +791,7 @@ End Function
 
 Public Sub createFaceNeighborWith(A As AntennaElement)
 	'ReDim faceNeighbors(6)
-	If DoesTouchWith(A) = False Then
+	If doesTouchWith(A) = False Then
 		Exit Sub
 	End If
     'faceNeighbors initialize, xn, xp, yn, yp, zn, zp
@@ -668,8 +824,8 @@ Public Sub createFaceNeighborWith(A As AntennaElement)
 		End If
 	End If
 End Sub
-Public Function iSFaceNeighborWith(A As AntennaElement) As Boolean
-	If DoesTouchWith(A) = False Then
+Public Function isFaceNeighborWith(A As AntennaElement) As Boolean
+	If doesTouchWith(A) = False Then
 		Return False
 		Exit Function
 	End If
@@ -701,7 +857,7 @@ Public Sub createEdgeNeighborWith(A As AntennaElement)
 			' 10-ppn2pnn(2,3)
 			' 11-ppn2ppp(2,3)
 	'A is my FaceNeighbor
-	If 	DoesTouchWith(A) = False Then
+	If 	doesTouchWith(A) = False Then
 		Exit Sub
 	End If
 	If StrComp(A.solidName, solidName) <> 0 Then
@@ -757,7 +913,7 @@ Public Sub createEdgeNeighborWith(A As AntennaElement)
 	End If
 End Sub
 Public Function iSEdgeNeighborWith(A As AntennaElement) As Boolean
-	If DoesTouchWith(A) = False Then
+	If doesTouchWith(A) = False Then
 		Return False
 		Exit Function
 	End If
@@ -1160,18 +1316,18 @@ Public Function getNumberOfMetalEdgeNeighbors() As Integer
 
     Next
     'neighbor = ""
-	Return neighborNum
+	Return NeighborNum
     'ReDim Preserve neighbor(neighborNum)
     'Return neighbor
 End Function
 'get all Metal face neighbors
-Public Function getMetalFaceNeighbors(ByRef neighborNum As Integer) As Variant
+Public Function getMetalFaceNeighbors(ByRef NeighborNum As Integer) As Variant
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
 	'Dim fNeighborStr() As Variant
 	'fNeighborStr()=Array("xn","xp","yn","yp","zn","zp")
     ReDim neighbor(6)
-    neighborNum = 0
+    NeighborNum = 0
     'neighbor = ""
     For i=0 To 5
 	    If faceNeighbors(i) IsNot Nothing Then
@@ -1189,26 +1345,41 @@ End Function
 'get Number Of all Metal face neighbors
 Public Function getNumberOfMetalFaceNeighbors() As Integer
 	Dim i As Integer, NeighborNum As Integer
-	'Dim neighbor() As AntennaElement
-	'Dim fNeighborStr() As Variant
-	'fNeighborStr()=Array("xn","xp","yn","yp","zn","zp")
-    'ReDim neighbor(6)
     NeighborNum = 0
     'neighbor = ""
     For i=0 To 5
 	    If faceNeighbors(i) IsNot Nothing Then
 	    	If faceNeighbors(i).isMetal()=True Then
-				'Set neighbor(neighborNum)=faceNeighbors(i)
-				'neighborStr(neighborNum)=fNeighborStr(i)
 				NeighborNum += 1
 			End If
 	    End If
     Next
 	Return NeighborNum
-    'ReDim Preserve neighbor(neighborNum)
-    'Return neighbor
 End Function
-
+'get dimensions of elements in majority
+Public Function getDimensions(deltaX As Double, deltaY As Double, deltaZ As Double) As Boolean
+	Dim NeighborNum As Integer, i As Integer, ii As Integer
+	Dim neighbors() As AntennaElement
+	Dim neighborsOfNeighbors() As AntennaElement
+	neighbors=getFaceNeighbors(NeighborNum)
+	If NeighborNum=4 Then
+		deltaX = Abs(maxPoint(0)-minPoint(0))
+		deltaY = Abs(maxPoint(1)-minPoint(1))
+		deltaZ = Abs(maxPoint(2)-minPoint(2))
+		Return True
+	Else
+		For i=0 To NeighborNum-1
+			neighborsOfNeighbors=neighbors(i).getFaceNeighbors(ii)
+			If ii=4 Then
+				deltaX = Abs(neighbors(i).maxPoint(0)-neighbors(i).minPoint(0))
+				deltaY = Abs(neighbors(i).maxPoint(1)-neighbors(i).minPoint(1))
+				deltaZ = Abs(neighbors(i).maxPoint(2)-neighbors(i).minPoint(2))
+				Return True
+			End If
+		Next
+	End If
+	Return False
+End Function
 Public Function isMetal() As Boolean
 	If Material.GetTypeOfMaterial(solidMaterial) = "PEC" Or _
 	Material.GetTypeOfMaterial(solidMaterial) = "Lossy metal" Then
@@ -1217,176 +1388,98 @@ Public Function isMetal() As Boolean
 		Return False
 	End If
 End Function
-Public Function DoesTouchWith(A As AntennaElement) As Boolean
+Public Function doesTouchWith(A As AntennaElement) As Boolean
 	'verticeNum = 0
 	'If isArrayIdentical(Me.xnynzn, A.) Then
-	DoesTouchWith = True
+	doesTouchWith = True
 	If Me.minPoint(0)> A.maxPoint(0) Or Me.maxPoint(0)< A.minPoint(0) Or _
 	Me.minPoint(1)> A.maxPoint(1) Or Me.maxPoint(1)< A.minPoint(1) Or _
 	Me.minPoint(2)> A.maxPoint(2) Or Me.maxPoint(2)< A.minPoint(2) Then
-		DoesTouchWith = False
+		doesTouchWith = False
 	End If
 	'End If
 End Function
-Public Sub defineVertices()
-	ReDim vertices(8,3)
-	'nnn
-	vertices(0,0) = startPoint(0)
-	vertices(0,1) = startPoint(1)
-	vertices(0,2) = startPoint(2)
-	'nnp
-	vertices(1,0) = startPoint(0)
-	vertices(1,1) = startPoint(1)
-	vertices(1,2) = endPoint(2)
-	'npn
-	vertices(2,0) = startPoint(0)
-	vertices(2,1) = endPoint(1)
-	vertices(2,2) = startPoint(2)
-	'npp
-	vertices(3,0) = startPoint(0)
-	vertices(3,1) = endPoint(1)
-	vertices(3,2) = endPoint(2)
-	'pnn
-	vertices(4,0) = endPoint(0)
-	vertices(4,1) = startPoint(1)
-	vertices(4,2) = startPoint(2)
-	'pnp
-	vertices(5,0) = endPoint(0)
-	vertices(5,1) = startPoint(1)
-	vertices(5,2) = endPoint(2)
-	'ppn
-	vertices(6,0) = endPoint(0)
-	vertices(6,1) = endPoint(1)
-	vertices(6,2) = startPoint(2)
-	'ppp
-	vertices(7,0) = endPoint(0)
-	vertices(7,1) = endPoint(1)
-	vertices(7,2) = endPoint(2)
-End Sub
-Public Sub defineEdges()
-	ReDim edges(12,2,3)
-	Dim i As Integer, j As Integer
-	'nnn2nnp
-	For i=0 To 2
-		edges(0,0,i)=nnn(i)
-		edges(0,1,i)=nnp(i)
-	Next
-	'nnn2npn
-	For i=0 To 2
-		edges(1,0,i)=nnn(i)
-		edges(1,1,i)=npn(i)
-	Next
-	'nnn2pnn
-	For i=0 To 2
-		edges(2,0,i)=nnn(i)
-		edges(2,1,i)=pnn(i)
-	Next
-	'npp2nnp
-	For i=0 To 2
-		edges(3,0,i)=npp(i)
-		edges(3,1,i)=nnp(i)
-	Next
-	'npp2npn
-	For i=0 To 2
-		edges(4,0,i)=npp(i)
-		edges(4,1,i)=npn(i)
-	Next
-	'npp2ppp
-	For i=0 To 2
-		edges(5,0,i)=npp(i)
-		edges(5,1,i)=ppp(i)
-	Next
-	'pnp2nnp
-	For i=0 To 2
-		edges(6,0,i)=pnp(i)
-		edges(6,1,i)=nnp(i)
-	Next
-	'pnp2pnn
-	For i=0 To 2
-		edges(7,0,i)=pnp(i)
-		edges(7,1,i)=pnn(i)
-	Next
-	'pnp2ppp
-	For i=0 To 2
-		edges(8,0,i)=pnp(i)
-		edges(8,1,i)=ppp(i)
-	Next
-	'ppn2npn
-	For i=0 To 2
-		edges(9,0,i)=ppn(i)
-		edges(9,1,i)=npn(i)
-	Next
-	'ppn2pnn
-	For i=0 To 2
-		edges(10,0,i)=ppn(i)
-		edges(10,1,i)=pnn(i)
-	Next
-	'ppn2ppp
-	For i=0 To 2
-		edges(11,0,i)=ppn(i)
-		edges(11,1,i)=ppp(i)
-	Next
+'Pure nonMetallic: is not metallic and has no any metal neighbors
+Public Function isPureNonMetal() As Boolean
+	If isMetal()=False And (getNumberOfMetalFaceNeighbors()+ _
+	getNumberOfMetalEdgeNeighbors()+getNumberOfMetalVerticeNeighbors())=0 Then
+		Return True
+	Else
+		Return False
+	End If
 
-End Sub
+End Function
+'Count how many elements left that can be used as antenna elements
+'AvailableStr is the name string of all solid that has been counted as one pure Nonmetal element
+Public Function getNumberofPureNonMetalElements(availableElements As String) As Integer
+	Dim NeighborNum As Integer, i As Integer, n As Integer
+	'Dim cFlag As Boolean
+	Dim neighborStr() As String
+	'Dim availableElements As String
+	Dim neighbors() As AntennaElement
 
-'The changes made include using the   +=   operator To concatenate the strings, And using   IsNot   instead of   Not   For Null/Nothing checks.
-Public Sub defineFaces()
-	ReDim faces(6,4,3)
-	Dim i As Integer, j As Integer, m As Integer
-	'faceXn --> (xmin, ymin, zmin),(xmin,ymin, zmax),(xmin,ymax,zmin),(xmin,ymax,zmax)
-	'faceXp --> (xmax, ymin, zmin),(xmax,ymin, zmax),(xmax,ymax,zmin),(xmax,ymax,zmax)
-	'...
-	'etc
-	'===========xnface, face(0,:,:), nnn,nnp,npn,npp===============
-	For i=0 To 3
-		For j=0 To 2
-			faces(0,i,j)=vertices(i,j)
-		Next
+	If isMetal()=True Then
+		ReportInformationToWindow "The element is metal, please switch to a nonMetal one"
+		Return 0
+	End If
+	neighbors = getNonMetalFaceNeighbors(NeighborNum, neighborStr)
+	n = 0
+	'availableElements = ""
+	'cFlag = flag
+	For i=0 To NeighborNum-1
+		'ReportInformationToWindow "Current solid under check: " & neighbors(i).solidName
+		If neighbors(i).isPureNonMetal()=True And InStr(availableElements, neighbors(i).solidName & "$")=0 Then
+			'neighbors(i).flag=True
+			availableElements = availableElements & neighbors(i).solidName & "$"
+			n += 1
+			'ReportInformationToWindow "#Number of pure NonMetal: " & CStr(n)
+			n += neighbors(i).getNumberofPureNonMetalElements(availableElements)
+			'neighbors(i).flag=False
+			'ReportInformationToWindow "##Number of pure NonMetal: " & CStr(n)
+		End If
+	Next
+	getNumberofPureNonMetalElements = n
+End Function
+'availableElements is names of all solids that are pure nonMetal elements
+Public Function getNumberofPureNonMetalNeighbors(availableElements As String) As Integer
+	Dim NeighborNum As Integer, i As Integer, n As Integer
+	Dim neighborStr() As String
+	'Dim availableElements As String
+	Dim neighbors() As AntennaElement
+	n=0
+	If isMetal()=True Then
+		ReportInformationToWindow "The element is metal, please switch to a nonMetal one"
+		Return 0
+	End If
+	neighbors = getNonMetalFaceNeighbors(NeighborNum, neighborStr)
+	For i=0 To NeighborNum-1
+		If neighbors(i).isPureNonMetal()=True Then'And InStr(availableElements, neighbors(i).solidName & "$")=0 Then
+			n+=1
+			availableElements = availableElements & neighbors(i).solidName & "$"
+		End If
 
 	Next
-	'===========xpface, face(1,:,:), pnn,pnp,ppn,ppp===============
-	For i=0 To 3
-		For j=0 To 2
-			faces(1,i,j)=vertices(i+4,j)
-		Next
-
+	neighbors = getNonMetalEdgeNeighbors(NeighborNum)
+	For i=0 To NeighborNum-1
+		If neighbors(i).isPureNonMetal()=True Then' And InStr(availableElements, neighbors(i).solidName & "$")=0 Then
+			n+=1
+			availableElements = availableElements & neighbors(i).solidName & "$"
+		End If
 	Next
-	'===========ynface, face(2,:,:), nnn,nnp,pnn,pnp===============
-	For i=0 To 3
-		For j=0 To 2
-			faces(2,i,j)=vertices(i+Int(i/2)*2,j)
-		Next
-
+	neighbors = getNonMetalVerticeNeighbors(NeighborNum)
+	For i=0 To NeighborNum-1
+		If neighbors(i).isPureNonMetal()=True Then' And InStr(availableElements, neighbors(i).solidName & "$")=0 Then
+			n+=1
+			availableElements = availableElements & neighbors(i).solidName & "$"
+		End If
 	Next
-	'===========ypface, face(3,:,:), npn,npp,ppn,ppp===============
-	For i=0 To 3
-		For j=0 To 2
-			faces(3,i,j)=vertices(i+2+Int(i/2)*2,j)
-		Next
+	getNumberofPureNonMetalNeighbors=n
+End Function
 
-	Next
-	'===========znface, face(4,:,:), nnn,npn,pnn,ppn===============
-	For i=0 To 3
-		For j=0 To 2
-			faces(4,i,j)=vertices(i*2,j)
-		Next
-
-	Next
-	'===========zpface, face(5,:,:), nnp,npp,pnp,ppp===============
-	For i=0 To 3
-		For j=0 To 2
-			faces(5,i,j)=vertices(2*i+1,j)
-		Next
-
-	Next
-
-End Sub
-'Get valid face neighhors which could be used as possible antnenaElements
+'Get valid face neighhors that could be used as possible antnenaElements
 Function getValidNonMetalFaceNeighbors(nonMetalFaceNeighbors() As AntennaElement, n_nonMetalFaceNeighbors As Integer, _
 nonMetalFaceNeighborsStr() As String, validFaceNeighborsArray() As Integer, n_validFaceNeighbors As Integer) As Boolean
 
-	'Dim currentElement As AntennaElement
-	'Set currentElement = ant.feedElement
 	Dim n_metalFaceNeighborsOfNonMetalFaceNeighbors As Integer
 	Dim n_metalEdgeNeighborsOfNonMetalFaceNeighbors As Integer
 	Dim n_metalVerticeNeighborsOfNonMetalFaceNeighbors As Integer
@@ -1408,13 +1501,8 @@ nonMetalFaceNeighborsStr() As String, validFaceNeighborsArray() As Integer, n_va
 	k = 0
 	For i = 0 To n_nonMetalFaceNeighbors-1
 		'If there are more than one metal face neighbors, the non metal face neighbors are invalid
-		'for being used as an antenna element
-		metalFaceNeighborsOfNonMetalFaceNeighbors = _
-		nonMetalFaceNeighbors(i).getMetalFaceNeighbors(n_metalFaceNeighborsOfNonMetalFaceNeighbors)
-		If n_metalFaceNeighborsOfNonMetalFaceNeighbors>1 And n_validFaceNeighbors>=1 Then
+		If nonMetalFaceNeighbors(i).getNumberOfMetalFaceNeighbors()>1 And n_validFaceNeighbors>=1 Then
 			n_validFaceNeighbors -= 1
-			'validityOfFaceNeighbors(i)=False
-			'ReDim Preserve validFaceNeighborsArray(n_validFaceNeighbors-1)
 			GoTo continueLoop
 		End If
 
@@ -1425,7 +1513,7 @@ nonMetalFaceNeighborsStr() As String, validFaceNeighborsArray() As Integer, n_va
 		If n_metalEdgeNeighborsOfNonMetalFaceNeighbors >= 1 And n_validFaceNeighbors>=1 Then
 			For j=0 To n_metalEdgeNeighborsOfNonMetalFaceNeighbors-1
 				'If metalEdgeNeighborsOfNonMetalFaceNeighbors(j).iSFaceNeighborWith(Me)=False Then
-				If Me.iSFaceNeighborWith(metalEdgeNeighborsOfNonMetalFaceNeighbors(j))=False Then
+				If Me.isFaceNeighborWith(metalEdgeNeighborsOfNonMetalFaceNeighbors(j))=False Then
 					n_validFaceNeighbors -= 1
 					'validityOfFaceNeighbors(i)=False
 					'ReDim Preserve validFaceNeighborsArray(n_validFaceNeighbors-1)
@@ -1435,19 +1523,10 @@ nonMetalFaceNeighborsStr() As String, validFaceNeighborsArray() As Integer, n_va
 		End If
 		'Check whether a non_metal face neighbor gets a metal vertice neighbor
 		'if yes, set invalid
-		metalVerticeNeighborsOfNonMetalFaceNeighbors = _
-		nonMetalFaceNeighbors(i).getMetalVerticeNeighbors(n_metalVerticeNeighborsOfNonMetalFaceNeighbors)
-		If n_metalVerticeNeighborsOfNonMetalFaceNeighbors >= 1 And n_validFaceNeighbors>=1 Then
-			'For j=0 To n_metalVerticeNeighborsOfNonMetalFaceNeighbors-1
-				'If metalVerticeNeighborsOfNonMetalFaceNeighbors(j).iSFaceNeighborWith(Me)=False Then
-				'If Me.iSFaceNeighborWith(metalVerticeNeighborsOfNonMetalFaceNeighbors(j))=False Then
+		If nonMetalFaceNeighbors(i).getNumberOfMetalVerticeNeighbors() >= 1 And n_validFaceNeighbors>=1 Then
 			n_validFaceNeighbors -= 1
 			'ReDim Preserve validFaceNeighborsArray(n_validFaceNeighbors-1)
 			GoTo continueLoop
-			'validityOfFaceNeighbors(i)=False
-					'Exit For
-				'End If
-			'Next
 		End If
 		validFaceNeighborsArray(k) = i
 		k += 1
