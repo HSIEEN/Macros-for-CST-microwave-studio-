@@ -121,7 +121,7 @@ End Property
 'Private ppn2npn() As Double, ppn2pnn() As Double, ppn2ppp() As Double
 Private edges() As Double
 'nnn2nnp
-Property Get nnn2nnp() As Double()
+Property Get nnL() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -130,10 +130,10 @@ Property Get nnn2nnp() As Double()
 			edge(i,j)=edges(0,i,j)
 		Next
 	Next
-	nnn2nnp = edge
+	nnL = edge
 End Property
 'nnn2npn
-Property Get nnn2npn() As Double()
+Property Get nLn() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -142,10 +142,10 @@ Property Get nnn2npn() As Double()
 			edge(i,j)=edges(1,i,j)
 		Next
 	Next
-	nnn2npn = edge
+	nLn = edge
 End Property
 'nnn2pnn
-Property Get nnn2pnn() As Double()
+Property Get Lnn() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -154,10 +154,10 @@ Property Get nnn2pnn() As Double()
 			edge(i,j)=edges(2,i,j)
 		Next
 	Next
-	nnn2pnn = edge
+	Lnn = edge
 End Property
 'npp2nnp
-Property Get npp2nnp() As Double()
+Property Get nLp() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -166,10 +166,10 @@ Property Get npp2nnp() As Double()
 			edge(i,j)=edges(3,i,j)
 		Next
 	Next
-	npp2nnp = edge
+	nLp = edge
 End Property
 'npp2npn
-Property Get npp2npn() As Double()
+Property Get npL() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -178,10 +178,10 @@ Property Get npp2npn() As Double()
 			edge(i,j)=edges(4,i,j)
 		Next
 	Next
-	npp2npn = edge
+	npL = edge
 End Property
 'npp2ppp
-Property Get npp2ppp() As Double()
+Property Get Lpp() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -190,10 +190,10 @@ Property Get npp2ppp() As Double()
 			edge(i,j)=edges(5,i,j)
 		Next
 	Next
-	npp2ppp = edge
+	Lpp = edge
 End Property
 'pnp2nnp
-Property Get pnp2nnp() As Double()
+Property Get Lnp() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -202,10 +202,10 @@ Property Get pnp2nnp() As Double()
 			edge(i,j)=edges(6,i,j)
 		Next
 	Next
-	pnp2nnp = edge
+	Lnp = edge
 End Property
 'pnp2pnn
-Property Get pnp2pnn() As Double()
+Property Get pnL() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -214,11 +214,11 @@ Property Get pnp2pnn() As Double()
 			edge(i,j)=edges(7,i,j)
 		Next
 	Next
-	pnp2pnn = edge
+	pnL = edge
 End Property
 'pnp2ppp
-Property Get pnp2ppp() As Double()
-	'pnp2pppEdge = pnp2ppp
+Property Get pLP() As Double()
+	'pLPEdge = pLP
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -227,10 +227,10 @@ Property Get pnp2ppp() As Double()
 			edge(i,j)=edges(8,i,j)
 		Next
 	Next
-	pnp2ppp = edge
+	pLP = edge
 End Property
 'ppn2npn
-Property Get ppn2npn() As Double()
+Property Get Lpn() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -239,10 +239,10 @@ Property Get ppn2npn() As Double()
 			edge(i,j)=edges(9,i,j)
 		Next
 	Next
-	ppn2npn = edge
+	Lpn = edge
 End Property
 'ppn2pnn
-Property Get ppn2pnn() As Double()
+Property Get pLn() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -251,10 +251,10 @@ Property Get ppn2pnn() As Double()
 			edge(i,j)=edges(10,i,j)
 		Next
 	Next
-	ppn2pnn = edge
+	pLn = edge
 End Property
 'ppn2ppp
-Property Get ppn2ppp() As Double()
+Property Get ppL() As Double()
 	Dim i As Integer, j As Integer
 	Dim edge() As Double
 	ReDim edge(2,3)
@@ -263,7 +263,7 @@ Property Get ppn2ppp() As Double()
 			edge(i,j)=edges(11,i,j)
 		Next
 	Next
-	ppn2ppp = edge
+	ppL = edge
 End Property
 
 'faces--> xnFace, xpFace, ynFace, ypFace, znFace, zpFace
@@ -448,103 +448,103 @@ End Property
 
 
 '===========================edge Neighbors============================
-	' nnn2nnp(2,3)
-	' nnn2npn(2,3)
-	' nnn2pnn(2,3)
-	' npp2nnp(2,3)
-	' npp2npn(2,3)
-	' npp2ppp(2,3)
-	' pnp2nnp(2,3)
-	' pnp2pnn(2,3)
-	' pnp2ppp(2,3)
-	' ppn2npn(2,3)
-	' ppn2pnn(2,3)
-	' ppn2ppp(2,3)
-'=================================nnn2nnp
+	' nnL(2,3)
+	' nLn(2,3)
+	' Lnn(2,3)
+	' nLp(2,3)
+	' npL(2,3)
+	' Lpp(2,3)
+	' Lnp(2,3)
+	' pnL(2,3)
+	' pLP(2,3)
+	' Lpn(2,3)
+	' pLn(2,3)
+	' ppL(2,3)
+'=================================nnL
 Private edgeNeighbors(12) As AntennaElement
 'ReDim edgeNeighbors(12)
-'Private edgeNeighbornnn2nnp As AntennaElement
-Property Get nnn2nnpNeighbor() As AntennaElement
-	Set nnn2nnpNeighbor = edgeNeighbors(0)
+'Private edgeNeighbornnL As AntennaElement
+Property Get nnLNeighbor() As AntennaElement
+	Set nnLNeighbor = edgeNeighbors(0)
 End Property
-Property Set nnn2nnpNeighbor(value As AntennaElement)
+Property Set nnLNeighbor(value As AntennaElement)
 	Set edgeNeighbors(0) = value
 End Property
-'=================================nnn2npn
-Property Get nnn2npnNeighbor() As AntennaElement
-	Set nnn2npnNeighbor = edgeNeighbors(1)
+'=================================nLn
+Property Get nLnNeighbor() As AntennaElement
+	Set nLnNeighbor = edgeNeighbors(1)
 End Property
-Property Set nnn2npnNeighbor(value As AntennaElement)
+Property Set nLnNeighbor(value As AntennaElement)
 	Set edgeNeighbors(1) = value
 End Property
-'=================================nnn2pnn
-Property Get nnn2pnnNeighbor() As AntennaElement
-	Set nnn2pnnNeighbor = edgeNeighbors(2)
+'=================================Lnn
+Property Get LnnNeighbor() As AntennaElement
+	Set LnnNeighbor = edgeNeighbors(2)
 End Property
-Property Set nnn2pnnNeighbor(value As AntennaElement)
+Property Set LnnNeighbor(value As AntennaElement)
 	Set edgeNeighbors(2) = value
 End Property
-'=================================npp2nnp
-Property Get npp2nnpNeighbor() As AntennaElement
-	Set npp2nnpNeighbor = edgeNeighbors(3)
+'=================================nLp
+Property Get nLpNeighbor() As AntennaElement
+	Set nLpNeighbor = edgeNeighbors(3)
 End Property
-Property Set npp2nnpNeighbor(value As AntennaElement)
+Property Set nLpNeighbor(value As AntennaElement)
 	Set edgeNeighbors(3) = value
 End Property
-'===================================npp2npn
-Property Get npp2npnNeighbor() As AntennaElement
-	Set npp2npnNeighbor = edgeNeighbors(4)
+'===================================npL
+Property Get npLNeighbor() As AntennaElement
+	Set npLNeighbor = edgeNeighbors(4)
 End Property
-Property Set npp2npnNeighbor(value As AntennaElement)
+Property Set npLNeighbor(value As AntennaElement)
 	Set edgeNeighbors(4) = value
 End Property
-'=====================================npp2ppp
-Property Get npp2pppNeighbor() As AntennaElement
-	Set npp2pppNeighbor = edgeNeighbors(5)
+'=====================================Lpp
+Property Get LppNeighbor() As AntennaElement
+	Set LppNeighbor = edgeNeighbors(5)
 End Property
-Property Set npp2pppNeighbor(value As AntennaElement)
+Property Set LppNeighbor(value As AntennaElement)
 	Set edgeNeighbors(5) = value
 End Property
-'========================================pnp2nnp
-Property Get pnp2nnpNeighbor() As AntennaElement
-	Set pnp2nnpNeighbor = edgeNeighbors(6)
+'========================================Lnp
+Property Get LnpNeighbor() As AntennaElement
+	Set LnpNeighbor = edgeNeighbors(6)
 End Property
-Property Set pnp2nnpNeighbor(value As AntennaElement)
+Property Set LnpNeighbor(value As AntennaElement)
 	Set edgeNeighbors(6) = value
 End Property
-'========================================pnp2pnn
-Property Get pnp2pnnNeighbor() As AntennaElement
-	Set pnp2pnnNeighbor = edgeNeighbors(7)
+'========================================pnL
+Property Get pnLNeighbor() As AntennaElement
+	Set pnLNeighbor = edgeNeighbors(7)
 End Property
-Property Set pnp2pnnNeighbor(value As AntennaElement)
+Property Set pnLNeighbor(value As AntennaElement)
 	Set edgeNeighbors(7) = value
 End Property
-'========================================pnp2ppp
-Property Get pnp2pppNeighbor() As AntennaElement
-	Set pnp2pppNeighbor = edgeNeighbors(8)
+'========================================pLP
+Property Get pLPNeighbor() As AntennaElement
+	Set pLPNeighbor = edgeNeighbors(8)
 End Property
-Property Set pnp2pppNeighbor(value As AntennaElement)
+Property Set pLPNeighbor(value As AntennaElement)
 	Set edgeNeighbors(8) = value
 End Property
-'========================================ppn2npn
-Property Get ppn2npnNeighbor() As AntennaElement
-	Set ppn2npnNeighbor = edgeNeighbors(9)
+'========================================Lpn
+Property Get LpnNeighbor() As AntennaElement
+	Set LpnNeighbor = edgeNeighbors(9)
 End Property
-Property Set ppn2npnNeighbor(value As AntennaElement)
+Property Set LpnNeighbor(value As AntennaElement)
 	Set edgeNeighbors(9) = value
 End Property
-'========================================ppn2pnn
-Property Get ppn2pnnNeighbor() As AntennaElement
-	Set ppn2pnnNeighbor = edgeNeighbors(10)
+'========================================pLn
+Property Get pLnNeighbor() As AntennaElement
+	Set pLnNeighbor = edgeNeighbors(10)
 End Property
-Property Set ppn2pnnNeighbor(value As AntennaElement)
+Property Set pLnNeighbor(value As AntennaElement)
 	Set edgeNeighbors(10) = value
 End Property
-'========================================ppn2ppp
-Property Get ppn2pppNeighbor() As AntennaElement
-	Set ppn2pppNeighbor = edgeNeighbors(11)
+'========================================ppL
+Property Get ppLNeighbor() As AntennaElement
+	Set ppLNeighbor = edgeNeighbors(11)
 End Property
-Property Set ppn2pppNeighbor(value As AntennaElement)
+Property Set ppLNeighbor(value As AntennaElement)
 	Set edgeNeighbors(11) = value
 End Property
 '===============================set Material==================================
@@ -613,62 +613,62 @@ End Sub
 Public Sub defineEdges()
 	ReDim edges(12,2,3)
 	Dim i As Integer, j As Integer
-	'nnn2nnp
+	'nnL
 	For i=0 To 2
 		edges(0,0,i)=nnn(i)
 		edges(0,1,i)=nnp(i)
 	Next
-	'nnn2npn
+	'nLn
 	For i=0 To 2
 		edges(1,0,i)=nnn(i)
 		edges(1,1,i)=npn(i)
 	Next
-	'nnn2pnn
+	'Lnn
 	For i=0 To 2
 		edges(2,0,i)=nnn(i)
 		edges(2,1,i)=pnn(i)
 	Next
-	'npp2nnp
+	'nLp
 	For i=0 To 2
 		edges(3,0,i)=npp(i)
 		edges(3,1,i)=nnp(i)
 	Next
-	'npp2npn
+	'npL
 	For i=0 To 2
 		edges(4,0,i)=npp(i)
 		edges(4,1,i)=npn(i)
 	Next
-	'npp2ppp
+	'Lpp
 	For i=0 To 2
 		edges(5,0,i)=npp(i)
 		edges(5,1,i)=ppp(i)
 	Next
-	'pnp2nnp
+	'Lnp
 	For i=0 To 2
 		edges(6,0,i)=pnp(i)
 		edges(6,1,i)=nnp(i)
 	Next
-	'pnp2pnn
+	'pnL
 	For i=0 To 2
 		edges(7,0,i)=pnp(i)
 		edges(7,1,i)=pnn(i)
 	Next
-	'pnp2ppp
+	'pLP
 	For i=0 To 2
 		edges(8,0,i)=pnp(i)
 		edges(8,1,i)=ppp(i)
 	Next
-	'ppn2npn
+	'Lpn
 	For i=0 To 2
 		edges(9,0,i)=ppn(i)
 		edges(9,1,i)=npn(i)
 	Next
-	'ppn2pnn
+	'pLn
 	For i=0 To 2
 		edges(10,0,i)=ppn(i)
 		edges(10,1,i)=pnn(i)
 	Next
-	'ppn2ppp
+	'ppL
 	For i=0 To 2
 		edges(11,0,i)=ppn(i)
 		edges(11,1,i)=ppp(i)
@@ -843,72 +843,61 @@ Public Function isFaceNeighborWith(A As AntennaElement) As Boolean
 End Function
 
 Public Sub createEdgeNeighborWith(A As AntennaElement)
-	'ReDim edgeNeighbors(12)
-			' 0-nnn2nnp(2,3)
-			' 1-nnn2npn(2,3)
-			' 2-nnn2pnn(2,3)
-			' 3-npp2nnp(2,3)
-			' 4-npp2npn(2,3)
-			' 5-npp2ppp(2,3)
-			' 6-pnp2nnp(2,3)
-			' 7-pnp2pnn(2,3)
-			' 8-pnp2ppp(2,3)
-			' 9-ppn2npn(2,3)
-			' 10-ppn2pnn(2,3)
-			' 11-ppn2ppp(2,3)
+	' 0-nnL(2,3) 1-nLn(2,3) 2-Lnn(2,3) 3-nLp(2,3) 4-npL(2,3) 5-Lpp(2,3)
+	' 6-Lnp(2,3) 7-pnL(2,3) 8-pLP(2,3) 9-Lpn(2,3) 10-pLn(2,3) 11-ppL(2,3)
 	'A is my FaceNeighbor
 	If 	doesTouchWith(A) = False Then
 		Exit Sub
 	End If
 	If StrComp(A.solidName, solidName) <> 0 Then
-		If (A.nnn2nnpNeighbor Is Nothing) And isArrayIdentical(A.nnn2nnp, Me.ppn2ppp)=True Then
-			'A.nnn2nnp<--> ppn2ppp
-			A.nnn2npnNeighbor = Me
-			Me.ppn2pppNeighbor = A
-		ElseIf (A.nnn2npnNeighbor Is Nothing) And isArrayIdentical(A.nnn2npn,Me.pnp2ppp)=True Then
-			'A.nnn2npn<--> pnp2ppp
-			A.nnn2npnNeighbor  = Me
-			Me.pnp2pppNeighbor = A
-		ElseIf (A.nnn2pnnNeighbor Is Nothing) And isArrayIdentical(A.nnn2pnn,Me.npp2ppp)=True Then
-			'A.nnn2pnn<--> npp2ppp
-			A.nnn2pnnNeighbor = Me
-			Me.npp2pppNeighbor = A
-		ElseIf (A.npp2nnpNeighbor Is Nothing) And isArrayIdentical(A.npp2nnp,Me.ppn2pnn)=True Then
-			'A.npp2nnp<--> ppn2pnn
-			A.npp2nnpNeighbor = Me
-			Me.ppn2pnnNeighbor = A
-		ElseIf (A.npp2npnNeighbor Is Nothing) And isArrayIdentical(A.npp2npn,Me.pnp2pnn)=True Then
-			'A.npp2npn<--> pnp2pnn
-			A.npp2npnNeighbor = Me
-			Me.pnp2pnnNeighbor = A
-		ElseIf (A.npp2pppNeighbor Is Nothing) And isArrayIdentical(A.npp2ppp,Me.nnn2pnn)=True Then
-			'A.npp2ppp<--> nnn2pnn
-			A.npp2pppNeighbor = Me
-			Me.nnn2pnnNeighbor = A
-		ElseIf (A.pnp2nnpNeighbor Is Nothing) And isArrayIdentical(A.pnp2nnp,Me.ppn2npn)=True Then
-			'A.pnp2nnp<--> ppn2npn
-			A.pnp2nnpNeighbor = Me
-			Me.ppn2npnNeighbor = A
-		ElseIf (A.pnp2pnnNeighbor Is Nothing) And isArrayIdentical(A.pnp2pnn,Me.npp2npn)=True Then
-			'A.pnp2pnn<--> npp2npn
-			A.pnp2pnnNeighbor = Me
-			Me.npp2npnNeighbor = A
-		ElseIf (A.pnp2pppNeighbor Is Nothing) And isArrayIdentical(A.pnp2ppp,Me.nnn2npn)=True Then
-			'A.pnp2ppp<--> nnn2npn
-			A.pnp2pppNeighbor = Me
-			Me.nnn2npnNeighbor = A
-		ElseIf (A.ppn2npnNeighbor Is Nothing) And isArrayIdentical(A.ppn2npn,Me.pnp2nnp)=True Then
-			'A.ppn2npn<--> pnp2nnp
-			A.ppn2npnNeighbor = Me
-			Me.pnp2nnpNeighbor = A
-		ElseIf (A.ppn2pnnNeighbor Is Nothing) And isArrayIdentical(A.ppn2pnn,Me.npp2nnp)=True Then
-			'A.ppn2pnn<--> npp2nnp
-			A.ppn2pnnNeighbor = Me
-			Me.npp2nnpNeighbor = A
-		ElseIf (A.ppn2pppNeighbor Is Nothing) And isArrayIdentical(A.ppn2ppp,Me.nnn2nnp)=True Then
-			'A.ppn2ppp<--> nnn2nnp
-			A.ppn2pppNeighbor = Me
-			Me.nnn2nnpNeighbor = A
+		If (A.nnLNeighbor Is Nothing) And isArrayIdentical(A.nnL, Me.ppL)=True Then
+			'A.nnL<--> ppL
+			A.nnLNeighbor = Me
+			Me.ppLNeighbor = A
+		ElseIf (A.nLnNeighbor Is Nothing) And isArrayIdentical(A.nLn,Me.pLP)=True Then
+			'A.nLn<--> pLP
+			A.nLnNeighbor  = Me
+			Me.pLPNeighbor = A
+		ElseIf (A.LnnNeighbor Is Nothing) And isArrayIdentical(A.Lnn,Me.Lpp)=True Then
+			'A.Lnn<--> Lpp
+			A.LnnNeighbor = Me
+			Me.LppNeighbor = A
+		ElseIf (A.nLpNeighbor Is Nothing) And isArrayIdentical(A.nLp,Me.pLn)=True Then
+			'A.nLp<--> pLn
+			A.nLpNeighbor = Me
+			Me.pLnNeighbor = A
+		ElseIf (A.npLNeighbor Is Nothing) And isArrayIdentical(A.npL,Me.pnL)=True Then
+			'A.npL<--> pnL
+			A.npLNeighbor = Me
+			Me.pnLNeighbor = A
+		ElseIf (A.LppNeighbor Is Nothing) And isArrayIdentical(A.Lpp,Me.Lnn)=True Then
+			'A.Lpp<--> Lnn
+			A.LppNeighbor = Me
+			Me.LnnNeighbor = A
+		ElseIf (A.LnpNeighbor Is Nothing) And isArrayIdentical(A.Lnp,Me.Lpn)=True Then
+			'A.Lnp<--> Lpn
+			A.LnpNeighbor = Me
+			Me.LpnNeighbor = A
+		ElseIf (A.pnLNeighbor Is Nothing) And isArrayIdentical(A.pnL,Me.npL)=True Then
+			'A.pnL<--> npL
+			A.pnLNeighbor = Me
+			Me.npLNeighbor = A
+		ElseIf (A.pLPNeighbor Is Nothing) And isArrayIdentical(A.pLP,Me.nLn)=True Then
+			'A.pLP<--> nLn
+			A.pLPNeighbor = Me
+			Me.nLnNeighbor = A
+		ElseIf (A.LpnNeighbor Is Nothing) And isArrayIdentical(A.Lpn,Me.Lnp)=True Then
+			'A.Lpn<--> Lnp
+			A.LpnNeighbor = Me
+			Me.LnpNeighbor = A
+		ElseIf (A.pLnNeighbor Is Nothing) And isArrayIdentical(A.pLn,Me.nLp)=True Then
+			'A.pLn<--> nLp
+			A.pLnNeighbor = Me
+			Me.nLpNeighbor = A
+		ElseIf (A.ppLNeighbor Is Nothing) And isArrayIdentical(A.ppL,Me.nnL)=True Then
+			'A.ppL<--> nnL
+			A.ppLNeighbor = Me
+			Me.nnLNeighbor = A
 		End If
 	End If
 End Sub
@@ -919,12 +908,12 @@ Public Function iSEdgeNeighborWith(A As AntennaElement) As Boolean
 	End If
 	If StrComp(A.solidName, solidName) <> 0 Then
 		'Debug.Print TypeName(A.xnNeighbor)
-		If isArrayIdentical(A.nnn2nnp, Me.ppn2ppp)=True Or isArrayIdentical(A.nnn2npn,Me.pnp2ppp)=True _
-		Or isArrayIdentical(A.nnn2pnn,Me.npp2ppp)=True Or isArrayIdentical(A.npp2nnp,Me.ppn2pnn)=True _
-		Or isArrayIdentical(A.npp2ppp,Me.nnn2pnn)=True Or isArrayIdentical(A.pnp2nnp,Me.ppn2npn)=True _
-		Or isArrayIdentical(A.npp2npn,Me.pnp2pnn)=True Or isArrayIdentical(A.pnp2pnn,Me.npp2npn)=True _
-		Or isArrayIdentical(A.pnp2ppp,Me.nnn2npn)=True Or isArrayIdentical(A.ppn2npn,Me.pnp2nnp)=True _
-		Or isArrayIdentical(A.ppn2pnn,Me.npp2nnp)=True Or isArrayIdentical(A.ppn2ppp,Me.nnn2nnp)=True Then
+		If isArrayIdentical(A.nnL, Me.ppL)=True Or isArrayIdentical(A.nLn,Me.pLP)=True _
+		Or isArrayIdentical(A.Lnn,Me.Lpp)=True Or isArrayIdentical(A.nLp,Me.pLn)=True _
+		Or isArrayIdentical(A.Lpp,Me.Lnn)=True Or isArrayIdentical(A.Lnp,Me.Lpn)=True _
+		Or isArrayIdentical(A.npL,Me.pnL)=True Or isArrayIdentical(A.pnL,Me.npL)=True _
+		Or isArrayIdentical(A.pLP,Me.nLn)=True Or isArrayIdentical(A.Lpn,Me.Lnp)=True _
+		Or isArrayIdentical(A.pLn,Me.nLp)=True Or isArrayIdentical(A.ppL,Me.nnL)=True Then
 			Return True
 		Else
 			Return False
@@ -1043,10 +1032,6 @@ End Function
 'get the number of all face neighbors
 Public Function getNumberOfFaceNeighbors() As Integer
 	Dim i As Integer, NeighborNum As Integer
-    'Dim neighbor() As AntennaElement
-	'Dim fNeighborStr() As Variant
-	'fNeighborStr()=Array("xn","xp","yn","yp","zn","zp")
-    'ReDim neighbor(6)
     NeighborNum = 0
     'neighbor = ""
     For i=0 To 5
@@ -1107,18 +1092,8 @@ End Function
 
 'get  all Non-Metal edge neighbors
 Public Function getNonMetalEdgeNeighbors(ByRef NeighborNum As Integer) As Variant
-		' 0-nnn2nnp(2,3)
-		' 1-nnn2npn(2,3)
-		' 2-nnn2pnn(2,3)
-		' 3-npp2nnp(2,3)
-		' 4-npp2npn(2,3)
-		' 5-npp2ppp(2,3)
-		' 6-pnp2nnp(2,3)
-		' 7-pnp2pnn(2,3)
-		' 8-pnp2ppp(2,3)
-		' 9-ppn2npn(2,3)
-		' 10-ppn2pnn(2,3)
-		' 11-ppn2ppp(2,3)
+	' 0-nnL(2,3) 1-nLn(2,3) 2-Lnn(2,3) 3-nLp(2,3) 4-npL(2,3) 5-Lpp(2,3)
+	' 6-Lnp(2,3) 7-pnL(2,3) 8-pLP(2,3) 9-Lpn(2,3) 10-pLn(2,3) 11-ppL(2,3)
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
     ReDim neighbor(12)
@@ -1138,18 +1113,8 @@ Public Function getNonMetalEdgeNeighbors(ByRef NeighborNum As Integer) As Varian
 End Function
 'get Number of all Non-Metal edge neighbors
 Public Function getNumberOfNonMetalEdgeNeighbors() As Integer
-		' 0-nnn2nnp(2,3)
-		' 1-nnn2npn(2,3)
-		' 2-nnn2pnn(2,3)
-		' 3-npp2nnp(2,3)
-		' 4-npp2npn(2,3)
-		' 5-npp2ppp(2,3)
-		' 6-pnp2nnp(2,3)
-		' 7-pnp2pnn(2,3)
-		' 8-pnp2ppp(2,3)
-		' 9-ppn2npn(2,3)
-		' 10-ppn2pnn(2,3)
-		' 11-ppn2ppp(2,3)
+	' 0-nnL(2,3) 1-nLn(2,3) 2-Lnn(2,3) 3-nLp(2,3) 4-npL(2,3) 5-Lpp(2,3)
+	' 6-Lnp(2,3) 7-pnL(2,3) 8-pLP(2,3) 9-Lpn(2,3) 10-pLn(2,3) 11-ppL(2,3)
 	Dim i As Integer, NeighborNum As Integer
 	'Dim neighbor() As AntennaElement
     'ReDim neighbor(12)
@@ -1193,11 +1158,6 @@ End Function
 'get number of all Non-Metal face neighbors
 Public Function getNumberOfNonMetalFaceNeighbors() As Integer
 	Dim i As Integer, NeighborNum As Integer
-	'Dim neighbor() As AntennaElement
-	'Dim fNeighborStr() As Variant
-	'fNeighborStr()=Array("xn","xp","yn","yp","zn","zp")
-    'ReDim neighbor(6)
-    'ReDim neighborStr(6)
     NeighborNum = 0
     'neighbor = ""
     For i=0 To 5
@@ -1210,9 +1170,6 @@ Public Function getNumberOfNonMetalFaceNeighbors() As Integer
 	    End If
     Next
     Return NeighborNum
-    'ReDim Preserve neighbor(NeighborNum)
-    'ReDim Preserve neighborStr(NeighborNum)
-    'Return neighbor
 End Function
 'get all metal edge neighbors
 Public Function getMetalVerticeNeighbors(ByRef NeighborNum As Integer) As Variant
@@ -1258,18 +1215,8 @@ Public Function getNumberOfMetalVerticeNeighbors() As Integer
 End Function
 'get all Metal edge neighbors
 Public Function getMetalEdgeNeighbors(ByRef NeighborNum As Integer) As Variant
-		' 0-nnn2nnp(2,3)
-		' 1-nnn2npn(2,3)
-		' 2-nnn2pnn(2,3)
-		' 3-npp2nnp(2,3)
-		' 4-npp2npn(2,3)
-		' 5-npp2ppp(2,3)
-		' 6-pnp2nnp(2,3)
-		' 7-pnp2pnn(2,3)
-		' 8-pnp2ppp(2,3)
-		' 9-ppn2npn(2,3)
-		' 10-ppn2pnn(2,3)
-		' 11-ppn2ppp(2,3)
+	' 0-nnL(2,3) 1-nLn(2,3) 2-Lnn(2,3) 3-nLp(2,3) 4-npL(2,3) 5-Lpp(2,3)
+	' 6-Lnp(2,3) 7-pnL(2,3) 8-pLP(2,3) 9-Lpn(2,3) 10-pLn(2,3) 11-ppL(2,3)
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
     ReDim neighbor(12)
@@ -1290,18 +1237,8 @@ Public Function getMetalEdgeNeighbors(ByRef NeighborNum As Integer) As Variant
 End Function
 'get Number of all Metal edge neighbors
 Public Function getNumberOfMetalEdgeNeighbors() As Integer
-		' 0-nnn2nnp(2,3)
-		' 1-nnn2npn(2,3)
-		' 2-nnn2pnn(2,3)
-		' 3-npp2nnp(2,3)
-		' 4-npp2npn(2,3)
-		' 5-npp2ppp(2,3)
-		' 6-pnp2nnp(2,3)
-		' 7-pnp2pnn(2,3)
-		' 8-pnp2ppp(2,3)
-		' 9-ppn2npn(2,3)
-		' 10-ppn2pnn(2,3)
-		' 11-ppn2ppp(2,3)
+	' 0-nnL(2,3) 1-nLn(2,3) 2-Lnn(2,3) 3-nLp(2,3) 4-npL(2,3) 5-Lpp(2,3)
+	' 6-Lnp(2,3) 7-pnL(2,3) 8-pLP(2,3) 9-Lpn(2,3) 10-pLn(2,3) 11-ppL(2,3)
 	Dim i As Integer, NeighborNum As Integer
 	'Dim neighbor() As AntennaElement
     'ReDim neighbor(12)
@@ -1324,8 +1261,6 @@ End Function
 Public Function getMetalFaceNeighbors(ByRef NeighborNum As Integer) As Variant
 	Dim i As Integer
 	Dim neighbor() As AntennaElement
-	'Dim fNeighborStr() As Variant
-	'fNeighborStr()=Array("xn","xp","yn","yp","zn","zp")
     ReDim neighbor(6)
     NeighborNum = 0
     'neighbor = ""
@@ -1409,7 +1344,6 @@ Public Function isPureNonMetal() As Boolean
 	End If
 
 End Function
-'Count how many elements left that can be used as antenna elements
 'AvailableStr is the name string of all solid that has been counted as one pure Nonmetal element
 Public Function getNumberofPureNonMetalElements(availableElements As String) As Integer
 	Dim NeighborNum As Integer, i As Integer, n As Integer
@@ -1417,19 +1351,23 @@ Public Function getNumberofPureNonMetalElements(availableElements As String) As 
 	Dim neighborStr() As String
 	'Dim availableElements As String
 	Dim neighbors() As AntennaElement
+	Dim hasPureNonMetalNeighbor As Boolean
+
+	hasPureNonMetalNeighbor = False
 
 	If isMetal()=True Then
 		ReportInformationToWindow "The element is metal, please switch to a nonMetal one"
 		Return 0
 	End If
-	neighbors = getNonMetalFaceNeighbors(NeighborNum, neighborStr)
 	n = 0
+	neighbors = getNonMetalFaceNeighbors(NeighborNum, neighborStr)
 	'availableElements = ""
 	'cFlag = flag
 	For i=0 To NeighborNum-1
 		'ReportInformationToWindow "Current solid under check: " & neighbors(i).solidName
 		If neighbors(i).isPureNonMetal()=True And InStr(availableElements, neighbors(i).solidName & "$")=0 Then
 			'neighbors(i).flag=True
+			hasPureNonMetalNeighbor = True
 			availableElements = availableElements & neighbors(i).solidName & "$"
 			n += 1
 			'ReportInformationToWindow "#Number of pure NonMetal: " & CStr(n)
@@ -1438,13 +1376,17 @@ Public Function getNumberofPureNonMetalElements(availableElements As String) As 
 			'ReportInformationToWindow "##Number of pure NonMetal: " & CStr(n)
 		End If
 	Next
+	If hasPureNonMetalNeighbor = False And InStr(availableElements, solidName & "$")=0 Then
+		n += 1
+		availableElements = availableElements & solidName & "$"
+	End If
 	getNumberofPureNonMetalElements = n
 End Function
-'availableElements is names of all solids that are pure nonMetal elements
-Public Function getNumberofPureNonMetalNeighbors(availableElements As String) As Integer
+'availableElements is name string of all solids that are pure nonMetal elements
+Public Function getNumberofPureNonMetalNeighbors(availableElementsStr As String) As Integer
 	Dim NeighborNum As Integer, i As Integer, n As Integer
 	Dim neighborStr() As String
-	'Dim availableElements As String
+	'Dim availableElementsStr As String
 	Dim neighbors() As AntennaElement
 	n=0
 	If isMetal()=True Then
@@ -1453,33 +1395,78 @@ Public Function getNumberofPureNonMetalNeighbors(availableElements As String) As
 	End If
 	neighbors = getNonMetalFaceNeighbors(NeighborNum, neighborStr)
 	For i=0 To NeighborNum-1
-		If neighbors(i).isPureNonMetal()=True Then'And InStr(availableElements, neighbors(i).solidName & "$")=0 Then
+		If neighbors(i).isPureNonMetal()=True And InStr(availableElementsStr, neighbors(i).solidName & "$")=0 Then
 			n+=1
-			availableElements = availableElements & neighbors(i).solidName & "$"
+			availableElementsStr = availableElementsStr & neighbors(i).solidName & "$"
 		End If
 
 	Next
 	neighbors = getNonMetalEdgeNeighbors(NeighborNum)
 	For i=0 To NeighborNum-1
-		If neighbors(i).isPureNonMetal()=True Then' And InStr(availableElements, neighbors(i).solidName & "$")=0 Then
+		If neighbors(i).isPureNonMetal()=True And InStr(availableElementsStr, neighbors(i).solidName & "$")=0 Then
 			n+=1
-			availableElements = availableElements & neighbors(i).solidName & "$"
+			availableElementsStr = availableElementsStr & neighbors(i).solidName & "$"
 		End If
 	Next
 	neighbors = getNonMetalVerticeNeighbors(NeighborNum)
 	For i=0 To NeighborNum-1
-		If neighbors(i).isPureNonMetal()=True Then' And InStr(availableElements, neighbors(i).solidName & "$")=0 Then
+		If neighbors(i).isPureNonMetal()=True And InStr(availableElementsStr, neighbors(i).solidName & "$")=0 Then
 			n+=1
-			availableElements = availableElements & neighbors(i).solidName & "$"
+			availableElementsStr = availableElementsStr & neighbors(i).solidName & "$"
 		End If
 	Next
 	getNumberofPureNonMetalNeighbors=n
 End Function
 
-'Get valid face neighhors that could be used as possible antnenaElements
-Function getValidNonMetalFaceNeighbors(nonMetalFaceNeighbors() As AntennaElement, n_nonMetalFaceNeighbors As Integer, _
-nonMetalFaceNeighborsStr() As String, validFaceNeighborsArray() As Integer, n_validFaceNeighbors As Integer) As Boolean
+Public Function getFaceNeighborFromString(conStr As String, invflag As Boolean) As AntennaElement
+	Select Case conStr
+	Case "xn"
+		If invflag=False Then
+			If Not xnNeighbor Is Nothing Then Return xnNeighbor
+		Else
+			If Not xpNeighbor Is Nothing Then Return xpNeighbor
+		End If
+	Case "xp"
+		If invflag=False Then
+			If Not xpNeighbor Is Nothing Then Return xpNeighbor
+		Else
+			If Not xnNeighbor Is Nothing Then Return xnNeighbor
+		End If
+	Case "yn"
+		If invflag=False Then
+			If Not ynNeighbor Is Nothing Then Return ynNeighbor
+		Else
+			If Not ypNeighbor Is Nothing Then Return ypNeighbor
+		End If
+	Case "yp"
+		If invflag=False Then
+			If Not ypNeighbor Is Nothing Then Return ypNeighbor
+		Else
+			If Not ynNeighbor Is Nothing Then Return ynNeighbor
+		End If
+	Case "zn"
+		If invflag=False Then
+			If Not znNeighbor Is Nothing Then Return znNeighbor
+		Else
+			If Not zpNeighbor Is Nothing Then Return zpNeighbor
+		End If
+	Case "zp"
+		If invflag=False Then
+			If Not zpNeighbor Is Nothing Then Return zpNeighbor
+		Else
+			If Not znNeighbor Is Nothing Then Return znNeighbor
+		End If
+	Case Else
+		Return Nothing
+	End Select
+	Return Nothing
+End Function
 
+Public Function getValidFaceNeighbors(validFaceNeighbors() As AntennaElement, validFaceNeighborsStr() As String,  _
+n_validFaceNeighbors As Integer) As Boolean
+
+	Dim nonMetalFaceNeighbors() As AntennaElement, n_nonMetalFaceNeighbors As Integer
+	Dim nonMetalFaceNeighborsStr() As String, validFaceNeighborsArray() As Integer
 	Dim n_metalFaceNeighborsOfNonMetalFaceNeighbors As Integer
 	Dim n_metalEdgeNeighborsOfNonMetalFaceNeighbors As Integer
 	Dim n_metalVerticeNeighborsOfNonMetalFaceNeighbors As Integer
@@ -1503,7 +1490,7 @@ nonMetalFaceNeighborsStr() As String, validFaceNeighborsArray() As Integer, n_va
 		'If there are more than one metal face neighbors, the non metal face neighbors are invalid
 		If nonMetalFaceNeighbors(i).getNumberOfMetalFaceNeighbors()>1 And n_validFaceNeighbors>=1 Then
 			n_validFaceNeighbors -= 1
-			GoTo continueLoop
+			GoTo Goon
 		End If
 
 		'Check whether metal edge neighbors of non-metal face neighbors are among
@@ -1517,7 +1504,7 @@ nonMetalFaceNeighborsStr() As String, validFaceNeighborsArray() As Integer, n_va
 					n_validFaceNeighbors -= 1
 					'validityOfFaceNeighbors(i)=False
 					'ReDim Preserve validFaceNeighborsArray(n_validFaceNeighbors-1)
-					GoTo continueLoop
+					GoTo Goon
 				End If
 			Next
 		End If
@@ -1526,15 +1513,22 @@ nonMetalFaceNeighborsStr() As String, validFaceNeighborsArray() As Integer, n_va
 		If nonMetalFaceNeighbors(i).getNumberOfMetalVerticeNeighbors() >= 1 And n_validFaceNeighbors>=1 Then
 			n_validFaceNeighbors -= 1
 			'ReDim Preserve validFaceNeighborsArray(n_validFaceNeighbors-1)
-			GoTo continueLoop
+			GoTo Goon
 		End If
 		validFaceNeighborsArray(k) = i
 		k += 1
-	continueLoop:
+	Goon:
 	Next
 	If n_validFaceNeighbors >=1 Then
-		ReDim Preserve validFaceNeighborsArray(n_validFaceNeighbors-1)
+		'ReDim Preserve validFaceNeighborsArray(n_validFaceNeighbors)
+		ReDim validFaceNeighbors(n_validFaceNeighbors)
+		ReDim validFaceNeighborsStr(n_validFaceNeighbors)
+		For i=0 To n_validFaceNeighbors-1
+			Set validFaceNeighbors(i) = nonMetalFaceNeighbors(validFaceNeighborsArray(i))
+			validFaceNeighborsStr(i) = nonMetalFaceNeighborsStr(validFaceNeighborsArray(i))
+		Next
 	End If
+
 	If n_validFaceNeighbors = 0 Then
 		Return False
 	Else
