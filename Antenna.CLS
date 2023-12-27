@@ -79,7 +79,7 @@ Property Set tailElement(v As AntennaElement)
 	Set tailElem = v
 End Property
 Public Sub initialize(feed As AntennaElement, eleMaterial As String, _
-substrateMaterial As String, availableElementsNum As Integer, availableElementsStr As String)
+substrateMaterial As String, ByVal availableElementsNum As Integer, ByVal availableElementsStr As String)
 	length = 0
 	elemNumber = 1
 	conLogics=""
@@ -99,6 +99,8 @@ Public Sub removeAvailableElements()
 	Dim nonMetalNeighbors() As AntennaElement
 	Dim nonMetalNeighborsNum As Integer, i As Integer
 	Dim nonMetalNeighborsStr() As String, neighborStr As String
+	Dim validFaceNeighbors() As AntennaElement, validFaceNeighborsStr() As String
+	Dim n_validFaceNeighbors As Integer, validNeighborsString As String
 	neighborStr = tailElement.solidName & "$"
 	If InStr(availableStr, neighborStr)<>0 Then
 		availableStr = Left(availableStr,InStr(availableStr,neighborStr)-1) _
@@ -106,9 +108,13 @@ Public Sub removeAvailableElements()
 		availableNum -= 1
 	End If
 	nonMetalNeighbors = tailElement.getNonMetalFaceNeighbors(nonMetalNeighborsNum, nonMetalNeighborsStr)
+	'tailElement.getValidFaceNeighbors(validFaceNeighbors, validFaceNeighborsStr, n_validFaceNeighbors)
+	'For i=0 To n_validFaceNeighbors-1
+	'	validNeighborsString = validNeighborsString & validFaceNeighborsStr(i)
+	'Next
 	For i=0 To nonMetalNeighborsNum-1
 		neighborStr = nonMetalNeighbors(i).solidName & "$"
-		If InStr(availableStr, neighborStr)<>0 Then
+		If InStr(availableStr, neighborStr)<>0 Then 'And InStr(validNeighborsString, nonMetalNeighborsStr(i))=0 Then
 			availableStr = Left(availableStr,InStr(availableStr,neighborStr)-1) _
 			& Right(availableStr, Len(availableStr)-InStr(availableStr,neighborStr)-Len(neighborStr)+1)
 			availableNum -= 1
@@ -137,28 +143,34 @@ End Sub
 'The progress starts from the last tailElement, the connection string between current
 'tailElement and the last tailElement is a necessary parameter
 Public Sub appendAvailableElements(conStr As String)
-	Dim nonMetalNeighbors() As AntennaElement
 	Dim currentElement As AntennaElement
-	Dim nonMetalNeighborsNum As Integer, i As Integer
-	Dim nonMetalNeighborsStr() As String, neighborStr As String
+	Dim validFaceNeighbors() As AntennaElement, validFaceNeighborsStr() As String
+	Dim n_validFaceNeighbors As Integer, validNeighborsString As String
 	Set currentElement = tailElement.getFaceNeighborFromString(conStr, False)
 	availableNum += currentElement.getNumberofPureNonMetalNeighbors(availableStr)
+	'tailElement.getValidFaceNeighbors(validFaceNeighbors,  validFaceNeighborsStr, n_validFaceNeighbors)
+	'For i=0 To n_validFaceNeighbors-1
+	'	If InStr(availableStr, validFaceNeighbors(i).solidName & "$") Then
+	'		availableNum += 1
+	'		availableStr = availableStr & validFaceNeighbors(i).solidName & "$"
+	'	End If
+	'Next
 End Sub
 Public Function constructor(tgtLength As Double, solidNumber As Integer, solidxSize As Double, _
 solidySize As Double, solidzSize As Double) As Boolean
 	log2Window=False
 	Dim i As Integer, j As Integer, k As Integer, m As Integer, ii As Integer
 	'Dim n_faceNeighbors As Integer
-	Dim n_nonMetalFaceNeighbors As Integer, n_nMFNeighborsOfnMFNeighbors As Integer
-	Dim nonMetalFaceNeighbors() As AntennaElement, nMFNeighborsOfnMFNeighbors() As AntennaElement
+	Dim n_nonMetalFaceNeighbors As Integer
+	Dim nonMetalFaceNeighbors() As AntennaElement, vFNeighborsOfVFNeighbors() As AntennaElement
 	Dim nonMetalEdgeNeighbors() As AntennaElement
 	Dim currentElement As AntennaElement
-	Dim nonMetalFaceNeighborsStr() As String, nMFNStrOfnMFN() As String
-	Dim n_validFaceNeighbors As Integer, n_vFNoFN As Integer
+	Dim nonMetalFaceNeighborsStr() As String, vFNStrOfvFN() As String
+	Dim n_validFaceNeighbors As Integer, n_vFNoVFN As Integer
 	Dim randomNumber As Integer
 	'list of validities of face neighbors
 	'Dim validityOfFaceNeighbors() As Boolean, vOFN() As Boolean, NON As Boolean
-	Dim validFaceNeighborsArray() As Integer, vOFN() As Integer, NON As Boolean
+	Dim validFaceNeighborsArray() As Integer,  NON As Boolean
 	Dim iteration As Integer
 	Dim remainder As Integer
 	Dim randomCycle As Integer
@@ -167,7 +179,8 @@ solidySize As Double, solidzSize As Double) As Boolean
 	Dim lastLength As Double
 	Dim tgtIncrement As Double
 	Dim maxSize As Double
-
+	Dim cFileNumber As Integer
+	cFileNumber = FreeFile
 	If solidxSize>=solidySize And solidxSize>=solidzSize Then
 		maxSize = solidxSize
 	ElseIf solidySize>=solidxSize And solidySize>=solidzSize Then
@@ -175,7 +188,7 @@ solidySize As Double, solidzSize As Double) As Boolean
 	ElseIf solidzSize>=solidySize And solidzSize>=solidxSize Then
 		maxSize = solidzSize
 	End If
-	ReportInformationToWindow "Maximum dimension is: " & cStr(Round(maxSize,2))+"mm"
+	ReportInformationToWindow "$Constructor: Maximum dimension is: " & cStr(Round(maxSize,2))+"mm"
 	'containerIndex = 0
 	fallBackRatio = 0
 	tgtIncrement = 0
@@ -189,7 +202,7 @@ solidySize As Double, solidzSize As Double) As Boolean
    	If Dir(logFile) <> "" Then
 		Kill logFile
    	End If
-   	Open logFile For Output As #2
+   	Open logFile For Output As #cFileNumber
 	'######## when target length is less than ant.length #####'
 	If tgtLength<length Then
 		Do
@@ -210,8 +223,8 @@ solidySize As Double, solidzSize As Double) As Boolean
 		Loop Until tgtLength>=length
 		'Set tailElement = currentElement
 		'Open logFile For Append As #2
-		Print #2, conLogics
-		Close #2
+		Print #cFileNumber, conLogics
+		Close #cFileNumber
 		Return True
 	End If
 	'#### When target length is greater than ant.length ####
@@ -231,32 +244,33 @@ solidySize As Double, solidzSize As Double) As Boolean
 	Dim neighborAvailableElementsNum() As Integer
 	Dim neighborAvailableElementsLogic() As String
 	Dim invStr As String
+	Dim flag As Boolean
 	'Dim ifAvailable As Boolean
 
 	Do
 		randomCycle = Int(tgtLength^2/(solidxSize+solidySize+solidzSize)*solidNumber/6e5)+1
 		randomCycle = randomCycle-Int(ant.length/tgtLength*randomCycle) Mod randomCycle
-		ReportInformationToWindow "Random Cycle is "+cStr(randomCycle)
-		currentElement.getValidNonMetalFaceNeighbors(nonMetalFaceNeighbors, n_nonMetalFaceNeighbors, _
-		nonMetalFaceNeighborsStr, validFaceNeighborsArray, n_validFaceNeighbors)
+		ReportInformationToWindow "$Constructor: Random Cycle is "+CStr(randomCycle)
+		currentElement.getValidFaceNeighbors(tempObj, tempStr, n_validFaceNeighbors)
 		'Estimate if the candidate neighbor can split all available elements into two parts, if yes
 		'estimate all available elements for all neighbors and then pick one meeting the target available elements
-		ReDim tempObj(n_validFaceNeighbors)
-		ReDim tempStr(n_validFaceNeighbors)
+		'ReDim tempObj(n_validFaceNeighbors)
+		'ReDim tempStr(n_validFaceNeighbors)
 		'ReDim tempIndex(n_validFaceNeighbors)
-		ReDim neighborAvailableElementsStr(2)
-		ReDim neighborAvailableElementsNum(2)
-		ReDim neighborAvailableElementsLogic(2)
+		'The third element stores the information of the m-th elements
+		ReDim neighborAvailableElementsStr(3)
+		ReDim neighborAvailableElementsNum(3)
+		ReDim neighborAvailableElementsLogic(3)
 		'reload valid face neighbors to a new array
-		For i=0 To n_validFaceNeighbors-1
-			Set tempObj(i) = nonMetalFaceNeighbors(validFaceNeighborsArray(i))
-			tempStr(i) = nonMetalFaceNeighborsStr(validFaceNeighborsArray(i))
-		Next
-
+		'If an available face neighbor is Not among available String, set it to Invalid
+		'For i=0 To n_validFaceNeighbors-1
+			'If InStr(availableStr, )
+			'i+=1
+		'Next
 		'Random pick one of appropriate non metal face neighbors to be used as an antenna element
 		If n_validFaceNeighbors>0 And ant.length<tgtLength Then
+			needReEstimatingAvailableElements=False
 			If ant.length > tgtLength*0.2 Then
-				needReEstimatingAvailableElements=False
 				If n_validFaceNeighbors>1 Then
 					needReEstimatingAvailableElements = _
 					needToReEstimateAvailableElementsOnGoingForward(tempStr)
@@ -265,13 +279,13 @@ solidySize As Double, solidzSize As Double) As Boolean
 				'Determin whether the candidate neighbor has a valid face neighbor, if not, try
 				'to pick another one to be antenna elment
 				If needReEstimatingAvailableElements=True Then
-					For i=0 To 1
+					For i=0 To n_validFaceNeighbors-1
 						neighborAvailableElementsStr(i)=""
-						neighborAvailableElementsNum(i)=0
+						neighborAvailableElementsNum(i)=-1
 						neighborAvailableElementsLogic(i)=""
 					Next
-					ReportInformationToWindow "4$Need to re-estimate available elements number on going forward."
-					ReportInformationToWindow "4$Target available antenna Elements is " & CInt((tgtLength-length)*maxSize*2.5)
+					ReportInformationToWindow "$Constructor: Need to re-estimate available elements number on going forward."
+					ReportInformationToWindow "$Constructor: Target available antenna Elements is " & CInt((tgtLength-length)*maxSize*2.5)
 					availableNum=0
 					availableStr = ""
 					'get the number ID of the face neighbor that uses the same connection string by the tailElement
@@ -282,32 +296,81 @@ solidySize As Double, solidzSize As Double) As Boolean
 						End If
 
 					Next
+					neighborAvailableElementsNum(2)=0
+					neighborAvailableElementsLogic(2)= tempStr(m)
+					If Not tempObj(m).getFaceNeighborFromString(tempStr(m), False) Is Nothing Then
+						If tempObj(m).getFaceNeighborFromString(tempStr(m), False).isPureNonMetal()=True Then
+							neighborAvailableElementsNum(2)= _
+							tempObj(m).getFaceNeighborFromString(tempStr(m), False).getNumberofPureNonMetalElements(neighborAvailableElementsStr(2))
+							ReportInformationToWindow "$Constructor: Available elements for neighbor-"&neighborAvailableElementsLogic(2)&": "&CStr(neighborAvailableElementsNum(2))
+						End If
 
-					For i=0 To n_validFaceNeighbors-1
+					End If
+					'ii=0
+					'get all available elements for side neighbors
+					For i=0 To 2
+						flag=False
 						If StrComp(tempStr(i), tempStr(m))<>0 Then
 							neighborAvailableElementsLogic(0)= tempStr(i)
-							neighborAvailableElementsNum(0)= _
-							tempObj(m).getFaceNeighborFromString(tempStr(i), False).getFaceNeighborFromString(tempStr(i), False).getNumberofPureNonMetalElements(neighborAvailableElementsStr(0))
-							ReportInformationToWindow "4$Available elements for neighbor-"&neighborAvailableElementsLogic(0)&": "&CStr(neighborAvailableElementsNum(0))
+							If Not tempObj(m).getFaceNeighborFromString(tempStr(i), False) Is Nothing Then
+								If  Not tempObj(m).getFaceNeighborFromString(tempStr(i), False).getFaceNeighborFromString(tempStr(i), False) Is Nothing Then
+									If InStr(neighborAvailableElementsStr(2), _
+									tempObj(m).getFaceNeighborFromString(tempStr(i), False).getFaceNeighborFromString(tempStr(i), False).solidName & "$")=0 Then
+										'neighborAvailableElementsLogic(ii)= tempStr(i)
+										flag=True
+										neighborAvailableElementsNum(0)= _
+										tempObj(m).getFaceNeighborFromString(tempStr(i),  _
+										False).getFaceNeighborFromString(tempStr(i), False).getNumberofPureNonMetalElements(neighborAvailableElementsStr(0))
+										ReportInformationToWindow "$Constructor: Available elements for neighbor-"&neighborAvailableElementsLogic(0)&": "&CStr(neighborAvailableElementsNum(0))
+									Else
+										neighborAvailableElementsNum(0)=neighborAvailableElementsNum(2)
+										neighborAvailableElementsStr(0)=neighborAvailableElementsStr(2)
+									End If
+								End If
+							End If
 							If InStr(tempStr(i),"n")<>0 Then
 								invStr = Left(tempStr(i),1) & "p"
 							Else
 								invStr = Left(tempStr(i),1) & "n"
 							End If
-							neighborAvailableElementsLogic(1)= invStr
-							neighborAvailableElementsNum(1)= _
-							tempObj(m).getFaceNeighborFromString(tempStr(i), True).getFaceNeighborFromString(tempStr(i), True).getNumberofPureNonMetalElements(neighborAvailableElementsStr(1))
-							ReportInformationToWindow "4$Available elements for neighbor-"&neighborAvailableElementsLogic(1)&": "&CStr(neighborAvailableElementsNum(1))
-							Exit For
+							If Not tempObj(m).getFaceNeighborFromString(tempStr(i), True) Is Nothing Then
+								If Not tempObj(m).getFaceNeighborFromString(tempStr(i), True).getFaceNeighborFromString(tempStr(i), True) Is Nothing Then
+									If tempObj(m).getFaceNeighborFromString(tempStr(i),True).getFaceNeighborFromString(tempStr(i), True).isPureNonMetal()=True Then
+										neighborAvailableElementsLogic(1)= invStr
+										If InStr(neighborAvailableElementsStr(2), _
+										tempObj(m).getFaceNeighborFromString(tempStr(i), True).getFaceNeighborFromString(tempStr(i), True).solidName & "$")=0 Then
+											flag=True
+											neighborAvailableElementsNum(1)= _
+											tempObj(m).getFaceNeighborFromString(tempStr(i), _
+											True).getFaceNeighborFromString(tempStr(i), True).getNumberofPureNonMetalElements(neighborAvailableElementsStr(1))
+											ReportInformationToWindow "$Constructor: Available elements for neighbor-"&neighborAvailableElementsLogic(1)&": "&CStr(neighborAvailableElementsNum(1))
+										Else
+											neighborAvailableElementsNum(1)=neighborAvailableElementsNum(2)
+											neighborAvailableElementsStr(1)=neighborAvailableElementsStr(2)
+										End If
+									End If
+								End If
+							End If
+							If flag=True Then
+								Exit For
+							End If
+							'ii += 1
 						End If
 					Next
 					'***********************************************************************************************************************
+					Dim isAnyNeighborAvailable As Boolean
+					isAnyNeighborAvailable=False
+					For i=0 To 2
+						If neighborAvailableElementsNum(i)>=CInt((tgtLength-length)*maxSize*2.5) Then
+							isAnyNeighborAvailable=True
+							Exit For
+						End If
+					Next
 					'kick out the neighbor that does not meet the target number of available elements
-					If neighborAvailableElementsNum(0)>=CInt((tgtLength-length)*maxSize*2.5) Or _
-					neighborAvailableElementsNum(1)>=CInt((tgtLength-length)*maxSize*2.5) Then
+					If isAnyNeighborAvailable=True Then
 						j=0
-						For i=0 To 1
-							If neighborAvailableElementsNum(i) < CInt((tgtLength-length)*maxSize*2.5) Then
+						For i=0 To 2
+							If neighborAvailableElementsNum(i) < CInt((tgtLength-length)*maxSize*2.5) And neighborAvailableElementsNum(i)<>0 Then
 								For ii=0 To n_validFaceNeighbors-1
 									If StrComp(neighborAvailableElementsLogic(i), tempStr(ii))=0 Then
 										Set tempObj(ii) = Nothing
@@ -319,13 +382,26 @@ solidySize As Double, solidzSize As Double) As Boolean
 						Next
 						n_validFaceNeighbors-=j
 					Else
-						availableStr = neighborAvailableElementsStr(0) & neighborAvailableElementsStr(1)
-						availableNum = neighborAvailableElementsNum(0) + neighborAvailableElementsNum(1)
+						'Have three different availbleElementsStr()
+						If StrComp(neighborAvailableElementsStr(0), neighborAvailableElementsStr(2))<>0 And _
+						StrComp(neighborAvailableElementsStr(1), neighborAvailableElementsStr(2))<>0 Then
+							For i=0 To 2
+								availableStr = availableStr & neighborAvailableElementsStr(i)
+								availableNum = availableNum + neighborAvailableElementsNum(i)
+							Next
+						Else
+							For j=0 To 1
+								'one of the side neighbor has the same number of availableElements as the straight one
+								If StrComp(neighborAvailableElementsStr(j), neighborAvailableElementsStr(2))=0 Then
+									availableStr = neighborAvailableElementsStr((1+j) Mod 2) & neighborAvailableElementsStr(2)
+									availableNum = neighborAvailableElementsNum((1+j) Mod 2) + neighborAvailableElementsNum(2)
+									Exit For
+								End If
+							Next
+						End If
 						GoTo BackWard
 					End If
 				End If
-			Else
-				needReEstimatingAvailableElements=False
 			End If
 			'******************************************************************************************************************************
 			If n_validFaceNeighbors>0 Then
@@ -333,13 +409,23 @@ solidySize As Double, solidzSize As Double) As Boolean
 				ReDim validFaceNeighbors(n_validFaceNeighbors)
 				ReDim validFaceNeighborsStr(n_validFaceNeighbors)
 				j=0
-				For i=0 To UBound(tempObj)-1
-					If Not tempObj(i) Is Nothing Then
+				If needReEstimatingAvailableElements=True Then
+					For i=0 To UBound(tempObj)-1
+						If Not tempObj(i) Is Nothing Then
+							Set validFaceNeighbors(j)=tempObj(i)
+							validFaceNeighborsStr(j)=tempStr(i)
+							j+=1
+						End If
+					Next
+				Else
+					For i=0 To UBound(tempObj)-1
+						'If InStr(availableStr, tempObj(i).solidName & "$")<>0 Then
 						Set validFaceNeighbors(j)=tempObj(i)
 						validFaceNeighborsStr(j)=tempStr(i)
 						j+=1
-					End If
-				Next
+						'End If
+					Next
+				End If
 				remainder = iteration Mod (Int(randomCycle*Rnd)+1)
 				If remainder = 0 Then
 					randomNumber=Int((n_validFaceNeighbors)*Rnd)
@@ -349,8 +435,8 @@ solidySize As Double, solidzSize As Double) As Boolean
 				ElseIf remainder<>0 And n_validFaceNeighbors<=lastRandomNumber Then
 					randomNumber = 0
 				End If
-				NON = validFaceNeighbors(randomNumber).getValidNonMetalFaceNeighbors( _
-				nMFNeighborsOfnMFNeighbors, n_nMFNeighborsOfnMFNeighbors, nMFNStrOfnMFN, vOFN, n_vFNoFN)
+				NON = validFaceNeighbors(randomNumber).getValidFaceNeighbors( _
+				vFNeighborsOfVFNeighbors,vFNStrOfvFN, n_vFNoVFN)
 				If NON=False And n_validFaceNeighbors>1 Then
 					If randomNumber>=1 Then
 						k=randomNumber-1
@@ -361,6 +447,7 @@ solidySize As Double, solidzSize As Double) As Boolean
 					k=randomNumber
 				End If
 				'**************************************************************************************
+				ReportInformationToWindow "$Constructor: Set element: "+validFaceNeighbors(k).solidName
 				validFaceNeighbors(k).setMaterial(antMaterial)
 				Plot.Update
 				'Set antnena
@@ -376,122 +463,193 @@ solidySize As Double, solidzSize As Double) As Boolean
 				End If
 				'ant.length+=Abs(currentElement.-currentElement.)
 				Set currentElement = tailElement
-				If log2Window=True Then ReportInformationToWindow "0$Antenna Length: "+cStr(Round(length,2))+"mm"
+				If log2Window=True Then ReportInformationToWindow "$Constructor: Antenna Length: "+cStr(Round(length,2))+"mm"
 				'***************************************************************************************************
 				If needReEstimatingAvailableElements=True Then
-					If StrComp(validFaceNeighborsStr(k), tempStr(m))<>0 Then
-						If StrComp(validFaceNeighborsStr(k), neighborAvailableElementsLogic(0))=0 Then
-							availableStr = neighborAvailableElementsStr(0)
-							availableNum = neighborAvailableElementsNum(0)
-						ElseIf StrComp(validFaceNeighborsStr(k), neighborAvailableElementsLogic(1))=0 Then
-							availableStr = neighborAvailableElementsStr(1)
-							availableNum = neighborAvailableElementsNum(1)
-						End If
+					If StrComp(validFaceNeighborsStr(k), neighborAvailableElementsLogic(2))<>0 Then
+						'When taking a step forward from the side path
+						j=0
+						For i=0 To 1
+							If StrComp(validFaceNeighborsStr(k), neighborAvailableElementsLogic(i))=0 Then
+								availableStr = neighborAvailableElementsStr(i)
+								availableNum = neighborAvailableElementsNum(i)
+								j=i
+								Exit For
+							End If
+						Next
 						removeAvailableElements()
+						'When the straight one is valid face neighbor but with 1-N (N is less than target number)
+						If neighborAvailableElementsNum(2)>0 And _
+						neighborAvailableElementsNum(2)<CInt((tgtLength-length)*maxSize*2.5) Then
+							ReportInformationToWindow "$Constructor: Set element: "+tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(j), False).solidName
+							tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(j), False).setMaterial(antMaterial)
+							elementNumber+=1
+							conLogics = conLogics & neighborAvailableElementsLogic(j)
+							Set tailElement = tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(j), False)
+							If InStr(neighborAvailableElementsLogic(j),"x")<>0 Then
+								length+=Abs(currentElement.minPoint(0)-currentElement.maxPoint(0))
+							ElseIf InStr(neighborAvailableElementsLogic(j),"y")<>0 Then
+								length+=Abs(currentElement.minPoint(1)-currentElement.maxPoint(1))
+							ElseIf InStr(neighborAvailableElementsLogic(j),"z")<>0 Then
+								length+=Abs(currentElement.minPoint(2)-currentElement.maxPoint(2))
+							End If
+							'ant.length+=Abs(currentElement.-currentElement.)
+							Set currentElement = tailElement
+							'availableStr = neighborAvailableElementsStr(k)
+							'availableNum = neighborAvailableElementsNum(k)
+							removeAvailableElements()
+						End If
+
 					Else
-						If neighborAvailableElementsNum(0)>=CInt((tgtLength-length)*maxSize*2.5) And _
-						neighborAvailableElementsNum(1)>=CInt((tgtLength-length)*maxSize*2.5) Then
-							k = Int(2*Rnd)
-						ElseIf neighborAvailableElementsNum(0)>=CInt((tgtLength-length)*maxSize*2.5) And _
-						neighborAvailableElementsNum(1)<CInt((tgtLength-length)*maxSize*2.5) Then
-							k = 0
-						ElseIf neighborAvailableElementsNum(0)<CInt((tgtLength-length)*maxSize*2.5) And _
-						neighborAvailableElementsNum(1)>=CInt((tgtLength-length)*maxSize*2.5) Then
-							k = 1
+						'when the strait one has no available alements
+						If neighborAvailableElementsNum(2)=0 Then
+							If neighborAvailableElementsNum(0)>=CInt((tgtLength-length)*maxSize*2.5) And _
+							neighborAvailableElementsNum(1)>=CInt((tgtLength-length)*maxSize*2.5) Then
+								k = Int(2*Rnd)
+							ElseIf neighborAvailableElementsNum(0)>=CInt((tgtLength-length)*maxSize*2.5) And _
+							neighborAvailableElementsNum(1)<CInt((tgtLength-length)*maxSize*2.5) Then
+								k = 0
+							ElseIf neighborAvailableElementsNum(0)<CInt((tgtLength-length)*maxSize*2.5) And _
+							neighborAvailableElementsNum(1)>=CInt((tgtLength-length)*maxSize*2.5) Then
+								k = 1
+							End If
+							ReportInformationToWindow "$Constructor: Set element: "+tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(k), False).solidName
+							tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(k), False).setMaterial(antMaterial)
+							Plot.Update
+							elementNumber+=1
+							conLogics = conLogics & neighborAvailableElementsLogic(k)
+							Set tailElement = tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(k), False)
+							If InStr(neighborAvailableElementsLogic(k),"x")<>0 Then
+								length+=Abs(currentElement.minPoint(0)-currentElement.maxPoint(0))
+							ElseIf InStr(neighborAvailableElementsLogic(k),"y")<>0 Then
+								length+=Abs(currentElement.minPoint(1)-currentElement.maxPoint(1))
+							ElseIf InStr(neighborAvailableElementsLogic(k),"z")<>0 Then
+								length+=Abs(currentElement.minPoint(2)-currentElement.maxPoint(2))
+							End If
+							'ant.length+=Abs(currentElement.-currentElement.)
+							Set currentElement = tailElement
+							availableStr = neighborAvailableElementsStr(k)
+							availableNum = neighborAvailableElementsNum(k)
+							removeAvailableElements()
+						Else
+							availableStr = neighborAvailableElementsStr(2)
+							availableNum = neighborAvailableElementsNum(2)
+							removeAvailableElements()
+							'When having one side neighbor is valid but with number of valid elements less than target, take another step forward to
+							'straight
+							If (neighborAvailableElementsNum(0)>-1 And neighborAvailableElementsNum(0)<CInt((tgtLength-length)*maxSize*2.5)) And _
+							(neighborAvailableElementsNum(1)>-1 And neighborAvailableElementsNum(1)<CInt((tgtLength-length)*maxSize*2.5)) Then
+								GoTo Rerouting
+							ElseIf (neighborAvailableElementsNum(0)>=CInt((tgtLength-length)*maxSize*2.5)) And _
+							(neighborAvailableElementsNum(1)>-1 And neighborAvailableElementsNum(1)<CInt((tgtLength-length)*maxSize*2.5)) Then
+								i=Int(2*Rnd)
+								If i=0 Then
+									k=0
+								Else
+									k=2
+								End If
+								GoTo Rerouting
+							ElseIf (neighborAvailableElementsNum(1)>=CInt((tgtLength-length)*maxSize*2.5)) And _
+							(neighborAvailableElementsNum(0)>-1 And neighborAvailableElementsNum(0)<CInt((tgtLength-length)*maxSize*2.5)) Then
+								i=Int(2*Rnd)
+								If i=0 Then
+									k=1
+								Else
+									k=2
+								End If
+
+								Rerouting:
+								ReportInformationToWindow "$Constructor: Set element: "+tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(k), False).solidName
+								tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(k), False).setMaterial(antMaterial)
+								elementNumber+=1
+								conLogics = conLogics & neighborAvailableElementsLogic(k)
+								Set tailElement = tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(k), False)
+								If InStr(neighborAvailableElementsLogic(k),"x")<>0 Then
+									length+=Abs(currentElement.minPoint(0)-currentElement.maxPoint(0))
+								ElseIf InStr(neighborAvailableElementsLogic(k),"y")<>0 Then
+									length+=Abs(currentElement.minPoint(1)-currentElement.maxPoint(1))
+								ElseIf InStr(neighborAvailableElementsLogic(k),"z")<>0 Then
+									length+=Abs(currentElement.minPoint(2)-currentElement.maxPoint(2))
+								End If
+								'ant.length+=Abs(currentElement.-currentElement.)
+								Set currentElement = tailElement
+								'availableStr = neighborAvailableElementsStr(k)
+								'availableNum = neighborAvailableElementsNum(k)
+								removeAvailableElements()
+							End If
 						End If
-						tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(k), False).setMaterial(antMaterial)
-						Plot.Update
-						elementNumber+=1
-						conLogics = conLogics & neighborAvailableElementsLogic(k)
-						Set tailElement = tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(k), False)
-						If InStr(neighborAvailableElementsLogic(k),"x")<>0 Then
-							length+=Abs(currentElement.minPoint(0)-currentElement.maxPoint(0))
-						ElseIf InStr(neighborAvailableElementsLogic(k),"y")<>0 Then
-							length+=Abs(currentElement.minPoint(1)-currentElement.maxPoint(1))
-						ElseIf InStr(neighborAvailableElementsLogic(k),"z")<>0 Then
-							length+=Abs(currentElement.minPoint(2)-currentElement.maxPoint(2))
-						End If
-						'ant.length+=Abs(currentElement.-currentElement.)
-						Set currentElement = tailElement
-						availableStr = neighborAvailableElementsStr(k)
-						availableNum = neighborAvailableElementsNum(k)
-						removeAvailableElements()
 					End If
 				Else
 					removeAvailableElements()
 				End If
-			Else
-				availableStr = neighborAvailableElementsStr(0) & neighborAvailableElementsStr(1)
-				availableNum = neighborAvailableElementsNum(0) + neighborAvailableElementsNum(1)
-				'ifOmitFirtEstimationInCorrector=True
-				GoTo Backward
 			End If
 
 		ElseIf ant.length>=tgtLength Then
 
 			'Open logFile For Append As #2
-			Print #2, conLogics
-			Close #2
+			Print #cFileNumber, conLogics
+			Close #cFileNumber
 			ReportInformationToWindow conLogics
-			ReportInformationToWindow "1$Antenna Length: "+cStr(Round(length,2))+"mm"
+			ReportInformationToWindow "$Constructor: Antenna Length: "&cStr(Round(length,2))&"mm and is over target length."
 			Return True
 			'Exit Function
 		ElseIf n_validFaceNeighbors<=0 And length<tgtLength-1 Then
 			'when going into a dead end
 			availableStr=""
 			availableNum=0
+			'*****************************************
 			Backward:
-				'Open logFile For Append As #2
-				Print #2, conLogics'+tailElement.solidName
-				'Close #2
-				'Call corrector to correct the routing of tail part
-				ReportInformationToWindow "Iteration #"+cStr(iteration)+"-----------------"
-				ReportInformationToWindow conLogics
-				ReportInformationToWindow "2$Antenna Length: "+cStr(Round(length,2))+"mm"
-				'tgtIncrement = (tgtLength-length)*0.2+2
-				'tgtIncrement = 15
-				'If (containerIndex > 0) And (containerIndex Mod 3 =0) Then
-				If ant.length>0.2*tgtLength Then
-					'If fallBackRatio<0.8 Then fallBackRatio+=0.04 Else fallBackRatio=0.8
-					fallBackRatio = 0
-				Else
-					If fallBackRatio<0.4 Then fallBackRatio+=0.05 Else fallBackRatio=0.4
-				End If
+			'Open logFile For Append As #2
+			Print #cFileNumber, conLogics'+tailElement.solidName
+			'Close #2
+			'Call corrector to correct the routing of tail part
+			ReportInformationToWindow "$Constructor: Iteration #"+cStr(iteration)+"-----------------"
+			ReportInformationToWindow conLogics
+			ReportInformationToWindow "$Constructor: Antenna Length: "&cStr(Round(length,2))&"mm and is still below target length. Backward progress shall begin"
+			'tgtIncrement = (tgtLength-length)*0.2+2
+			'tgtIncrement = 15
+			'If (containerIndex > 0) And (containerIndex Mod 3 =0) Then
+			If ant.length>0.2*tgtLength Then
+				'If fallBackRatio<0.8 Then fallBackRatio+=0.04 Else fallBackRatio=0.8
+				fallBackRatio = 0
+			Else
+				If fallBackRatio<0.4 Then fallBackRatio+=0.05 Else fallBackRatio=0.4
+			End If
 
-				'End If
-				'lastLength=length
-				'containerIndex += 1
-				Set tailElement=corrector(tgtLength, maxSize, fallBackRatio)
-				If Not tailElement Is Nothing Then
-					'Nothing to do
-				Else
-					Close #2
-					Return False
-				End If
-				Set currentElement = tailElement
-				removeAvailableElements()
+			'End If
+			'lastLength=length
+			'containerIndex += 1
+			Set tailElement=corrector(tgtLength, maxSize, fallBackRatio)
+			If Not tailElement Is Nothing Then
+				'Nothing to do
+			Else
+				Close #cFileNumber
+				Return False
+			End If
+			Set currentElement = tailElement
+			removeAvailableElements()
 			'Return False
 		Else
 			'Open logFile For Append As #2
-			Print #2, conLogics
-			Close #2
+			Print #cFileNumber, conLogics
+			Close #cFileNumber
 			ReportInformationToWindow conLogics
-			ReportInformationToWindow "3$Antenna Length: "+cStr(Round(length,2))+"mm"
+			ReportInformationToWindow "$Constructor: Antenna Length: "+cStr(Round(length,2))+"mm in other conditions, go to next loop"
 			Return True
 		End If
 		iteration += 1
 	Loop Until iteration>=10000
-	ReportInformationToWindow "Over 10000 times trials, return failure"
-	Close #2
+	ReportInformationToWindow "$Constructor: Over 10000 times trials, return failure"
+	Close #cFileNumber
 	Return False
 End Function
 Function corrector(tgtLength As Double, maxSize As Double, fBR As Double) As AntennaElement
 	log2Window=False
 	Dim currentElement As AntennaElement
 	Dim i As Integer, ii As Integer, iteration As Integer, jj As Integer
-	Dim nonMetalFaceNeighbors() As AntennaElement
-	Dim n_nonMetalFaceNeighbors As Integer, nonMetalFaceNeighborsStr() As String
-	Dim validFaceNeighborsArray() As Integer, n_validFaceNeighbors As Integer
+	Dim validFaceNeighbors() As AntennaElement
+	Dim n_validFaceNeighbors As Integer, validFaceNeighborsStr() As String
+	Dim validFaceNeighborsArray() As Integer
 	Dim currentNeighborStr As String
 
 	Dim lineRead As String, lineCount As Integer, lineNumber As Integer
@@ -499,20 +657,22 @@ Function corrector(tgtLength As Double, maxSize As Double, fBR As Double) As Ant
 	Dim logicLength As Integer
 	Dim initialLength As Double
 
+	Dim coFileNumber As Integer
+
 	'Dim pureNonMetalElements As Integer
 	'Dim currentConnectionStatus As Boolean
 	Dim needToReestimate As Boolean
 	Dim tgtCondition As Boolean
 	'Dim previousConnectionStatus As Boolean
-
+	coFileNumber=FreeFile
 	lineCount = 0
-	Open logFile For Input As #1
+	Open logFile For Input As #coFileNumber
 	'Count line number of Routing log.txt
-	While Not EOF(1)
-		Line Input #1, lineRead
+	While Not EOF(coFileNumber)
+		Line Input #coFileNumber, lineRead
 		lineCount += 1
 	Wend
-	Close #1
+	Close #coFileNumber
 	'tailElement.setMaterial(subMaterial)
 	Set currentElement = tailElement
 	'i = Len(conLogics)
@@ -540,7 +700,7 @@ Function corrector(tgtLength As Double, maxSize As Double, fBR As Double) As Ant
 				needToReestimate = needToReEstimateAvailableElementsOnGoingBackward()
 				'Estimate if need to re-estimate the pure-non metal elements all over again
 				If needToReestimate=True Then
-					ReportInformationToWindow "Need to re-estimate available elements number on going backward."
+					ReportInformationToWindow "$Corrector: Need to re-estimate available elements number on going backward."
 					availableStr = ""
 					availableNum=currentElement.getNumberofPureNonMetalElements(availableStr)
 				End If
@@ -559,13 +719,13 @@ Function corrector(tgtLength As Double, maxSize As Double, fBR As Double) As Ant
 			End If
 			Set tailElement = currentElement
 			'appendAvailableElements(currentNeighborStr)
-			ReportInformationToWindow "4$Antenna Length: "+CStr(Round(length,2))+"mm"
+			ReportInformationToWindow "$Corrector: Antenna Length: "+CStr(Round(length,2))+"mm"
 			'fall back until the difference between current lenghth and the inital length over the initial
 			'lenght is greater than what is requred, or fBR
 			'currentElement.setMaterial(subMaterial)
 			'pureNonMetalElements+=currentElement.getNumberofPureNonMetalNeighbors()
-			ReportInformationToWindow "4$Target available antenna Elements is " & CInt((tgtLength-length)*maxSize*2.5)
-			ReportInformationToWindow "4$Available antenna Elements is " & CStr(availableNum)
+			ReportInformationToWindow "$Corrector: Target available antenna Elements is " & CInt((tgtLength-length)*maxSize*2.5)
+			ReportInformationToWindow "$Corrector: Available antenna Elements is " & CStr(availableNum)
 			iteration += 1
 			If fBR > 0 Then
 				tgtCondition=((initialLength-length)/initialLength > fBR)
@@ -574,15 +734,15 @@ Function corrector(tgtLength As Double, maxSize As Double, fBR As Double) As Ant
 			End If
 		Loop Until tgtCondition'pureNonMetalElements >= CInt((tgtLength-length)*maxSize*2.5)'Until (initialLength-length)/initialLength > fBR
 
-		currentElement.getValidNonMetalFaceNeighbors(nonMetalFaceNeighbors, n_nonMetalFaceNeighbors, _
-		nonMetalFaceNeighborsStr, validFaceNeighborsArray, n_validFaceNeighbors)
+		currentElement.getValidFaceNeighbors(validFaceNeighbors, validFaceNeighborsStr, n_validFaceNeighbors)
 		If n_validFaceNeighbors>1 Then
 			'Check routing log to make sure if the lineCount is greater than 1. If so, collect all connection logics
 			usedNeighborStr = currentNeighborStr
 			lineNumber = lineCount
-			Open logFile For Input As #1
+			coFileNumber=FreeFile
+			Open logFile For Input As #coFileNumber
 			While lineNumber > 1
-				Line Input #1, lineRead
+				Line Input #coFileNumber, lineRead
 				If Len(lineRead) >= logicLength-iteration*2  _
 				And StrComp(conLogics, Left(lineRead, logicLength-iteration*2-2))=0 And _
 				InStr(usedNeighborStr, Mid(lineRead, logicLength-iteration*2-1, 2))=0 Then
@@ -590,24 +750,24 @@ Function corrector(tgtLength As Double, maxSize As Double, fBR As Double) As Ant
 				End If
 				lineNumber -=1
 			Wend
-			Close #1
+			Close #coFileNumber
 			'need change it to be random instead of sequential!!!!!
 			For ii=0 To n_validFaceNeighbors-1
 
 				'Only if the connnection logic is not in the used connection logic collection, do the next step
-				If InStr(usedNeighborStr, nonMetalFaceNeighborsStr(validFaceNeighborsArray(ii)))=0 Then
-					currentElement.getFaceNeighborFromString(nonMetalFaceNeighborsStr(validFaceNeighborsArray(ii)), False).setMaterial(antMaterial)
-					conLogics = conLogics & nonMetalFaceNeighborsStr(validFaceNeighborsArray(ii))
+				If InStr(usedNeighborStr, validFaceNeighborsStr(ii))=0 Then
+					currentElement.getFaceNeighborFromString(validFaceNeighborsStr(ii), False).setMaterial(antMaterial)
+					conLogics = conLogics & validFaceNeighborsStr(ii)
 					elementNumber += 1
-					If InStr(nonMetalFaceNeighborsStr(validFaceNeighborsArray(ii)), "x")<>0 Then
+					If InStr(validFaceNeighborsStr(ii), "x")<>0 Then
 						length+=Abs(currentElement.minPoint(0)-currentElement.maxPoint(0))
-					ElseIf InStr(nonMetalFaceNeighborsStr(validFaceNeighborsArray(ii)), "y")<>0 Then
+					ElseIf InStr(validFaceNeighborsStr(ii), "y")<>0 Then
 						length+=Abs(currentElement.minPoint(1)-currentElement.maxPoint(1))
-					ElseIf InStr(nonMetalFaceNeighborsStr(validFaceNeighborsArray(ii)), "z")<>0 Then
+					ElseIf InStr(validFaceNeighborsStr(ii), "z")<>0 Then
 						length+=Abs(currentElement.minPoint(2)-currentElement.maxPoint(2))
 					End If
-					If log2Window=True Then ReportInformationToWindow "5$Antenna Length: "+CStr(Round(length,2))
-					Return currentElement.getFaceNeighborFromString(nonMetalFaceNeighborsStr(validFaceNeighborsArray(ii)), False)
+					If log2Window=True Then ReportInformationToWindow "$Corrector: Antenna Length: "+CStr(Round(length,2))
+					Return currentElement.getFaceNeighborFromString(validFaceNeighborsStr(ii), False)
 				End If
 			Next
 		End If
@@ -1043,31 +1203,39 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 	Case "xn"
 		'edge neighbor of face neighbor should be pure nonmetal on both sides
 		If InStr(neighborsStr,"y")<>0 Then
-			If Not tailElement.ynNeighbor Is Nothing Then
-				If Not tailElement.ynNeighbor.nnLNeighbor Is Nothing Then
-					If tailElement.ynNeighbor.nnLNeighbor.isPureNonMetal()=True _
-					And InStr(availableStr,tailElement.ynNeighbor.nnLNeighbor.solidName & "$")<>0 Then
-						If Not tailElement.ypNeighbor Is Nothing Then
-							If Not tailElement.ypNeighbor.npLNeighbor Is Nothing Then
-								If tailElement.ypNeighbor.npLNeighbor.isPureNonMetal()=True _
-								And InStr(availableStr,tailElement.ypNeighbor.npLNeighbor.solidName & "$")<>0 Then
-									'estimate if the path is blocked, if yes, return true
-									If tailElement.xnNeighbor.xnNeighbor Is Nothing Then
-										Return True
-									ElseIf tailElement.xnNeighbor.xnNeighbor.isPureNonMetal()=False Then
+			If Not tailElement.nnLNeighbor Is Nothing Then
+				If Not tailElement.nnLNeighbor.nnLNeighbor Is Nothing Then
+					If tailElement.nnLNeighbor.nnLNeighbor.isPureNonMetal()=False _
+					And tailElement.nnLNeighbor.nnLNeighbor.isMetal()=False Then
+						GoTo Checkxnyn
+					End If
+				Else
+				Checkxnyn:
+					If Not tailElement.ynNeighbor Is Nothing Then
+						If Not tailElement.ynNeighbor.nnLNeighbor Is Nothing Then
+							If tailElement.ynNeighbor.nnLNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr, tailElement.ynNeighbor.nnLNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.xnNeighbor.xnNeighbor Is Nothing Then
+									If tailElement.xnNeighbor.xnNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr, tailElement.xnNeighbor.xnNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xnyn-xnxn"
 										Return True
 									End If
-									If Not tailElement.nnLNeighbor Is Nothing Then
-										If tailElement.nnLNeighbor.nnLNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.nnLNeighbor.nnLNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.ypNeighbor Is Nothing Then
+									If Not tailElement.ypNeighbor.npLNeighbor Is Nothing Then
+										If tailElement.ypNeighbor.nPLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.ypNeighbor.nPLNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: xnyn-ypnPL"
 											Return True
 										End If
 									End If
-									If Not tailElement.npLNeighbor Is Nothing Then
-										If tailElement.npLNeighbor.npLNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.npLNeighbor.npLNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.npLNeighbor Is Nothing Then
+									If Not tailElement.npLNeighbor.npLNeighbor Is Nothing Then
+										If tailElement.npLNeighbor.nPLNeighbor.isPureNonMetal()=True And _
+											InStr(availableStr, tailElement.npLNeighbor.nPLNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: xnyn-npLnpL"
 											Return True
 										End If
 									End If
@@ -1077,35 +1245,211 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 					End If
 				End If
 			End If
+			If Not tailElement.npLNeighbor Is Nothing Then
+				If Not tailElement.npLNeighbor.npLNeighbor Is Nothing Then
+					If tailElement.npLNeighbor.npLNeighbor.isPureNonMetal()=False _
+					And tailElement.npLNeighbor.npLNeighbor.isMetal()=False Then
+						GoTo Checkxnyp
+					End If
+				Else
+				Checkxnyp:
+					If Not tailElement.ypNeighbor Is Nothing Then
+						If Not tailElement.ypNeighbor.npLNeighbor Is Nothing Then
+							If tailElement.ypNeighbor.npLNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr, tailElement.ypNeighbor.npLNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.xnNeighbor.xnNeighbor Is Nothing Then
+									If tailElement.xnNeighbor.xnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.xnNeighbor.xnNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xnyp-xnxn"
+										Return True
+									End If
+								End If
+								If Not tailElement.ynNeighbor Is Nothing Then
+									If Not tailElement.ynNeighbor.nnLNeighbor Is Nothing Then
+										If tailElement.ynNeighbor.nnLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.ynNeighbor.nnLNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: xnyp-ynnnL"
+											Return True
+										End If
+									End If
+								End If
+								If Not tailElement.nnLNeighbor Is Nothing Then
+									If Not tailElement.nnLNeighbor.nnLNeighbor Is Nothing Then
+										If tailElement.nnLNeighbor.nnLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.nnLNeighbor.nnLNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: xnyp-nnLnnL"
+											Return True
+										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.xnNeighbor.xnNeighbor Is Nothing Then
+				If tailElement.xnNeighbor.xnNeighbor.isPureNonMetal()=False And _
+				tailElement.xnNeighbor.xnNeighbor.isMetal()=False Then
+					GoTo Checkxnxny
+				End If
+			Else
+			Checkxnxny:
+				If Not tailElement.ynNeighbor Is Nothing Then
+					If Not tailElement.ynNeighbor.nnLNeighbor Is Nothing Then
+						If tailElement.ynNeighbor.nnLNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr, tailElement.ynNeighbor.nnLNeighbor.solidName & "$" )<>0 Then
+							GoTo xnxnL
+						End If
+					End If
+				End If
+				If Not tailElement.nnLNeighbor Is Nothing Then
+					If Not tailElement.nnLNeighbor.nnLNeighbor Is Nothing Then
+						If tailElement.nnLNeighbor.nnLNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr, tailElement.nnLNeighbor.nnLNeighbor.solidName & "$" )<>0 Then
+						xnxnL:
+							If Not tailElement.ypNeighbor Is Nothing Then
+								If Not tailElement.ypNeighbor.npLNeighbor Is Nothing Then
+									If tailElement.ypNeighbor.nPLNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr, tailElement.ypNeighbor.nPLNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xnxny-ypnpL"
+										Return True
+									End If
+								End If
+							End If
+							If Not tailElement.npLNeighbor Is Nothing Then
+								If Not tailElement.npLNeighbor.npLNeighbor Is Nothing Then
+									If tailElement.npLNeighbor.nPLNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.npLNeighbor.nPLNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xnxny-npLnpL"
+										Return True
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
 		End If
 		If InStr(neighborsStr,"z")<>0 Then
-			If Not tailElement.znNeighbor Is Nothing Then
-				If Not tailElement.znNeighbor.nLnNeighbor Is Nothing Then
-					If tailElement.znNeighbor.nLnNeighbor.isPureNonMetal()=True _
-					And InStr(availableStr,tailElement.znNeighbor.nLnNeighbor.solidName & "$")<>0 Then
-						If Not tailElement.zpNeighbor Is Nothing Then
-							If Not tailElement.zpNeighbor.nLpNeighbor Is Nothing Then
-								If tailElement.zpNeighbor.nLpNeighbor.isPureNonMetal()=True _
-								And InStr(availableStr,tailElement.zpNeighbor.nLpNeighbor.solidName & "$")<>0 Then
-									'estimate if the path is blocked, if yes, return true
-									If tailElement.xnNeighbor.xnNeighbor Is Nothing Then
-										Return True
-									ElseIf tailElement.xnNeighbor.xnNeighbor.isPureNonMetal()=False Then
+			If Not tailElement.nLnNeighbor Is Nothing Then
+				If Not tailElement.nLnNeighbor.nLnNeighbor Is Nothing Then
+					If tailElement.nLnNeighbor.nLnNeighbor.isPureNonMetal()=False _
+					And tailElement.nLnNeighbor.nLnNeighbor.isMetal()=False Then
+						GoTo Checkxnzn
+					End If
+				Else
+				Checkxnzn:
+					If Not tailElement.znNeighbor Is Nothing Then
+						If Not tailElement.znNeighbor.nLnNeighbor Is Nothing Then
+							If tailElement.znNeighbor.nLnNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr,tailElement.znNeighbor.nLnNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.xnNeighbor.xnNeighbor Is Nothing Then
+									If tailElement.xnNeighbor.xnNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.xnNeighbor.xnNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xnzn-xnxn"
 										Return True
 									End If
-									If Not tailElement.nLnNeighbor Is Nothing Then
-										If tailElement.nLnNeighbor.nLnNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.nLnNeighbor.nLnNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.zpNeighbor Is Nothing Then
+									If Not tailElement.zpNeighbor.nLpNeighbor Is Nothing Then
+										If tailElement.zpNeighbor.nLpNeighbor.isPureNonMetal()=True  And _
+										InStr(availableStr,tailElement.zpNeighbor.nLpNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: xnzn-zpnLp"
 											Return True
 										End If
 									End If
-									If Not tailElement.nLpNeighbor Is Nothing Then
-										If tailElement.nLpNeighbor.nLpNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.nLpNeighbor.nLpNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.nLpNeighbor Is Nothing Then
+									If Not tailElement.nLpNeighbor.nLpNeighbor Is Nothing Then
+										If tailElement.nLpNeighbor.nLpNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.nLpNeighbor.nLpNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: xnzn-nLpnLp"
 											Return True
 										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.nLpNeighbor Is Nothing Then
+				If Not tailElement.nLpNeighbor.nLpNeighbor Is Nothing Then
+					If tailElement.nLpNeighbor.nLpNeighbor.isPureNonMetal()=False _
+					And tailElement.nLpNeighbor.nLpNeighbor.isMetal()=False Then
+						GoTo Checkxnzp
+					End If
+				Else
+				Checkxnzp:
+					If Not tailElement.zpNeighbor Is Nothing Then
+						If Not tailElement.zpNeighbor.nLpNeighbor Is Nothing Then
+							If tailElement.zpNeighbor.nLpNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr,tailElement.zpNeighbor.nLpNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.xnNeighbor.xnNeighbor Is Nothing Then
+									If tailElement.xnNeighbor.xnNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.xnNeighbor.xnNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xnzp-xnxn"
+										Return True
+									End If
+								End If
+								If Not tailElement.znNeighbor Is Nothing Then
+									If Not tailElement.znNeighbor.nLnNeighbor Is Nothing Then
+										If tailElement.znNeighbor.nLnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.znNeighbor.nLnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: xnzp-znnLn"
+											Return True
+										End If
+									End If
+								End If
+								If Not tailElement.nLnNeighbor Is Nothing Then
+									If Not tailElement.nLnNeighbor.nLnNeighbor Is Nothing Then
+										If tailElement.nLnNeighbor.nLnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.nLnNeighbor.nLnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: xnzp-nLnnLn"
+											Return True
+										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.xnNeighbor.xnNeighbor Is Nothing Then
+				If tailElement.xnNeighbor.xnNeighbor.isPureNonMetal()=False And _
+				tailElement.xnNeighbor.xnNeighbor.isMetal()=False Then
+					GoTo Checkxnxnz
+				End If
+			Else
+			Checkxnxnz:
+				If Not tailElement.znNeighbor Is Nothing Then
+					If Not tailElement.znNeighbor.nLnNeighbor Is Nothing Then
+						If tailElement.znNeighbor.nLnNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr,tailElement.znNeighbor.nLnNeighbor.solidName & "$" )<>0 Then
+							GoTo CheckxnLxn
+						End If
+					End If
+				End If
+				If Not tailElement.nLnNeighbor Is Nothing Then
+					If Not tailElement.nLnNeighbor.nLnNeighbor Is Nothing Then
+						If tailElement.nLnNeighbor.nLnNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr,tailElement.nLnNeighbor.nLnNeighbor.solidName & "$" )<>0 Then
+							CheckxnLxn:
+							If Not tailElement.zpNeighbor Is Nothing Then
+								If Not tailElement.zpNeighbor.nLpNeighbor Is Nothing Then
+									If tailElement.zpNeighbor.nLpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.zpNeighbor.nLpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xnxnz-zpnLp"
+										Return True
+									End If
+								End If
+							End If
+							If Not tailElement.nLpNeighbor Is Nothing Then
+								If Not tailElement.nLpNeighbor.nLpNeighbor Is Nothing Then
+									If tailElement.nLpNeighbor.nLpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.nLpNeighbor.nLpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xnxnz-nLpnLp"
+										Return True
 									End If
 								End If
 							End If
@@ -1117,31 +1461,42 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 	Case "xp"
 		'edge neighbor of face neighbor should be pure nonmetal on both sides
 		If InStr(neighborsStr,"y")<>0 Then
-			If Not tailElement.ynNeighbor Is Nothing Then
-				If Not tailElement.ynNeighbor.pnLNeighbor Is Nothing Then
-					If tailElement.ynNeighbor.pnLNeighbor.isPureNonMetal()=True _
-					And InStr(availableStr,tailElement.ynNeighbor.pnLNeighbor.solidName & "$")<>0 Then
-						If Not tailElement.ypNeighbor Is Nothing Then
-							If Not tailElement.ypNeighbor.ppLNeighbor Is Nothing Then
-								If tailElement.ypNeighbor.ppLNeighbor.isPureNonMetal()=True _
-								And InStr(availableStr,tailElement.ypNeighbor.ppLNeighbor.solidName & "$")<>0 Then
-									'estimate if the path is blocked, if yes, return true
-									If tailElement.xpNeighbor.xpNeighbor Is Nothing Then
-										Return True
-									ElseIf tailElement.xpNeighbor.xpNeighbor.isPureNonMetal()=False Then
+			If Not tailElement.pnLNeighbor Is Nothing Then
+				If Not tailElement.pnLNeighbor.pnLNeighbor Is Nothing Then
+					If tailElement.pnLNeighbor.pnLNeighbor.isPureNonMetal()=False _
+					And tailElement.pnLNeighbor.pnLNeighbor.isMetal()=False Then
+						GoTo Checkxpyn
+					End If
+				Else
+				Checkxpyn:
+					If Not tailElement.ynNeighbor Is Nothing Then
+						If Not tailElement.ynNeighbor.pnLNeighbor Is Nothing Then
+							If tailElement.ynNeighbor.pnLNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr, tailElement.ynNeighbor.pnLNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.xpNeighbor.xpNeighbor Is Nothing Then
+									If tailElement.xpNeighbor.xpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr, tailElement.xpNeighbor.xpNeighbor.solidName & "$" )<>0 Then
+
+										ReportInformationToWindow "$Forward check: xpyn-xpxp"
 										Return True
 									End If
-									If Not tailElement.pnLNeighbor Is Nothing Then
-										If tailElement.pnLNeighbor.pnLNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.pnLNeighbor.pnLNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.ypNeighbor Is Nothing Then
+									If Not tailElement.ypNeighbor.ppLNeighbor Is Nothing Then
+										If tailElement.ypNeighbor.ppLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.ypNeighbor.ppLNeighbor.solidName & "$" )<>0 Then
+
+											ReportInformationToWindow "$Forward check: xpyn-ypppL"
 											Return True
 										End If
 									End If
-									If Not tailElement.ppLNeighbor Is Nothing Then
-										If tailElement.ppLNeighbor.ppLNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.ppLNeighbor.ppLNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.ppLNeighbor Is Nothing Then
+									If Not tailElement.ppLNeighbor.ppLNeighbor Is Nothing Then
+										If tailElement.ppLNeighbor.ppLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.ppLNeighbor.ppLNeighbor.solidName & "$" )<>0 Then
+
+											ReportInformationToWindow "$Forward check: xpyn-ppLppL"
 											Return True
 										End If
 									End If
@@ -1151,35 +1506,211 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 					End If
 				End If
 			End If
+			If Not tailElement.ppLNeighbor Is Nothing Then
+				If Not tailElement.ppLNeighbor.ppLNeighbor Is Nothing Then
+					If tailElement.ppLNeighbor.ppLNeighbor.isPureNonMetal()=False _
+					And tailElement.ppLNeighbor.ppLNeighbor.isMetal()=False Then
+						GoTo Checkxpyp
+					End If
+				Else
+				Checkxpyp:
+					If Not tailElement.ypNeighbor Is Nothing Then
+						If Not tailElement.ypNeighbor.ppLNeighbor Is Nothing Then
+							If tailElement.ypNeighbor.ppLNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr, tailElement.ypNeighbor.ppLNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.xpNeighbor.xpNeighbor Is Nothing Then
+									If tailElement.xpNeighbor.xpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr, tailElement.xpNeighbor.xpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xpyp-xpxp"
+										Return True
+									End If
+								End If
+								If Not tailElement.ynNeighbor Is Nothing Then
+									If Not tailElement.ynNeighbor.pnLNeighbor Is Nothing Then
+										If tailElement.ynNeighbor.pnLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.ynNeighbor.pnLNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: xpyp-ynpnL"
+											Return True
+										End If
+									End If
+								End If
+								If Not tailElement.pnLNeighbor Is Nothing Then
+									If Not tailElement.pnLNeighbor.pnLNeighbor Is Nothing Then
+										If tailElement.pnLNeighbor.pnLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.pnLNeighbor.pnLNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: xpyp-pnLpnL"
+											Return True
+										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.xpNeighbor.xpNeighbor Is Nothing Then
+				If tailElement.xpNeighbor.xpNeighbor.isPureNonMetal()=False And _
+				tailElement.xpNeighbor.xpNeighbor.isMetal()=False Then
+					GoTo Checkxpxpy
+				End If
+			Else
+			Checkxpxpy:
+				If Not tailElement.ynNeighbor Is Nothing Then
+					If Not tailElement.ynNeighbor.pnLNeighbor Is Nothing Then
+						If tailElement.ynNeighbor.pnLNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr,tailElement.ynNeighbor.pnLNeighbor.solidName & "$" )<>0 Then
+							GoTo CheckxpxpL
+						End If
+					End If
+				End If
+				If Not tailElement.pnLNeighbor Is Nothing Then
+					If Not tailElement.pnLNeighbor.pnLNeighbor Is Nothing Then
+						If tailElement.pnLNeighbor.pnLNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr,tailElement.pnLNeighbor.pnLNeighbor.solidName & "$" )<>0 Then
+							CheckxpxpL:
+							If Not tailElement.ypNeighbor Is Nothing Then
+								If Not tailElement.ypNeighbor.ppLNeighbor Is Nothing Then
+									If tailElement.ypNeighbor.ppLNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.ypNeighbor.ppLNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xpxpy-ypppL"
+										Return True
+									End If
+								End If
+							End If
+							If Not tailElement.ppLNeighbor Is Nothing Then
+								If Not tailElement.ppLNeighbor.ppLNeighbor Is Nothing Then
+									If tailElement.ppLNeighbor.ppLNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.ppLNeighbor.ppLNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xpxpy-ppLppL"
+										Return True
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
 		End If
 		If InStr(neighborsStr,"z")<>0 Then
-			If Not tailElement.znNeighbor Is Nothing Then
-				If Not tailElement.znNeighbor.pLnNeighbor Is Nothing Then
-					If tailElement.znNeighbor.pLnNeighbor.isPureNonMetal()=True _
-					And InStr(availableStr,tailElement.znNeighbor.pLnNeighbor.solidName & "$")<>0 Then
-						If Not tailElement.zpNeighbor Is Nothing Then
-							If Not tailElement.zpNeighbor.pLpNeighbor Is Nothing Then
-								If tailElement.zpNeighbor.pLpNeighbor.isPureNonMetal()=True _
-								And InStr(availableStr,tailElement.zpNeighbor.pLpNeighbor.solidName & "$")<>0 Then
-									'estimate if the path is blocked, if yes, return true
-									If tailElement.xpNeighbor.xpNeighbor Is Nothing Then
-										Return True
-									ElseIf tailElement.xpNeighbor.xpNeighbor.isPureNonMetal()=False Then
+			If Not tailElement.pLnNeighbor Is Nothing Then
+				If Not tailElement.pLnNeighbor.pLnNeighbor Is Nothing Then
+					If tailElement.pLnNeighbor.pLnNeighbor.isPureNonMetal()=False _
+					And tailElement.pLnNeighbor.pLnNeighbor.isMetal()=False Then
+						GoTo Checkxpzn
+					End If
+				Else
+				Checkxpzn:
+					If Not tailElement.znNeighbor Is Nothing Then
+						If Not tailElement.znNeighbor.pLnNeighbor Is Nothing Then
+							If tailElement.znNeighbor.pLnNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr,tailElement.znNeighbor.pLnNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.xpNeighbor.xpNeighbor Is Nothing Then
+									If tailElement.xpNeighbor.xpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.xpNeighbor.xpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xpzn-xpxp"
 										Return True
 									End If
-									If Not tailElement.pLnNeighbor Is Nothing Then
-										If tailElement.pLnNeighbor.pLnNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.pLnNeighbor.pLnNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.zpNeighbor Is Nothing Then
+									If Not tailElement.zpNeighbor.pLpNeighbor Is Nothing Then
+										If tailElement.zpNeighbor.pLpNeighbor.isPureNonMetal()=True  And _
+										InStr(availableStr,tailElement.zpNeighbor.pLpNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: xpzn-zppLp"
 											Return True
 										End If
 									End If
-									If Not tailElement.pLpNeighbor Is Nothing Then
-										If tailElement.pLpNeighbor.pLpNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.pLpNeighbor.pLpNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.pLpNeighbor Is Nothing Then
+									If Not tailElement.pLpNeighbor.pLpNeighbor Is Nothing Then
+										If tailElement.pLpNeighbor.pLpNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.pLpNeighbor.pLpNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: xpzn-pLppLp"
 											Return True
 										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.pLpNeighbor Is Nothing Then
+				If Not tailElement.pLpNeighbor.pLpNeighbor Is Nothing Then
+					If tailElement.pLpNeighbor.pLpNeighbor.isPureNonMetal()=False _
+					And tailElement.pLpNeighbor.pLpNeighbor.isMetal()=False Then
+						GoTo Checkxpzp
+					End If
+				Else
+				Checkxpzp:
+					If Not tailElement.zpNeighbor Is Nothing Then
+						If Not tailElement.zpNeighbor.pLpNeighbor Is Nothing Then
+							If tailElement.zpNeighbor.pLpNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr,tailElement.zpNeighbor.pLpNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.xpNeighbor.xpNeighbor Is Nothing Then
+									If tailElement.xpNeighbor.xpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.xpNeighbor.xpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xpzp-xpxp"
+										Return True
+									End If
+								End If
+								If Not tailElement.znNeighbor Is Nothing Then
+									If Not tailElement.znNeighbor.pLnNeighbor Is Nothing Then
+										If tailElement.znNeighbor.pLnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.znNeighbor.pLnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: xpzp-znpLn"
+											Return True
+										End If
+									End If
+								End If
+								If Not tailElement.pLnNeighbor Is Nothing Then
+									If Not tailElement.pLnNeighbor.pLnNeighbor Is Nothing Then
+										If tailElement.pLnNeighbor.pLnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.pLnNeighbor.pLnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: xpzp-pLnpLn"
+											Return True
+										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.xpNeighbor.xpNeighbor Is Nothing Then
+				If tailElement.xpNeighbor.xpNeighbor.isPureNonMetal()=False And _
+				tailElement.xpNeighbor.xpNeighbor.isMetal()=False Then
+					GoTo Checkxpxpz
+				End If
+			Else
+			Checkxpxpz:
+				If Not tailElement.znNeighbor Is Nothing Then
+					If Not tailElement.znNeighbor.pLnNeighbor Is Nothing Then
+						If tailElement.znNeighbor.pLnNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr,tailElement.znNeighbor.pLnNeighbor.solidName & "$" )<>0 Then
+							GoTo CheckxpLxp
+						End If
+					End If
+				End If
+				If Not tailElement.pLnNeighbor Is Nothing Then
+					If Not tailElement.pLnNeighbor.pLnNeighbor Is Nothing Then
+						If tailElement.pLnNeighbor.pLnNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr,tailElement.pLnNeighbor.pLnNeighbor.solidName & "$" )<>0 Then
+							CheckxpLxp:
+							If Not tailElement.zpNeighbor Is Nothing Then
+								If Not tailElement.zpNeighbor.pLpNeighbor Is Nothing Then
+									If tailElement.zpNeighbor.pLpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.zpNeighbor.pLpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xpxpz-zppLp"
+										Return True
+									End If
+								End If
+							End If
+							If Not tailElement.pLpNeighbor Is Nothing Then
+								If Not tailElement.pLpNeighbor.pLpNeighbor Is Nothing Then
+									If tailElement.pLpNeighbor.pLpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.pLpNeighbor.pLpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: xpxpz-pLppLp"
+										Return True
 									End If
 								End If
 							End If
@@ -1191,31 +1722,39 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 	Case "yn"
 		'edge neighbor of face neighbor should be pure nonmetal on both sides
 		If InStr(neighborsStr,"x")<>0 Then
-			If Not tailElement.xnNeighbor Is Nothing Then
-				If Not tailElement.xnNeighbor.nnLNeighbor Is Nothing Then
-					If tailElement.xnNeighbor.nnLNeighbor.isPureNonMetal()=True _
-					And InStr(availableStr,tailElement.xnNeighbor.nnLNeighbor.solidName & "$")<>0 Then
-						If Not tailElement.xpNeighbor Is Nothing Then
-							If Not tailElement.xpNeighbor.pnLNeighbor Is Nothing Then
-								If tailElement.xpNeighbor.pnLNeighbor.isPureNonMetal()=True _
-								And InStr(availableStr,tailElement.xpNeighbor.pnLNeighbor.solidName & "$")<>0 Then
-									'estimate if the path is blocked, if yes, return true
-									If tailElement.ynNeighbor.ynNeighbor Is Nothing Then
-										Return True
-									ElseIf tailElement.ynNeighbor.ynNeighbor.isPureNonMetal()=False Then
+			If Not tailElement.nnLNeighbor Is Nothing Then
+				If Not tailElement.nnLNeighbor.nnLNeighbor Is Nothing Then
+					If tailElement.nnLNeighbor.nnLNeighbor.isPureNonMetal()=False _
+					And tailElement.nnLNeighbor.nnLNeighbor.isMetal()=False Then
+						GoTo Checkynxn
+					End If
+				Else
+				Checkynxn:
+					If Not tailElement.xnNeighbor Is Nothing Then
+						If Not tailElement.xnNeighbor.nnLNeighbor Is Nothing Then
+							If tailElement.xnNeighbor.nnLNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr, tailElement.xnNeighbor.nnLNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.ynNeighbor.ynNeighbor Is Nothing Then
+									If tailElement.ynNeighbor.ynNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr, tailElement.ynNeighbor.ynNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ynxn-ynyn"
 										Return True
 									End If
-									If Not tailElement.nnLNeighbor Is Nothing Then
-										If tailElement.nnLNeighbor.nnLNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.nnLNeighbor.nnLNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.xpNeighbor Is Nothing Then
+									If Not tailElement.xpNeighbor.pnLNeighbor Is Nothing Then
+										If tailElement.xpNeighbor.pnLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.xpNeighbor.pnLNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ynxn-xppnL"
 											Return True
 										End If
 									End If
-									If Not tailElement.pnLNeighbor Is Nothing Then
-										If tailElement.pnLNeighbor.pnLNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.pnLNeighbor.pnLNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.pnLNeighbor Is Nothing Then
+									If Not tailElement.pnLNeighbor.pnLNeighbor Is Nothing Then
+										If tailElement.pnLNeighbor.pnLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.pnLNeighbor.pnLNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ynxn-pnLpnL"
 											Return True
 										End If
 									End If
@@ -1225,35 +1764,211 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 					End If
 				End If
 			End If
+			If Not tailElement.pnLNeighbor Is Nothing Then
+				If Not tailElement.pnLNeighbor.pnLNeighbor Is Nothing Then
+					If tailElement.pnLNeighbor.pnLNeighbor.isPureNonMetal()=False _
+					And tailElement.pnLNeighbor.pnLNeighbor.isMetal()=False Then
+						GoTo Checkynxp
+					End If
+				Else
+				Checkynxp:
+					If Not tailElement.xpNeighbor Is Nothing Then
+						If Not tailElement.xpNeighbor.pnLNeighbor Is Nothing Then
+							If tailElement.xpNeighbor.pnLNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr, tailElement.xpNeighbor.pnLNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.ynNeighbor.ynNeighbor Is Nothing Then
+									If tailElement.ynNeighbor.ynNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.ynNeighbor.ynNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ynxp-ynyn"
+										Return True
+									End If
+								End If
+								If Not tailElement.xnNeighbor Is Nothing Then
+									If Not tailElement.xnNeighbor.nnLNeighbor Is Nothing Then
+										If tailElement.xnNeighbor.nnLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.xnNeighbor.nnLNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ynxp-xnnnL"
+											Return True
+										End If
+									End If
+								End If
+								If Not tailElement.nnLNeighbor Is Nothing Then
+									If Not tailElement.nnLNeighbor.nnLNeighbor Is Nothing Then
+										If tailElement.nnLNeighbor.nnLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.nnLNeighbor.nnLNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ynxp-nnLnnL"
+											Return True
+										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.ynNeighbor.ynNeighbor Is Nothing Then
+				If tailElement.ynNeighbor.ynNeighbor.isPureNonMetal()=False And _
+				tailElement.ynNeighbor.ynNeighbor.isMetal()=False Then
+					GoTo Checkynynx
+				End If
+			Else
+			Checkynynx:
+				If Not tailElement.xnNeighbor Is Nothing Then
+					If Not tailElement.xnNeighbor.nnLNeighbor Is Nothing Then
+						If tailElement.xnNeighbor.nnLNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr, tailElement.xnNeighbor.nnLNeighbor.solidName & "$" )<>0 Then
+							GoTo ynynL
+						End If
+					End If
+				End If
+				If Not tailElement.nnLNeighbor Is Nothing Then
+					If Not tailElement.nnLNeighbor.nnLNeighbor Is Nothing Then
+						If tailElement.nnLNeighbor.nnLNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr, tailElement.nnLNeighbor.nnLNeighbor.solidName & "$" )<>0 Then
+						ynynL:
+							If Not tailElement.xpNeighbor Is Nothing Then
+								If Not tailElement.xpNeighbor.pnLNeighbor Is Nothing Then
+									If tailElement.xpNeighbor.pnLNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr, tailElement.xpNeighbor.pnLNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ynynx-xppnL"
+										Return True
+									End If
+								End If
+							End If
+							If Not tailElement.pnLNeighbor Is Nothing Then
+								If Not tailElement.pnLNeighbor.pnLNeighbor Is Nothing Then
+									If tailElement.pnLNeighbor.pnLNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.pnLNeighbor.pnLNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ynynx-pnLpnL"
+										Return True
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
 		End If
 		If InStr(neighborsStr,"z")<>0 Then
-			If Not tailElement.znNeighbor Is Nothing Then
-				If Not tailElement.znNeighbor.LnnNeighbor Is Nothing Then
-					If tailElement.znNeighbor.LnnNeighbor.isPureNonMetal()=True _
-					And InStr(availableStr,tailElement.znNeighbor.LnnNeighbor.solidName & "$")<>0 Then
-						If Not tailElement.zpNeighbor Is Nothing Then
-							If Not tailElement.zpNeighbor.LnpNeighbor Is Nothing Then
-								If tailElement.zpNeighbor.LnpNeighbor.isPureNonMetal()=True _
-								And InStr(availableStr,tailElement.zpNeighbor.LnpNeighbor.solidName & "$")<>0 Then
-									'estimate if the path is blocked, if yes, return true
-									If tailElement.ynNeighbor.ynNeighbor Is Nothing Then
-										Return True
-									ElseIf tailElement.ynNeighbor.ynNeighbor.isPureNonMetal()=False Then
+			If Not tailElement.LnnNeighbor Is Nothing Then
+				If Not tailElement.LnnNeighbor.LnnNeighbor Is Nothing Then
+					If tailElement.LnnNeighbor.LnnNeighbor.isPureNonMetal()=False _
+					And tailElement.LnnNeighbor.LnnNeighbor.isMetal()=False Then
+						GoTo Checkynzn
+					End If
+				Else
+				Checkynzn:
+					If Not tailElement.znNeighbor Is Nothing Then
+						If Not tailElement.znNeighbor.LnnNeighbor Is Nothing Then
+							If tailElement.znNeighbor.LnnNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr,tailElement.znNeighbor.LnnNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.ynNeighbor.ynNeighbor Is Nothing Then
+									If tailElement.ynNeighbor.ynNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.ynNeighbor.ynNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ynzn-ynyn"
 										Return True
 									End If
-									If Not tailElement.LnnNeighbor Is Nothing Then
-										If tailElement.LnnNeighbor.LnnNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.LnnNeighbor.LnnNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.zpNeighbor Is Nothing Then
+									If Not tailElement.zpNeighbor.LnpNeighbor Is Nothing Then
+										If tailElement.zpNeighbor.LnpNeighbor.isPureNonMetal()=True  And _
+										InStr(availableStr,tailElement.zpNeighbor.LnpNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ynzn-zpLnp"
 											Return True
 										End If
 									End If
-									If Not tailElement.LnpNeighbor Is Nothing Then
-										If tailElement.LnpNeighbor.LnpNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.LnpNeighbor.LnpNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.LnpNeighbor Is Nothing Then
+									If Not tailElement.LnpNeighbor.LnpNeighbor Is Nothing Then
+										If tailElement.LnpNeighbor.LnpNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.LnpNeighbor.LnpNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ynzn-LnpLnp"
 											Return True
 										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.LnpNeighbor Is Nothing Then
+				If Not tailElement.LnpNeighbor.LnpNeighbor Is Nothing Then
+					If tailElement.LnpNeighbor.LnpNeighbor.isPureNonMetal()=False _
+					And tailElement.LnpNeighbor.LnpNeighbor.isMetal()=False Then
+						GoTo Checkynzp
+					End If
+				Else
+				Checkynzp:
+					If Not tailElement.zpNeighbor Is Nothing Then
+						If Not tailElement.zpNeighbor.LnpNeighbor Is Nothing Then
+							If tailElement.zpNeighbor.LnpNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr,tailElement.zpNeighbor.LnpNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.ynNeighbor.ynNeighbor Is Nothing Then
+									If tailElement.ynNeighbor.ynNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.ynNeighbor.ynNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ynzp-ynyn"
+										Return True
+									End If
+								End If
+								If Not tailElement.znNeighbor Is Nothing Then
+									If Not tailElement.znNeighbor.LnnNeighbor Is Nothing Then
+										If tailElement.znNeighbor.LnnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.znNeighbor.LnnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ynzp-znLnn"
+											Return True
+										End If
+									End If
+								End If
+								If Not tailElement.LnnNeighbor Is Nothing Then
+									If Not tailElement.LnnNeighbor.LnnNeighbor Is Nothing Then
+										If tailElement.LnnNeighbor.LnnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.LnnNeighbor.LnnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ynzp-LnnLnn"
+											Return True
+										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.ynNeighbor.ynNeighbor Is Nothing Then
+				If tailElement.ynNeighbor.ynNeighbor.isPureNonMetal()=False And _
+				tailElement.ynNeighbor.ynNeighbor.isMetal()=False Then
+					GoTo Checkynynz
+				End If
+			Else
+			Checkynynz:
+				If Not tailElement.znNeighbor Is Nothing Then
+					If Not tailElement.znNeighbor.LnnNeighbor Is Nothing Then
+						If tailElement.znNeighbor.LnnNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr,tailElement.znNeighbor.LnnNeighbor.solidName & "$" )<>0 Then
+							GoTo CheckLynyn
+						End If
+					End If
+				End If
+				If Not tailElement.LnnNeighbor Is Nothing Then
+					If Not tailElement.LnnNeighbor.LnnNeighbor Is Nothing Then
+						If tailElement.LnnNeighbor.LnnNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr,tailElement.LnnNeighbor.LnnNeighbor.solidName & "$" )<>0 Then
+							CheckLynyn:
+							If Not tailElement.zpNeighbor Is Nothing Then
+								If Not tailElement.zpNeighbor.LnpNeighbor Is Nothing Then
+									If tailElement.zpNeighbor.LnpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.zpNeighbor.LnpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ynynz-zpLnp"
+										Return True
+									End If
+								End If
+							End If
+							If Not tailElement.LnpNeighbor Is Nothing Then
+								If Not tailElement.LnpNeighbor.LnpNeighbor Is Nothing Then
+									If tailElement.LnpNeighbor.LnpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.LnpNeighbor.LnpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ynynz-LnpLnp"
+										Return True
 									End If
 								End If
 							End If
@@ -1265,31 +1980,39 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 	Case "yp"
 		'edge neighbor of face neighbor should be pure nonmetal on both sides
 		If InStr(neighborsStr,"x")<>0 Then
-			If Not tailElement.xnNeighbor Is Nothing Then
-				If Not tailElement.xnNeighbor.npLNeighbor Is Nothing Then
-					If tailElement.xnNeighbor.npLNeighbor.isPureNonMetal()=True _
-					And InStr(availableStr,tailElement.xnNeighbor.npLNeighbor.solidName & "$")<>0 Then
-						If Not tailElement.xpNeighbor Is Nothing Then
-							If Not tailElement.xpNeighbor.ppLNeighbor Is Nothing Then
-								If tailElement.xpNeighbor.ppLNeighbor.isPureNonMetal()=True _
-								And InStr(availableStr,tailElement.xpNeighbor.ppLNeighbor.solidName & "$")<>0 Then
-									'estimate if the path is blocked, if yes, return true
-									If tailElement.ypNeighbor.ypNeighbor Is Nothing Then
-										Return True
-									ElseIf tailElement.ypNeighbor.ypNeighbor.isPureNonMetal()=False Then
+			If Not tailElement.npLNeighbor Is Nothing Then
+				If Not tailElement.npLNeighbor.npLNeighbor Is Nothing Then
+					If tailElement.npLNeighbor.npLNeighbor.isPureNonMetal()=False _
+					And tailElement.npLNeighbor.npLNeighbor.isMetal()=False Then
+						GoTo Checkypxn
+					End If
+				Else
+				Checkypxn:
+					If Not tailElement.xnNeighbor Is Nothing Then
+						If Not tailElement.xnNeighbor.npLNeighbor Is Nothing Then
+							If tailElement.xnNeighbor.npLNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr, tailElement.xnNeighbor.npLNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.ypNeighbor.ypNeighbor Is Nothing Then
+									If tailElement.ypNeighbor.ypNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr, tailElement.ypNeighbor.ypNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ypxn-ypyp"
 										Return True
 									End If
-									If Not tailElement.npLNeighbor Is Nothing Then
-										If tailElement.npLNeighbor.npLNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.npLNeighbor.npLNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.xpNeighbor Is Nothing Then
+									If Not tailElement.xpNeighbor.ppLNeighbor Is Nothing Then
+										If tailElement.xpNeighbor.ppLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.xpNeighbor.ppLNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ypxn-xpppL"
 											Return True
 										End If
 									End If
-									If Not tailElement.ppLNeighbor Is Nothing Then
-										If tailElement.ppLNeighbor.ppLNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.ppLNeighbor.ppLNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.ppLNeighbor Is Nothing Then
+									If Not tailElement.ppLNeighbor.ppLNeighbor Is Nothing Then
+										If tailElement.ppLNeighbor.ppLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.ppLNeighbor.ppLNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ypxn-ppLppL"
 											Return True
 										End If
 									End If
@@ -1299,35 +2022,203 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 					End If
 				End If
 			End If
+			If Not tailElement.ppLNeighbor Is Nothing Then
+				If Not tailElement.ppLNeighbor.ppLNeighbor Is Nothing Then
+					If tailElement.ppLNeighbor.ppLNeighbor.isPureNonMetal()=False _
+					And tailElement.ppLNeighbor.ppLNeighbor.isMetal()=False Then
+						GoTo Checkypxp
+					End If
+				Else
+				Checkypxp:
+					If Not tailElement.xpNeighbor Is Nothing Then
+						If Not tailElement.xpNeighbor.ppLNeighbor Is Nothing Then
+							If tailElement.xpNeighbor.ppLNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr, tailElement.xpNeighbor.ppLNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.ypNeighbor.ypNeighbor Is Nothing Then
+									If tailElement.ypNeighbor.ypNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.ypNeighbor.ypNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ypxp-ypyp"
+										Return True
+									End If
+								End If
+								If Not tailElement.xnNeighbor Is Nothing Then
+									If Not tailElement.xnNeighbor.npLNeighbor Is Nothing Then
+										If tailElement.xnNeighbor.npLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.xnNeighbor.npLNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ypxp-xnnpL"
+											Return True
+										End If
+									End If
+								End If
+								If Not tailElement.npLNeighbor Is Nothing Then
+									If Not tailElement.npLNeighbor.npLNeighbor Is Nothing Then
+										If tailElement.npLNeighbor.npLNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.npLNeighbor.npLNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ypxp-npLnpL"
+											Return True
+										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.ypNeighbor.ypNeighbor Is Nothing Then
+				If tailElement.ypNeighbor.ypNeighbor.isPureNonMetal()=False And _
+				tailElement.ypNeighbor.ypNeighbor.isMetal()=False Then
+					GoTo Checkypypx
+				End If
+			Else
+			Checkypypx:
+				If Not tailElement.xnNeighbor Is Nothing Then
+					If Not tailElement.xnNeighbor.npLNeighbor Is Nothing Then
+						If tailElement.xnNeighbor.npLNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr, tailElement.xnNeighbor.npLNeighbor.solidName & "$" )<>0 Then
+							GoTo ypypL
+						End If
+					End If
+				End If
+				If Not tailElement.npLNeighbor Is Nothing Then
+					If Not tailElement.npLNeighbor.npLNeighbor Is Nothing Then
+						If tailElement.npLNeighbor.npLNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr, tailElement.npLNeighbor.npLNeighbor.solidName & "$" )<>0 Then
+						ypypL:
+							If Not tailElement.xpNeighbor Is Nothing Then
+								If Not tailElement.xpNeighbor.ppLNeighbor Is Nothing Then
+									If tailElement.xpNeighbor.ppLNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr, tailElement.xpNeighbor.ppLNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ypypx-xpppL"
+										Return True
+									End If
+								End If
+							End If
+							If Not tailElement.ppLNeighbor Is Nothing Then
+								If Not tailElement.ppLNeighbor.ppLNeighbor Is Nothing Then
+									If tailElement.ppLNeighbor.ppLNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.ppLNeighbor.ppLNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ypypx-ppLppL"
+										Return True
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
 		End If
 		If InStr(neighborsStr,"z")<>0 Then
-			If Not tailElement.znNeighbor Is Nothing Then
-				If Not tailElement.znNeighbor.LpnNeighbor Is Nothing Then
-					If tailElement.znNeighbor.LpnNeighbor.isPureNonMetal()=True _
-					And InStr(availableStr,tailElement.znNeighbor.LpnNeighbor.solidName & "$")<>0 Then
-						If Not tailElement.zpNeighbor Is Nothing Then
-							If Not tailElement.zpNeighbor.LppNeighbor Is Nothing Then
-								If tailElement.zpNeighbor.LppNeighbor.isPureNonMetal()=True _
-								And InStr(availableStr,tailElement.zpNeighbor.LppNeighbor.solidName & "$")<>0 Then
-									'estimate if the path is blocked, if yes, return true
-									If tailElement.ynNeighbor.ynNeighbor Is Nothing Then
-										Return True
-									ElseIf tailElement.ynNeighbor.ynNeighbor.isPureNonMetal()=False Then
+			If Not tailElement.LpnNeighbor Is Nothing Then
+				If Not tailElement.LpnNeighbor.LpnNeighbor Is Nothing Then
+					If tailElement.LpnNeighbor.LpnNeighbor.isPureNonMetal()=False _
+					And tailElement.LpnNeighbor.LpnNeighbor.isMetal()=False Then
+						GoTo Checkypzn
+					End If
+				Else
+				Checkypzn:
+					If Not tailElement.znNeighbor Is Nothing Then
+						If Not tailElement.znNeighbor.LpnNeighbor Is Nothing Then
+							If tailElement.znNeighbor.LpnNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr,tailElement.znNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.ypNeighbor.ypNeighbor Is Nothing Then
+									If tailElement.ypNeighbor.ypNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.ypNeighbor.ypNeighbor.solidName & "$" )<>0 Then
 										Return True
 									End If
-									If Not tailElement.LpnNeighbor Is Nothing Then
-										If tailElement.LpnNeighbor.LpnNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.LpnNeighbor.LpnNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.zpNeighbor Is Nothing Then
+									If Not tailElement.zpNeighbor.LppNeighbor Is Nothing Then
+										If tailElement.zpNeighbor.LppNeighbor.isPureNonMetal()=True  And _
+										InStr(availableStr,tailElement.zpNeighbor.LppNeighbor.solidName & "$" )<>0 Then
 											Return True
 										End If
 									End If
-									If Not tailElement.LppNeighbor Is Nothing Then
-										If tailElement.LppNeighbor.LppNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.LppNeighbor.LppNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.LppNeighbor Is Nothing Then
+									If Not tailElement.LppNeighbor.LppNeighbor Is Nothing Then
+										If tailElement.LppNeighbor.LppNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.LppNeighbor.LppNeighbor.solidName & "$" )<>0 Then
 											Return True
 										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.LppNeighbor Is Nothing Then
+				If Not tailElement.LppNeighbor.LppNeighbor Is Nothing Then
+					If tailElement.LppNeighbor.LppNeighbor.isPureNonMetal()=False _
+					And tailElement.LppNeighbor.LppNeighbor.isMetal()=False Then
+						GoTo Checkypzp
+					End If
+				Else
+				Checkypzp:
+					If Not tailElement.zpNeighbor Is Nothing Then
+						If Not tailElement.zpNeighbor.LppNeighbor Is Nothing Then
+							If tailElement.zpNeighbor.LppNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr,tailElement.zpNeighbor.LppNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.ypNeighbor.ypNeighbor Is Nothing Then
+									If tailElement.ypNeighbor.ypNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.ypNeighbor.ypNeighbor.solidName & "$" )<>0 Then
+										Return True
+									End If
+								End If
+								If Not tailElement.znNeighbor Is Nothing Then
+									If Not tailElement.znNeighbor.LpnNeighbor Is Nothing Then
+										If tailElement.znNeighbor.LpnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.znNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
+											Return True
+										End If
+									End If
+								End If
+								If Not tailElement.LpnNeighbor Is Nothing Then
+									If Not tailElement.LpnNeighbor.LpnNeighbor Is Nothing Then
+										If tailElement.LpnNeighbor.LpnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.LpnNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
+											Return True
+										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.ypNeighbor.ypNeighbor Is Nothing Then
+				If tailElement.ypNeighbor.ypNeighbor.isPureNonMetal()=False And _
+				tailElement.ypNeighbor.ypNeighbor.isMetal()=False Then
+					GoTo Checkypypz
+				End If
+			Else
+			Checkypypz:
+				If Not tailElement.znNeighbor Is Nothing Then
+					If Not tailElement.znNeighbor.LpnNeighbor Is Nothing Then
+						If tailElement.znNeighbor.LpnNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr,tailElement.znNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
+							GoTo CheckLypyp
+						End If
+					End If
+				End If
+				If Not tailElement.LpnNeighbor Is Nothing Then
+					If Not tailElement.LpnNeighbor.LpnNeighbor Is Nothing Then
+						If tailElement.LpnNeighbor.LpnNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr,tailElement.LpnNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
+							CheckLypyp:
+							If Not tailElement.zpNeighbor Is Nothing Then
+								If Not tailElement.zpNeighbor.LppNeighbor Is Nothing Then
+									If tailElement.zpNeighbor.LppNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.zpNeighbor.LppNeighbor.solidName & "$" )<>0 Then
+										Return True
+									End If
+								End If
+							End If
+							If Not tailElement.LppNeighbor Is Nothing Then
+								If Not tailElement.LppNeighbor.LppNeighbor Is Nothing Then
+									If tailElement.LppNeighbor.LppNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.LppNeighbor.LppNeighbor.solidName & "$" )<>0 Then
+										Return True
 									End If
 								End If
 							End If
@@ -1339,31 +2230,36 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 	Case "zn"
 		'edge neighbor of face neighbor should be pure nonmetal on both sides
 		If InStr(neighborsStr,"x")<>0 Then
-			If Not tailElement.xnNeighbor Is Nothing Then
-				If Not tailElement.xnNeighbor.nLnNeighbor Is Nothing Then
-					If tailElement.xnNeighbor.nLnNeighbor.isPureNonMetal()=True _
-					And InStr(availableStr,tailElement.xnNeighbor.nLnNeighbor.solidName & "$")<>0 Then
-						If Not tailElement.xpNeighbor Is Nothing Then
-							If Not tailElement.xpNeighbor.pLnNeighbor Is Nothing Then
-								If tailElement.xpNeighbor.pLnNeighbor.isPureNonMetal()=True _
-								And InStr(availableStr,tailElement.xpNeighbor.pLnNeighbor.solidName & "$")<>0 Then
-									'estimate if the path is blocked, if yes, return true
-									If tailElement.znNeighbor.znNeighbor Is Nothing Then
-										Return True
-									ElseIf tailElement.znNeighbor.znNeighbor.isPureNonMetal()=False Then
+			If Not tailElement.nLnNeighbor Is Nothing Then
+				If Not tailElement.nLnNeighbor.nLnNeighbor Is Nothing Then
+					If tailElement.nLnNeighbor.nLnNeighbor.isPureNonMetal()=False _
+					And tailElement.nLnNeighbor.nLnNeighbor.isMetal()=False Then
+						GoTo Checkznxn
+					End If
+				Else
+				Checkznxn:
+					If Not tailElement.xnNeighbor Is Nothing Then
+						If Not tailElement.xnNeighbor.nLnNeighbor Is Nothing Then
+							If tailElement.xnNeighbor.nLnNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr, tailElement.xnNeighbor.nLnNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.znNeighbor.znNeighbor Is Nothing Then
+									If tailElement.znNeighbor.znNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr, tailElement.znNeighbor.znNeighbor.solidName & "$" )<>0 Then
 										Return True
 									End If
-									If Not tailElement.nLnNeighbor Is Nothing Then
-										If tailElement.nLnNeighbor.nLnNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.nLnNeighbor.nLnNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.xpNeighbor Is Nothing Then
+									If Not tailElement.xpNeighbor.pLnNeighbor Is Nothing Then
+										If tailElement.xpNeighbor.pLnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.xpNeighbor.pLnNeighbor.solidName & "$" )<>0 Then
 											Return True
 										End If
 									End If
-									If Not tailElement.pLnNeighbor Is Nothing Then
-										If tailElement.pLnNeighbor.pLnNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.pLnNeighbor.pLnNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.pLnNeighbor Is Nothing Then
+									If Not tailElement.pLnNeighbor.pLnNeighbor Is Nothing Then
+										If tailElement.pLnNeighbor.pLnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.pLnNeighbor.pLnNeighbor.solidName & "$" )<>0 Then
 											Return True
 										End If
 									End If
@@ -1373,35 +2269,198 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 					End If
 				End If
 			End If
+			If Not tailElement.pLnNeighbor Is Nothing Then
+				If Not tailElement.pLnNeighbor.pLnNeighbor Is Nothing Then
+					If tailElement.pLnNeighbor.pLnNeighbor.isPureNonMetal()=False _
+					And tailElement.pLnNeighbor.pLnNeighbor.isMetal()=False Then
+						GoTo Checkznxp
+					End If
+				Else
+				Checkznxp:
+					If Not tailElement.xpNeighbor Is Nothing Then
+						If Not tailElement.xpNeighbor.pLnNeighbor Is Nothing Then
+							If tailElement.xpNeighbor.pLnNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr, tailElement.xpNeighbor.pLnNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.znNeighbor.znNeighbor Is Nothing Then
+									If tailElement.znNeighbor.znNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.znNeighbor.znNeighbor.solidName & "$" )<>0 Then
+										Return True
+									End If
+								End If
+								If Not tailElement.xnNeighbor Is Nothing Then
+									If Not tailElement.xnNeighbor.nLnNeighbor Is Nothing Then
+										If tailElement.xnNeighbor.nLnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.xnNeighbor.nLnNeighbor.solidName & "$" )<>0 Then
+											Return True
+										End If
+									End If
+								End If
+								If Not tailElement.nLnNeighbor Is Nothing Then
+									If Not tailElement.nLnNeighbor.nLnNeighbor Is Nothing Then
+										If tailElement.nLnNeighbor.nLnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.nLnNeighbor.nLnNeighbor.solidName & "$" )<>0 Then
+											Return True
+										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.znNeighbor.znNeighbor Is Nothing Then
+				If tailElement.znNeighbor.znNeighbor.isPureNonMetal()=False And _
+				tailElement.znNeighbor.znNeighbor.isMetal()=False Then
+					GoTo Checkznznx
+				End If
+			Else
+			Checkznznx:
+				If Not tailElement.xnNeighbor Is Nothing Then
+					If Not tailElement.xnNeighbor.nLnNeighbor Is Nothing Then
+						If tailElement.xnNeighbor.nLnNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr, tailElement.xnNeighbor.nLnNeighbor.solidName & "$" )<>0 Then
+							GoTo CheckznznL
+						End If
+					End If
+				End If
+				If Not tailElement.nLnNeighbor Is Nothing Then
+					If Not tailElement.nLnNeighbor.nLnNeighbor Is Nothing Then
+						If tailElement.nLnNeighbor.nLnNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr, tailElement.nLnNeighbor.nLnNeighbor.solidName & "$" )<>0 Then
+						CheckznznL:
+							If Not tailElement.xpNeighbor Is Nothing Then
+								If Not tailElement.xpNeighbor.pLnNeighbor Is Nothing Then
+									If tailElement.xpNeighbor.pLnNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr, tailElement.xpNeighbor.pLnNeighbor.solidName & "$" )<>0 Then
+										Return True
+									End If
+								End If
+							End If
+							If Not tailElement.pLnNeighbor Is Nothing Then
+								If Not tailElement.pLnNeighbor.pLnNeighbor Is Nothing Then
+									If tailElement.pLnNeighbor.pLnNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.pLnNeighbor.pLnNeighbor.solidName & "$" )<>0 Then
+										Return True
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
 		End If
 		If InStr(neighborsStr,"y")<>0 Then
-			If Not tailElement.ynNeighbor Is Nothing Then
-				If Not tailElement.ynNeighbor.LnnNeighbor Is Nothing Then
-					If tailElement.ynNeighbor.LnnNeighbor.isPureNonMetal()=True _
-					And InStr(availableStr,tailElement.ynNeighbor.LnnNeighbor.solidName & "$")<>0 Then
-						If Not tailElement.ypNeighbor Is Nothing Then
-							If Not tailElement.ypNeighbor.LpnNeighbor Is Nothing Then
-								If tailElement.ypNeighbor.LpnNeighbor.isPureNonMetal()=True _
-								And InStr(availableStr,tailElement.ypNeighbor.LpnNeighbor.solidName & "$")<>0 Then
-									'estimate if the path is blocked, if yes, return true
-									If tailElement.znNeighbor.znNeighbor Is Nothing Then
-										Return True
-									ElseIf tailElement.znNeighbor.znNeighbor.isPureNonMetal()=False Then
+			If Not tailElement.LnnNeighbor Is Nothing Then
+				If Not tailElement.LnnNeighbor.LnnNeighbor Is Nothing Then
+					If tailElement.LnnNeighbor.LnnNeighbor.isPureNonMetal()=False _
+					And tailElement.LnnNeighbor.LnnNeighbor.isMetal()=False Then
+						GoTo Checkznyn
+					End If
+				Else
+				Checkznyn:
+					If Not tailElement.ynNeighbor Is Nothing Then
+						If Not tailElement.ynNeighbor.LnnNeighbor Is Nothing Then
+							If tailElement.ynNeighbor.LnnNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr,tailElement.ynNeighbor.LnnNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.znNeighbor.znNeighbor Is Nothing Then
+									If tailElement.znNeighbor.znNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.znNeighbor.znNeighbor.solidName & "$" )<>0 Then
 										Return True
 									End If
-									If Not tailElement.LnnNeighbor Is Nothing Then
-										If tailElement.LnnNeighbor.LnnNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.LnnNeighbor.LnnNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.ypNeighbor Is Nothing Then
+									If Not tailElement.ypNeighbor.LpnNeighbor Is Nothing Then
+										If tailElement.ypNeighbor.LpnNeighbor.isPureNonMetal()=True  And _
+										InStr(availableStr,tailElement.ypNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
 											Return True
 										End If
 									End If
-									If Not tailElement.LpnNeighbor Is Nothing Then
-										If tailElement.LpnNeighbor.LpnNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.LpnNeighbor.LpnNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.LpnNeighbor Is Nothing Then
+									If Not tailElement.LpnNeighbor.LpnNeighbor Is Nothing Then
+										If tailElement.LpnNeighbor.LpnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.LpnNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
 											Return True
 										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.LpnNeighbor Is Nothing Then
+				If Not tailElement.LpnNeighbor.LpnNeighbor Is Nothing Then
+					If tailElement.LpnNeighbor.LpnNeighbor.isPureNonMetal()=False _
+					And tailElement.LpnNeighbor.LpnNeighbor.isMetal()=False Then
+						GoTo Checkznyp
+					End If
+				Else
+				Checkznyp:
+					If Not tailElement.ypNeighbor Is Nothing Then
+						If Not tailElement.ypNeighbor.LpnNeighbor Is Nothing Then
+							If tailElement.ypNeighbor.LpnNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr,tailElement.ypNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.znNeighbor.znNeighbor Is Nothing Then
+									If tailElement.znNeighbor.znNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.znNeighbor.znNeighbor.solidName & "$" )<>0 Then
+										Return True
+									End If
+								End If
+								If Not tailElement.ynNeighbor Is Nothing Then
+									If Not tailElement.ynNeighbor.LnnNeighbor Is Nothing Then
+										If tailElement.ynNeighbor.LnnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.ynNeighbor.LnnNeighbor.solidName & "$" )<>0 Then
+											Return True
+										End If
+									End If
+								End If
+								If Not tailElement.LnnNeighbor Is Nothing Then
+									If Not tailElement.LnnNeighbor.LnnNeighbor Is Nothing Then
+										If tailElement.LnnNeighbor.LnnNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.LnnNeighbor.LnnNeighbor.solidName & "$" )<>0 Then
+											Return True
+										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.znNeighbor.znNeighbor Is Nothing Then
+				If tailElement.znNeighbor.znNeighbor.isPureNonMetal()=False And _
+				tailElement.znNeighbor.znNeighbor.isMetal()=False Then
+					GoTo Checkznzny
+				End If
+			Else
+			Checkznzny:
+				If Not tailElement.ynNeighbor Is Nothing Then
+					If Not tailElement.ynNeighbor.LnnNeighbor Is Nothing Then
+						If tailElement.ynNeighbor.LnnNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr,tailElement.ynNeighbor.LnnNeighbor.solidName & "$" )<>0 Then
+							GoTo CheckLznzn
+						End If
+					End If
+				End If
+				If Not tailElement.LnnNeighbor Is Nothing Then
+					If Not tailElement.LnnNeighbor.LnnNeighbor Is Nothing Then
+						If tailElement.LnnNeighbor.LnnNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr,tailElement.LnnNeighbor.LnnNeighbor.solidName & "$" )<>0 Then
+							CheckLznzn:
+							If Not tailElement.ypNeighbor Is Nothing Then
+								If Not tailElement.ypNeighbor.LpnNeighbor Is Nothing Then
+									If tailElement.ypNeighbor.LpnNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.ypNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
+										Return True
+									End If
+								End If
+							End If
+							If Not tailElement.LpnNeighbor Is Nothing Then
+								If Not tailElement.LpnNeighbor.LpnNeighbor Is Nothing Then
+									If tailElement.LpnNeighbor.LpnNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.LpnNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
+										Return True
 									End If
 								End If
 							End If
@@ -1413,31 +2472,36 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 	Case "zp"
 		'edge neighbor of face neighbor should be pure nonmetal on both sides
 		If InStr(neighborsStr,"x")<>0 Then
-			If Not tailElement.xnNeighbor Is Nothing Then
-				If Not tailElement.xnNeighbor.nLpNeighbor Is Nothing Then
-					If tailElement.xnNeighbor.nLpNeighbor.isPureNonMetal()=True _
-					And InStr(availableStr,tailElement.xnNeighbor.nLpNeighbor.solidName & "$")<>0 Then
-						If Not tailElement.xpNeighbor Is Nothing Then
-							If Not tailElement.xpNeighbor.pLpNeighbor Is Nothing Then
-								If tailElement.xpNeighbor.pLpNeighbor.isPureNonMetal()=True _
-								And InStr(availableStr,tailElement.xpNeighbor.pLpNeighbor.solidName & "$")<>0 Then
-									'estimate if the path is blocked, if yes, return true
-									If tailElement.zpNeighbor.zpNeighbor Is Nothing Then
-										Return True
-									ElseIf tailElement.zpNeighbor.zpNeighbor.isPureNonMetal()=False Then
+			If Not tailElement.nLpNeighbor Is Nothing Then
+				If Not tailElement.nLpNeighbor.nLpNeighbor Is Nothing Then
+					If tailElement.nLpNeighbor.nLpNeighbor.isPureNonMetal()=False _
+					And tailElement.nLpNeighbor.nLpNeighbor.isMetal()=False Then
+						GoTo Checkzpxn
+					End If
+				Else
+				Checkzpxn:
+					If Not tailElement.xnNeighbor Is Nothing Then
+						If Not tailElement.xnNeighbor.nLpNeighbor Is Nothing Then
+							If tailElement.xnNeighbor.nLpNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr, tailElement.xnNeighbor.nLpNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.zpNeighbor.zpNeighbor Is Nothing Then
+									If tailElement.zpNeighbor.zpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr, tailElement.zpNeighbor.zpNeighbor.solidName & "$" )<>0 Then
 										Return True
 									End If
-									If Not tailElement.nLpNeighbor Is Nothing Then
-										If tailElement.nLpNeighbor.nLpNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.nLpNeighbor.nLpNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.xpNeighbor Is Nothing Then
+									If Not tailElement.xpNeighbor.pLpNeighbor Is Nothing Then
+										If tailElement.xpNeighbor.pLpNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.xpNeighbor.pLpNeighbor.solidName & "$" )<>0 Then
 											Return True
 										End If
 									End If
-									If Not tailElement.pLpNeighbor Is Nothing Then
-										If tailElement.pLpNeighbor.pLpNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.pLpNeighbor.pLpNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.pLpNeighbor Is Nothing Then
+									If Not tailElement.pLpNeighbor.pLpNeighbor Is Nothing Then
+										If tailElement.pLpNeighbor.pLpNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.pLpNeighbor.pLpNeighbor.solidName & "$" )<>0 Then
 											Return True
 										End If
 									End If
@@ -1447,35 +2511,198 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 					End If
 				End If
 			End If
+			If Not tailElement.pLpNeighbor Is Nothing Then
+				If Not tailElement.pLpNeighbor.pLpNeighbor Is Nothing Then
+					If tailElement.pLpNeighbor.pLpNeighbor.isPureNonMetal()=False _
+					And tailElement.pLpNeighbor.pLpNeighbor.isMetal()=False Then
+						GoTo Checkzpxp
+					End If
+				Else
+				Checkzpxp:
+					If Not tailElement.xpNeighbor Is Nothing Then
+						If Not tailElement.xpNeighbor.pLpNeighbor Is Nothing Then
+							If tailElement.xpNeighbor.pLpNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr, tailElement.xpNeighbor.pLpNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.zpNeighbor.zpNeighbor Is Nothing Then
+									If tailElement.zpNeighbor.zpNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.zpNeighbor.zpNeighbor.solidName & "$" )<>0 Then
+										Return True
+									End If
+								End If
+								If Not tailElement.xnNeighbor Is Nothing Then
+									If Not tailElement.xnNeighbor.nLpNeighbor Is Nothing Then
+										If tailElement.xnNeighbor.nLpNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.xnNeighbor.nLpNeighbor.solidName & "$" )<>0 Then
+											Return True
+										End If
+									End If
+								End If
+								If Not tailElement.nLpNeighbor Is Nothing Then
+									If Not tailElement.nLpNeighbor.nLpNeighbor Is Nothing Then
+										If tailElement.nLpNeighbor.nLpNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr, tailElement.nLpNeighbor.nLpNeighbor.solidName & "$" )<>0 Then
+											Return True
+										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.zpNeighbor.zpNeighbor Is Nothing Then
+				If tailElement.zpNeighbor.zpNeighbor.isPureNonMetal()=False And _
+				tailElement.zpNeighbor.zpNeighbor.isMetal()=False Then
+					GoTo Checkzpzpx
+				End If
+			Else
+			Checkzpzpx:
+				If Not tailElement.xnNeighbor Is Nothing Then
+					If Not tailElement.xnNeighbor.nLpNeighbor Is Nothing Then
+						If tailElement.xnNeighbor.nLpNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr, tailElement.xnNeighbor.nLpNeighbor.solidName & "$" )<>0 Then
+							GoTo CheckzpzpL
+						End If
+					End If
+				End If
+				If Not tailElement.nLpNeighbor Is Nothing Then
+					If Not tailElement.nLpNeighbor.nLpNeighbor Is Nothing Then
+						If tailElement.nLpNeighbor.nLpNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr, tailElement.nLpNeighbor.nLpNeighbor.solidName & "$" )<>0 Then
+						CheckzpzpL:
+							If Not tailElement.xpNeighbor Is Nothing Then
+								If Not tailElement.xpNeighbor.pLpNeighbor Is Nothing Then
+									If tailElement.xpNeighbor.pLpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr, tailElement.xpNeighbor.pLpNeighbor.solidName & "$" )<>0 Then
+										Return True
+									End If
+								End If
+							End If
+							If Not tailElement.pLpNeighbor Is Nothing Then
+								If Not tailElement.pLpNeighbor.pLpNeighbor Is Nothing Then
+									If tailElement.pLpNeighbor.pLpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.pLpNeighbor.pLpNeighbor.solidName & "$" )<>0 Then
+										Return True
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
 		End If
 		If InStr(neighborsStr,"y")<>0 Then
-			If Not tailElement.ynNeighbor Is Nothing Then
-				If Not tailElement.ynNeighbor.LnpNeighbor Is Nothing Then
-					If tailElement.ynNeighbor.LnpNeighbor.isPureNonMetal()=True _
-					And InStr(availableStr,tailElement.ynNeighbor.LnpNeighbor.solidName & "$")<>0 Then
-						If Not tailElement.ypNeighbor Is Nothing Then
-							If Not tailElement.ypNeighbor.LppNeighbor Is Nothing Then
-								If tailElement.ypNeighbor.LppNeighbor.isPureNonMetal()=True _
-								And InStr(availableStr,tailElement.ypNeighbor.LppNeighbor.solidName & "$")<>0 Then
-									'estimate if the path is blocked, if yes, return true
-									If tailElement.zpNeighbor.zpNeighbor Is Nothing Then
-										Return True
-									ElseIf tailElement.zpNeighbor.zpNeighbor.isPureNonMetal()=False Then
+			If Not tailElement.LnpNeighbor Is Nothing Then
+				If Not tailElement.LnpNeighbor.LnpNeighbor Is Nothing Then
+					If tailElement.LnpNeighbor.LnpNeighbor.isPureNonMetal()=False _
+					And tailElement.LnpNeighbor.LnpNeighbor.isMetal()=False Then
+						GoTo Checkzpyn
+					End If
+				Else
+				Checkzpyn:
+					If Not tailElement.ynNeighbor Is Nothing Then
+						If Not tailElement.ynNeighbor.LnpNeighbor Is Nothing Then
+							If tailElement.ynNeighbor.LnpNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr,tailElement.ynNeighbor.LnpNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.zpNeighbor.zpNeighbor Is Nothing Then
+									If tailElement.zpNeighbor.zpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.zpNeighbor.zpNeighbor.solidName & "$" )<>0 Then
 										Return True
 									End If
-									If Not tailElement.LnpNeighbor Is Nothing Then
-										If tailElement.LnpNeighbor.LnpNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.LnpNeighbor.LnpNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.ypNeighbor Is Nothing Then
+									If Not tailElement.ypNeighbor.LppNeighbor Is Nothing Then
+										If tailElement.ypNeighbor.LppNeighbor.isPureNonMetal()=True  And _
+										InStr(availableStr,tailElement.ypNeighbor.LppNeighbor.solidName & "$" )<>0 Then
 											Return True
 										End If
 									End If
-									If Not tailElement.LppNeighbor Is Nothing Then
-										If tailElement.LppNeighbor.LppNeighbor Is Nothing Then
-											Return True
-										ElseIf tailElement.LppNeighbor.LppNeighbor.isPureNonMetal()=False Then
+								End If
+								If Not tailElement.LppNeighbor Is Nothing Then
+									If Not tailElement.LppNeighbor.LppNeighbor Is Nothing Then
+										If tailElement.LppNeighbor.LppNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.LppNeighbor.LppNeighbor.solidName & "$" )<>0 Then
 											Return True
 										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.LppNeighbor Is Nothing Then
+				If Not tailElement.LppNeighbor.LppNeighbor Is Nothing Then
+					If tailElement.LppNeighbor.LppNeighbor.isPureNonMetal()=False _
+					And tailElement.LppNeighbor.LppNeighbor.isMetal()=False Then
+						GoTo Checkzpyp
+					End If
+				Else
+				Checkzpyp:
+					If Not tailElement.ypNeighbor Is Nothing Then
+						If Not tailElement.ypNeighbor.LppNeighbor Is Nothing Then
+							If tailElement.ypNeighbor.LppNeighbor.isPureNonMetal()=True And _
+							InStr(availableStr,tailElement.ypNeighbor.LppNeighbor.solidName & "$" )<>0 Then
+								If Not tailElement.zpNeighbor.zpNeighbor Is Nothing Then
+									If tailElement.zpNeighbor.zpNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.zpNeighbor.zpNeighbor.solidName & "$" )<>0 Then
+										Return True
+									End If
+								End If
+								If Not tailElement.ynNeighbor Is Nothing Then
+									If Not tailElement.ynNeighbor.LnpNeighbor Is Nothing Then
+										If tailElement.ynNeighbor.LnpNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.ynNeighbor.LnpNeighbor.solidName & "$" )<>0 Then
+											Return True
+										End If
+									End If
+								End If
+								If Not tailElement.LnpNeighbor Is Nothing Then
+									If Not tailElement.LnpNeighbor.LnpNeighbor Is Nothing Then
+										If tailElement.LnpNeighbor.LnpNeighbor.isPureNonMetal()=True And _
+										InStr(availableStr,tailElement.LnpNeighbor.LnpNeighbor.solidName & "$" )<>0 Then
+											Return True
+										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+			If Not tailElement.zpNeighbor.zpNeighbor Is Nothing Then
+				If tailElement.zpNeighbor.zpNeighbor.isPureNonMetal()=False And _
+				tailElement.zpNeighbor.zpNeighbor.isMetal()=False Then
+					GoTo Checkzpzpy
+				End If
+			Else
+			Checkzpzpy:
+				If Not tailElement.ynNeighbor Is Nothing Then
+					If Not tailElement.ynNeighbor.LnpNeighbor Is Nothing Then
+						If tailElement.ynNeighbor.LnpNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr,tailElement.ynNeighbor.LnpNeighbor.solidName & "$" )<>0 Then
+							GoTo CheckLzpzp
+						End If
+					End If
+				End If
+				If Not tailElement.LnpNeighbor Is Nothing Then
+					If Not tailElement.LnpNeighbor.LnpNeighbor Is Nothing Then
+						If tailElement.LnpNeighbor.LnpNeighbor.isPureNonMetal()=True And _
+						InStr(availableStr,tailElement.LnpNeighbor.LnpNeighbor.solidName & "$" )<>0 Then
+							CheckLzpzp:
+							If Not tailElement.ypNeighbor Is Nothing Then
+								If Not tailElement.ypNeighbor.LppNeighbor Is Nothing Then
+									If tailElement.ypNeighbor.LppNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.ypNeighbor.LppNeighbor.solidName & "$" )<>0 Then
+										Return True
+									End If
+								End If
+							End If
+							If Not tailElement.LppNeighbor Is Nothing Then
+								If Not tailElement.LppNeighbor.LppNeighbor Is Nothing Then
+									If tailElement.LppNeighbor.LppNeighbor.isPureNonMetal()=True And _
+									InStr(availableStr,tailElement.LppNeighbor.LppNeighbor.solidName & "$" )<>0 Then
+										Return True
 									End If
 								End If
 							End If
@@ -1576,13 +2803,7 @@ Function patcher()
 	Next
 
 End Function
-Private Function deleteElementAt(ByVal index As Integer, ByRef arr As Variant)
-	Dim i As Integer
-	For i=index+1 To UBound(arr)
-		arr(i-1)=arr(i)
-	Next
-	ReDim Preserve arr(LBound(arr) To UBound(arr)-1)
-End Function
+
 Public Function toHistoryList()
 	Dim A As AntennaElement, i As Integer
 	Dim historyCaption As String
