@@ -16,16 +16,20 @@ Public sub_material As String
 Public ant As Antenna
 Public tgtFreq As Double
 Public fileNumber As Integer
+Public availableElementsStr As String
+Public availableElementsNum As Integer
 Const macrofile = "C:\Program Files (x86)\CST Studio Suite 2021\Library\Macros\Coros\Post-Process\Store Resonant Frequency and Q.mcr"
 Sub Main
-	Rebuild
+
 	Dim prjPath As String
 	Dim logFile As String
-
 	prjPath = GetProjectPath("Project")
    	logFile = prjPath + "\Progress log.txt"
    	fileNumber = FreeFile
    	Open logFile For Output As #fileNumber
+   	ReportInformationToWindow "**********Rebuilding the model at " + CStr(Now) +"************"
+   	Print #fileNumber, "************Rebuilding the model at " + CStr(Now) +"****************"
+   	Rebuild
 	ReportInformationToWindow "***********Initializing of antenna begins at " + CStr(Now) +"*************"
    	Print #fileNumber, "************Initializing of antenna begins at " + CStr(Now) +"****************"
 	antennaDesign_initialize()
@@ -40,6 +44,7 @@ Sub Main
 		Text 10,21,120,14,"Target frequency:",.Text6
 		GroupBox 0,49,330,49,"Feeding part selection:",.GroupBox2
 		DropListBox 60,70,210,14,aSolidArray_CST(),.feedingPart
+		Text 210,21,30,14,"GHz",.Text1
 	End Dialog
 	Dim dlg As UserDialog
 	'Dim tgtFreq As Double
@@ -48,6 +53,7 @@ Sub Main
 	Dim tgtLength As Double
 	Dim deltaX As Double, deltaY As Double, deltaZ As Double
 	Dim resFreq As Double
+	Dim Q As Double, totEffi As Double, radEffi As Double
 	Dim ifSuccess As Boolean
 
 	'Dim ant_material As String
@@ -70,7 +76,7 @@ Sub Main
 	End If
 
 	Set ant=New Antenna
-	ant.initialize(feed, ant_material, sub_material)
+	ant.initialize(feed, ant_material, sub_material,availableElementsNum, availableElementsStr)
 		'Solid.ChangeMaterial "1 Antenna:Antenna", "Metal/Copper (annealed)"
 		'feed.solidMaterial = ant_material
 		'Solid.ChangeMaterial(feed.solidName,ant_material)
@@ -79,7 +85,7 @@ Sub Main
 	'***************Add a choice to recover antenna routing from the progress log*********************
 	feed.getDimensions(deltaX,deltaY,deltaZ)
 	X=0
-	tgtLength = Round(3e8/(tgtFreq*1e6)/4,1) ' unit mm
+	tgtLength = Round(3e8/(tgtFreq*1e6)/3,1) ' unit mm
 	resFreq = 0
 	'ReportInformationToWindow "%% Antenna target length: "+CStr(tgtLength)+"mm"
 	'Print #fileNumber, "%% Antenna target length: "+CStr(tgtLength)+"mm"
@@ -94,6 +100,7 @@ Sub Main
 		Print #fileNumber, "%% The target length is: "+CStr(Round(tgtLength,2))+"mm"
 		If X>1 Then
 			ant.destructor()
+			ant.initialize(feed, ant_material, sub_material,availableElementsNum, availableElementsStr)
 		End If
 		ifSuccess = False
 		Y=0
@@ -108,7 +115,8 @@ Sub Main
 			" is done and the antenna length target is met, simulation will begin now"
 			'ant.patcher()
 			'Rebuild, start simulating
-			Print #fileNumber, "%% Achieved antenna length: " + CStr(Round(ant.length,2))
+			ReportInformationToWindow "%% Achieved antenna length: " + CStr(Round(ant.length,2))+"mm"
+			Print #fileNumber, "%% Achieved antenna length: " + CStr(Round(ant.length,2))+"mm"
 			ant.toHistoryList()
 			Solver.MeshAdaption(False)
 			Solver.SteadyStateLimit(-40)
@@ -116,7 +124,7 @@ Sub Main
 			ReportInformationToWindow "%% Simulation#"+CStr(Y)+" of antenna ends at " + CStr(Now)
 			Print #fileNumber, "%% Simulation#"+CStr(Y)+" of antenna ends at " + CStr(Now)
 			MacroRun(macrofile)
-			resFreq = getFrequencyValue()(0)
+			resFreq = getResonanceFrequency()(0)
 			ReportInformationToWindow "%% Simulation done, the resonance frequency is: " + CStr(Round(resFreq,2)) + "GHz"
 			Print #fileNumber, "%% Simulation done, the resonance frequency is: " + CStr(Round(resFreq,2)) + "GHz"
 			'Amend the target length when the resonance frequency does not meet the target
@@ -128,13 +136,23 @@ Sub Main
 				ReportInformationToWindow "%% New target length is: "+CStr(Round(tgtLength,2))+"mm"
 				Print #fileNumber, "%% New target length is: "+CStr(Round(tgtLength,2))+"mm"
 			Else
-				If	MsgBox("Go on?",vbOkCancel,"Notice")<>vbOK Then
+				If False Then	'MsgBox("Go on?",vbOkCancel,"Notice")<>vbOK Then
 					Exit Do
 				Else
-					ReportInformationToWindow "%% The resonance frequency has been met @"+ CStr(Round(resFreq,2)) + "GHz"
-					Print #fileNumber, "%% The resonance frequency has been met @"+ CStr(Round(resFreq,2)) + "GHz"
+					Q = getQ()(0)
+					totEffi = getEfficiencyAtFrequency(resFreq, True)
+					radEffi = getEfficiencyAtFrequency(resFreq, False)
+					ReportInformationToWindow "%% The resonance frequency has been met @"& CStr(Round(resFreq,2)) & "GHz"
+					Print #fileNumber, "%% The resonance frequency has been met @"& CStr(Round(resFreq,2)) & "GHz"
+					ReportInformationToWindow "%%Antenna Logics: " & ant.conLogics
+					Print #fileNumber, "%% Antenna Logics: " & ant.conLogics
+					ReportInformationToWindow "%% The Q value is "&CStr(Round(Q,2))
+					Print #fileNumber, "%% The Q value is "&CStr(Round(Q,2))
+					ReportInformationToWindow "%%Radiation efficiency: " & CStr(Round(radEffi, 2))&"dB"
+					Print #fileNumber, "%% Radiation efficiency: " & CStr(Round(radEffi, 2))&"dB"
+					ReportInformationToWindow "%%Total efficiency: " & CStr(Round(totEffi, 2))&"dB"
+					Print #fileNumber, "%% Total efficiency: " & CStr(Round(totEffi, 2))&"dB"
 					'*********Record more data such as radiation efficiency and connection logics string to the progress log************
-
 					DeleteResults
 					Exit While
 				End If
@@ -158,6 +176,8 @@ Sub Main
 	MsgBox "OOOps"
 End Sub
 Sub antennaDesign_initialize()
+	availableElementsStr=""
+	availableElementsNum=0
 	'Rebuild
 	Plot.update
 	'Dim aSolidArray_CST() As String, nSolids_CST As Integer
@@ -189,6 +209,7 @@ Sub antennaDesign_initialize()
 	ReDim antElem_arr(nSolids_CST)
 	sCommand = ""
 	'Construct class instances from solids
+	availableElementsNum = nSolids_CST
 	If (nSolids_CST > 0) Then
 		For iSolid_CST = 1 To nSolids_CST
 			sFullSolidName = aSolidArray_CST(iSolid_CST-1)
@@ -196,11 +217,12 @@ Sub antennaDesign_initialize()
 			Set antElem_arr(iSolid_CST-1) = New AntennaElement
 			With antElem_arr(iSolid_CST-1)
 				.solidName = sFullSolidName
+				availableElementsStr = availableElementsStr & sFullSolidName & "$"
 				.solidMaterial = Solid.GetMaterialNameForShape(sFullSolidName)
 			If StrComp(.solidMaterial,sub_material)<>0 Then
 			'for debug
 				 '.setMaterial(sub_material)
-				 sCommand = sCommand + .setMaterialPermanently(sub_material)
+				 sCommand = sCommand & .setMaterialPermanently(sub_material)
 			End If
 				.setStartPoint(xMin,yMin,zMin)
 				.setEndPoint(xMax,yMax,zMax)
@@ -482,21 +504,23 @@ Sub SelectSolids_Antenna(aSolidArray_LIB() As String, nSolids_LIB As Integer)
 	End If
 
 End Sub
-Function getFrequencyValue() As Variant
+Function getResonanceFrequency() As Variant
     Dim prjPath As String
 	Dim dataFile As String
 	Dim freq() As Double
 	Dim resStr As String
 	Dim n As Integer
 	Dim lineRead As String
+	Dim fFileNumber As Integer
 	prjPath = GetProjectPath("Project")
    	dataFile = prjPath + "\freq_Q.txt"
    	n = 1
-	Open dataFile For Input As #1
-	While Not EOF(1)
-		Line Input #1, lineRead
-		While Not EOF(1) And Left(lineRead,1)<>"F"
-			Line Input #1, lineRead
+   	fFileNumber = FreeFile
+	Open dataFile For Input As #fFileNumber
+	While Not EOF(fFileNumber)
+		Line Input #fFileNumber, lineRead
+		While Not EOF(fFileNumber) And Left(lineRead,1)<>"F"
+			Line Input #fFileNumber, lineRead
 		Wend
 
 		If Left(lineRead,1) = "F" Then
@@ -507,6 +531,84 @@ Function getFrequencyValue() As Variant
 		End If
 		n = n+1
 	Wend
-	getFrequencyValue = freq
-	Close #1
+	Return freq
+	Close #fFileNumber
+End Function
+Function getQ() As Variant
+    Dim prjPath As String
+	Dim dataFile As String
+	Dim Q() As Double
+	Dim resStr As String
+	Dim n As Integer
+	Dim lineRead As String
+	Dim QfileNumber As Integer
+	prjPath = GetProjectPath("Project")
+   	dataFile = prjPath + "\freq_Q.txt"
+   	n = 1
+   	QfileNumber=FreeFile
+	Open dataFile For Input As #QfileNumber
+	While Not EOF(QfileNumber)
+		Line Input #QfileNumber, lineRead
+		While Not EOF(QfileNumber) And Left(lineRead,1)<>"Q"
+			Line Input #QfileNumber, lineRead
+		Wend
+
+		If Left(lineRead,1) = "Q" Then
+			ReDim Preserve Q(n)
+			resStr = Split(lineRead, "=")(1)
+			Q(n-1) = CDbl(resStr) 'Q value
+
+		End If
+		n = n+1
+	Wend
+	Return Q
+	Close #QfileNumber
+End Function
+Function getEfficiencyAtFrequency(f As Double, totOrRad As Boolean) As Double
+	'totOrRad: True-total efficiency; False-radation efficiency
+	Dim effiItem As String
+	Dim effiPath As String
+	Dim effiFile As String
+	Dim currentItem As String
+
+    effiPath = "1D Results\Efficiencies"
+    effiItem = Resulttree.GetFirstChildName(effiPath)
+
+    If effiItem = "" Then
+   	  MsgBox("No Efficiency results found!",vbCritical,"Warning")
+   	  Exit All
+    End If
+
+    currentItem = Resulttree.GetFirstChildName(effiPath)
+    While currentItem <> ""
+		Dim EffiType As String, FileName As String
+		Dim nPoints As Long, n As Integer, dBValue As Double, X As Double, Y As Double
+		Dim O As Object
+		EffiType = Mid(currentItem,Len(effiPath)+2,InStr(currentItem,"[")-Len(effiPath)-2)
+
+		If totOrRad=False Then
+			If InStr(EffiType, "Rad")<>0 Then
+				GoTo getValue
+			End If
+		Else
+			If InStr(EffiType, "Tot")<>0 Then
+			getValue:
+        		FileName = Resulttree.GetFileFromTreeItem(currentItem)
+        		Set O = Result1DComplex(FileName)
+        		nPoints = O.GetN
+
+    			For n = 0 To nPoints-2
+    				If O.GetX(n)<= f And O.GetX(n+1)>=f Then
+    					Y = (O.GetYRe(n+1)-O.GetYRe(n))/(O.GetX(n+1)-O.GetX(n))*(f-O.GetX(n))+O.GetYRe(n)
+    					Exit For
+    				End If
+    			Next
+    			'Avg = Ysum/Num
+    			dBValue = Log(Y)/Log(10)*10
+    			Return dBValue
+        	End If
+    	End If
+	   currentItem = Resulttree.GetNextItemName(currentItem)
+    Wend
+    Return 0
 End Function
