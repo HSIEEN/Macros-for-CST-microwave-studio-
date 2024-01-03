@@ -1268,7 +1268,6 @@ Public Function getMetalFaceNeighbors(ByRef NeighborNum As Integer) As Variant
 	    If faceNeighbors(i) IsNot Nothing Then
 	    	If faceNeighbors(i).isMetal()=True Then
 				Set neighbor(NeighborNum)=faceNeighbors(i)
-				'neighborStr(neighborNum)=fNeighborStr(i)
 				NeighborNum += 1
 			End If
 	    End If
