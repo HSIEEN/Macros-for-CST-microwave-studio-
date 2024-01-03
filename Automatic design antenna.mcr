@@ -23,31 +23,8 @@ Sub Main
 
 	Dim prjPath As String
 	Dim logFile As String
-	prjPath = GetProjectPath("Project")
-   	logFile = prjPath + "\Progress log.txt"
-   	fileNumber = FreeFile
-   	Open logFile For Output As #fileNumber
-   	ReportInformationToWindow "**********Rebuilding the model at " + CStr(Now) +"************"
-   	Print #fileNumber, "************Rebuilding the model at " + CStr(Now) +"****************"
-   	Rebuild
-	ReportInformationToWindow "***********Initializing of antenna begins at " + CStr(Now) +"*************"
-   	Print #fileNumber, "************Initializing of antenna begins at " + CStr(Now) +"****************"
-	antennaDesign_initialize()
-	ReportInformationToWindow "**********Initializing of antenna finishes at " + CStr(Now) +"************"
-	Print #fileNumber, "************Initializing of antenna finishes at " + CStr(Now) +"************"
-	'Select operating frequency and feed point
-	Begin Dialog UserDialog 330,140,"Frquency and feeding part settings" ' %GRID:10,7,1,1
-		GroupBox 0,0,330,49,"Frequency settings:",.GroupBox1
-		TextBox 140,21,60,14,.Freq
-		OKButton 60,105,90,21
-		CancelButton 200,105,90,21
-		Text 10,21,120,14,"Target frequency:",.Text6
-		GroupBox 0,49,330,49,"Feeding part selection:",.GroupBox2
-		DropListBox 60,70,210,14,aSolidArray_CST(),.feedingPart
-		Text 210,21,30,14,"GHz",.Text1
-	End Dialog
-	Dim dlg As UserDialog
-	'Dim tgtFreq As Double
+	Dim LineRead As String
+	Dim LineCount As Integer
 	Dim feedSolid As String
 	Dim feed As AntennaElement
 	Dim tgtLength As Double
@@ -55,6 +32,105 @@ Sub Main
 	Dim resFreq As Double
 	Dim Q As Double, totEffi As Double, radEffi As Double
 	Dim ifSuccess As Boolean
+
+	prjPath = GetProjectPath("Project")
+   	logFile = prjPath + "\Progress log.txt"
+   	fileNumber = FreeFile
+	Begin Dialog UserDialog 400,119,"Construct a new or Reconstruct an old" ' %GRID:10,7,1,1
+		GroupBox 0,7,380,112,"Choice:",.GroupBox1
+		OKButton 60,91,90,21
+		CancelButton 180,91,90,21
+		OptionGroup .Group1
+			OptionButton 20,28,340,14,"Construct a new antenna from the beginning",.OptionButton1
+			OptionButton 20,49,340,14,"Reconstruct a recorded antenna from the log file",.OptionButton2
+	End Dialog
+	Dim dlg0 As UserDialog
+	'Dim logicInformation As String
+	If Dialog(dlg0,-2) = 0 Then
+		Exit All
+	End If
+	If dlg0.Group1=1 Then
+	'reconstruct an old antenna from the old log file
+	   	If Dir(logFile) <> "" Then
+			FileCopy logFile, Split(logFile,".")(0)&"_old.txt"
+		Else
+			MsgBox "%%Log file does not exist.", vbCritical
+			Exit All
+   		End If
+   		Dim antLength As String
+   		Dim antRadEffi As String
+   		Dim antTotEffi As String
+		antennaDesign_initialize(False)
+		Open Split(logFile,".")(0)&"_old.txt" For Input As #fileNumber
+		LineCount = 0
+		While Not EOF(fileNumber)
+			Line Input #fileNumber, LineRead
+			If InStr(LineRead, "Feed element")<>0 Then
+				feedSolid = Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
+				Set feed = getElementFromSolid(antElem_arr, feedSolid)
+				If feed Is Nothing Then
+					MsgBox "Set feed part failed!", vbCritical,"Error"
+					Exit All
+				End If
+				Set ant=New Antenna
+				ant.initialize(feed, ant_material, sub_material,availableElementsNum, availableElementsStr)
+			ElseIf InStr(LineRead, "Antenna Logics") Then
+				ant.conLogics = Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
+				ant.elementNumber = Int(Len(ant.conLogics)/2)+1
+				ant.reconstructor()
+				If Not EOF(fileNumber) Then
+					Line Input #fileNumber, LineRead
+					antLength = Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
+				End If
+				If Not EOF(fileNumber) Then
+					Line Input #fileNumber, LineRead
+					antRadEffi = Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
+				End If
+				If Not EOF(fileNumber) Then
+					Line Input #fileNumber, LineRead
+					antTotEffi = Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
+				End If
+				If MsgBox( "Antenna Length: " & antLength & vbCrLf &  _
+				"Antenna radiation efficiency: " & antRadEffi & vbCrLf &  _
+				"Antenna total efficiency: " & antTotEffi & vbCrLf &  _
+				"keep going ?",vbOkCancel, "Simulation results" )= vbYes Then
+					ant.destructor()
+				Else
+					MsgBox "Reconstructing progress teminated!",vbInformation
+					Exit All
+				End If
+
+			End If
+
+			LineCount += 1
+		Wend
+		Close # fileNumber
+		Exit All
+	End If
+	'Construct a new antenna
+   	Open logFile For Output As #fileNumber
+   	ReportInformationToWindow "**********Rebuilding the model at " + CStr(Now) +"************"
+   	Print #fileNumber, "************Rebuilding the model at " + CStr(Now) +"****************"
+   	Rebuild
+	ReportInformationToWindow "***********Initializing of antenna begins at " + CStr(Now) +"*************"
+   	Print #fileNumber, "************Initializing of antenna begins at " + CStr(Now) +"****************"
+	antennaDesign_initialize(True)
+	ReportInformationToWindow "**********Initializing of antenna finishes at " + CStr(Now) +"************"
+	Print #fileNumber, "************Initializing of antenna finishes at " + CStr(Now) +"************"
+	'Select operating frequency and feed point
+	Begin Dialog UserDialog 330,140,"Frquency and feeding part settings" ' %GRID:10,7,1,1
+		GroupBox 0,0,330,49,"Frequency settings:",.GroupBox1
+		TextBox 140,21,50,14,.Freq
+		OKButton 60,105,90,21
+		CancelButton 200,105,90,21
+		Text 10,21,120,14,"Target frequency:",.Text6
+		GroupBox 0,49,330,49,"Feeding part selection:",.GroupBox2
+		DropListBox 60,70,210,14,aSolidArray_CST(),.feedingPart
+		Text 200,21,30,14,"GHz",.Text1
+	End Dialog
+	Dim dlg As UserDialog
+	'Dim tgtFreq As Double
+
 
 	'Dim ant_material As String
 	'ant_material = "Metal/Copper (annealed)"
@@ -73,13 +149,12 @@ Sub Main
 	Set feed = getElementFromSolid(antElem_arr, feedSolid)
 	If feed Is Nothing Then
 		MsgBox "Set feed part failed!", vbCritical,"Error"
+		Exit All
 	End If
 
 	Set ant=New Antenna
 	ant.initialize(feed, ant_material, sub_material,availableElementsNum, availableElementsStr)
-		'Solid.ChangeMaterial "1 Antenna:Antenna", "Metal/Copper (annealed)"
-		'feed.solidMaterial = ant_material
-		'Solid.ChangeMaterial(feed.solidName,ant_material)
+
 	Dim X As Integer
 	Dim Y As Integer
 	'***************Add a choice to recover antenna routing from the progress log*********************
@@ -87,15 +162,12 @@ Sub Main
 	X=0
 	tgtLength = Round(3e8/(tgtFreq*1e6)/3,1) ' unit mm
 	resFreq = 0
-	'ReportInformationToWindow "%% Antenna target length: "+CStr(tgtLength)+"mm"
-	'Print #fileNumber, "%% Antenna target length: "+CStr(tgtLength)+"mm"
-	'tgtLength = 80
 	ReportInformationToWindow "*********Routing of antenna starts at " + CStr(Now) +"************"
 	Print #fileNumber, "***********Routing of antenna starts at " + CStr(Now) +"**********"
 	Do
 		X+=1
-		ReportInformationToWindow "####### Round#"+CStr(X)+" of antenna routing starts at " + CStr(Now) +" #######"
-		Print #fileNumber, "####### Round#"+CStr(X)+" of antenna routing starts at " + CStr(Now) +" #######"
+		ReportInformationToWindow "############### Round#"+CStr(X)+" of antenna routing starts at " + CStr(Now) +" ################"
+		Print #fileNumber, "############## Round#"+CStr(X)+" of antenna routing starts at " + CStr(Now) +" ##############"
 		ReportInformationToWindow "%% The target length is: "+CStr(Round(tgtLength,2))+"mm"
 		Print #fileNumber, "%% The target length is: "+CStr(Round(tgtLength,2))+"mm"
 		If X>1 Then
@@ -128,7 +200,7 @@ Sub Main
 			ReportInformationToWindow "%% Simulation done, the resonance frequency is: " + CStr(Round(resFreq,2)) + "GHz"
 			Print #fileNumber, "%% Simulation done, the resonance frequency is: " + CStr(Round(resFreq,2)) + "GHz"
 			'Amend the target length when the resonance frequency does not meet the target
-			If Abs((resFreq-tgtFreq)/tgtFreq)>0.02 Then
+			If Abs((resFreq-tgtFreq)/tgtFreq)>=0.025 Then
 				tgtLength = (resFreq/tgtFreq)*tgtLength
 				ReportInformationToWindow "%% The resonance frequency does not meet the target and optimization of length will begin."
 				Print #fileNumber, "%% The resonance frequency does not meet the target and optimization of length will begin."
@@ -146,8 +218,10 @@ Sub Main
 					Print #fileNumber, "%% The resonance frequency has been met @"& CStr(Round(resFreq,2)) & "GHz"
 					ReportInformationToWindow "%%Antenna Logics: " & ant.conLogics
 					Print #fileNumber, "%% Antenna Logics: " & ant.conLogics
-					ReportInformationToWindow "%% The Q value is "&CStr(Round(Q,2))
-					Print #fileNumber, "%% The Q value is "&CStr(Round(Q,2))
+					'ReportInformationToWindow "%% The Q value is "&CStr(Round(Q,2))
+					'Print #fileNumber, "%% The Q value is "&CStr(Round(Q,2))
+					ReportInformationToWindow "%%Antenna length: " + CStr(Round(ant.length,2))+"mm"
+					Print #fileNumber, "%% Antenna length: " + CStr(Round(ant.length,2))+"mm"
 					ReportInformationToWindow "%%Radiation efficiency: " & CStr(Round(radEffi, 2))&"dB"
 					Print #fileNumber, "%% Radiation efficiency: " & CStr(Round(radEffi, 2))&"dB"
 					ReportInformationToWindow "%%Total efficiency: " & CStr(Round(totEffi, 2))&"dB"
@@ -175,7 +249,7 @@ Sub Main
 	Close #fileNumber
 	MsgBox "OOOps"
 End Sub
-Sub antennaDesign_initialize()
+Sub antennaDesign_initialize(cOrR As Boolean)
 	availableElementsStr=""
 	availableElementsNum=0
 	'Rebuild
@@ -193,10 +267,10 @@ Sub antennaDesign_initialize()
     End If
 	selectMaterial(ant_material,"Pick a material for antenna")
 	ReportInformationToWindow "%% Antenna material: " + ant_material
-	Print #fileNumber, "%% Antenna material: " + ant_material
+	If cOrR=True Then Print #fileNumber, "%% Antenna material: " + ant_material
 	selectMaterial(sub_material,"Pick a material for substrate")
 	ReportInformationToWindow "%% Substrate material: " + sub_material
-	Print #fileNumber, "%% Substrate material: " + sub_material
+	If cOrR=True Then Print #fileNumber, "%% Substrate material: " + sub_material
 	If MsgBox("Please select all solids contained in the antenna.",vbYesNo,"Notice") <> vbYes Then
     	Exit All
     End If
@@ -205,7 +279,7 @@ Sub antennaDesign_initialize()
 	'SelectSolids_LIB
 	'SelectMaterials_LIB(aMaterialArray_CST(), nMaterials_CST)
 	ReportInformationToWindow "%% Number of solids for antenna elements: "+CStr(nSolids_CST)
-	Print #fileNumber, "%% Number of solids for antenna elements: "+CStr(nSolids_CST)
+	If cOrR=True Then Print #fileNumber, "%% Number of solids for antenna elements: "+CStr(nSolids_CST)
 	ReDim antElem_arr(nSolids_CST)
 	sCommand = ""
 	'Construct class instances from solids
@@ -352,7 +426,11 @@ Sub SelectSolids_Antenna(aSolidArray_LIB() As String, nSolids_LIB As Integer)
 		End If
 	Next
 	' fsr: A check
-	If (nSolids_LIB <> UBound(cst_solid_select_name)) Then ReportWarningToWindow("SelectSolids: inconsistent solid count (expected "+CStr(nSolids_LIB)+", found "+Cstr(UBound(cst_solid_select_name))+"), please contact support.")
+	If (nSolids_LIB <> UBound(cst_solid_select_name)) Then
+		ReportWarningToWindow("SelectSolids: inconsistent solid count (expected "+CStr(nSolids_LIB)+ _
+		", found "+Cstr(UBound(cst_solid_select_name))+"), please contact support.")
+	End If
+
 	' Check if the solids in component "1 Antenna"
 	Begin Dialog UserDialog 850,238,"Selected Solids" ',.SelectedSolidsDialogFunc ' %GRID:10,7,1,1
 		Text 20,7,120,14,"Unselected",.LabelSource
