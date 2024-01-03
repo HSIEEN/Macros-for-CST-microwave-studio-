@@ -24,10 +24,12 @@ Sub Main ()
 
 	Dim prjPath As String
 	Dim dataFile As String
+	Dim fNumber As Integer
 
 	prjPath = GetProjectPath("Project")
    	dataFile = prjPath + "\freq_Q.txt"
-	Open dataFile For Output As #1
+   	fNumber = FreeFile
+	Open dataFile For Output As #fNumber
 
 	currentItem = FirstItem
 
@@ -39,8 +41,8 @@ Sub Main ()
 		For i = 1 To 10 STEP 1
 			temStr = CStr(i)&","&CStr(i)
 			If InStr(curveName,temStr) <> 0 Then
-				Print #1, "%"
-				Print #1, "P =" +CStr(i)
+				Print #fNumber, "%"
+				Print #fNumber, "P =" +CStr(i)
 				flag = True
 				Exit For
 			End If
@@ -76,7 +78,7 @@ Sub Main ()
 			End With
 
 			nRes = spectrum.GetFirstMinimum(0.15)
-			i = 1
+			i = 0
 			If nRes = -1 Then'there is no minum, return minima of Y at minimum X and maximum Y
 				If spectrum.GetY(spectrum.GetN-1) > spectrum.GetY(0) Then
 					nRes = 0
@@ -86,7 +88,7 @@ Sub Main ()
 				X = spectrum.GetX(nRes)
 				Y = spectrum.GetY(nRes)
 				calcQ = CalculateQ(nRes)
-				Print #1,"F"+CStr(i)+"=" + CStr(Round(X,2)) + vbNewLine + "Q"+CStr(i)+"=" + CStr(Round(calcQ,2))
+				Print #fNumber,"F"+CStr(i)+"=" + CStr(Round(X,2)) + vbNewLine + "Q"+CStr(i)+"=" + CStr(Round(calcQ,2))
 				i = i+1
 			Else
 				While nRes <> -1
@@ -95,14 +97,14 @@ Sub Main ()
 					calcQ = CalculateQ(nRes)
 					nRes = spectrum.GetNextMinimum(0.15)
 					i = i+1
-					Print #1, "F"+CStr(i)+"=" + CStr(Round(X,2)) + vbNewLine + "Q"+CStr(i)+"=" + CStr(Round(calcQ,2))
+					Print #fNumber, "F"+CStr(i)+"=" + CStr(Round(X,2)) + vbNewLine + "Q"+CStr(i)+"=" + CStr(Round(calcQ,2))
 				Wend
 			End If
 
 		End If
 		currentItem = Resulttree.GetNextItemName(currentItem)
     Wend
-	Close #1
+	Close #fNumber
 End Sub
 
 Function CalculateQ(nRes As Long) As Single
