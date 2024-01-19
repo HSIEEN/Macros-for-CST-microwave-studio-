@@ -172,6 +172,7 @@ solidySize As Double, solidzSize As Double) As Boolean
 	'Dim validityOfFaceNeighbors() As Boolean, vOFN() As Boolean, NON As Boolean
 	Dim validFaceNeighborsArray() As Integer,  NON As Boolean
 	Dim iteration As Integer
+	Dim fallBackTimes As Integer
 	Dim remainder As Integer
 	Dim randomCycle As Integer
 	Dim lastRandomNumber As Integer
@@ -179,8 +180,9 @@ solidySize As Double, solidzSize As Double) As Boolean
 	Dim lastLength As Double
 	Dim tgtIncrement As Double
 	Dim maxSize As Double
-	Dim cFileNumber As Integer
-	cFileNumber = FreeFile
+	'Dim cFileNumber As Integer
+	'cFileNumber = FreeFile
+	ReportinformationTowindow "$Constructor: open file #"&CStr(1)
 	If solidxSize>=solidySize And solidxSize>=solidzSize Then
 		maxSize = solidxSize
 	ElseIf solidySize>=solidxSize And solidySize>=solidzSize Then
@@ -202,7 +204,7 @@ solidySize As Double, solidzSize As Double) As Boolean
    	If Dir(logFile) <> "" Then
 		Kill logFile
    	End If
-   	Open logFile For Output As #cFileNumber
+   	Open logFile For Output As #1
 	'######## when target length is less than ant.length #####'
 	If tgtLength<length Then
 		Do
@@ -223,12 +225,14 @@ solidySize As Double, solidzSize As Double) As Boolean
 		Loop Until tgtLength>=length
 		'Set tailElement = currentElement
 		'Open logFile For Append As #2
-		Print #cFileNumber, conLogics
-		Close #cFileNumber
+		Print #1, conLogics
+		Close #1
+		ReportinformationTowindow "$Constructor: close file #"&CStr(1)
 		Return True
 	End If
 	'#### When target length is greater than ant.length ####
 	iteration = 0
+	fallBackTimes = 0
 	lastRandomNumber = 0
 	Dim pureNonMetalElements As Integer
 	Dim needReEstimatingAvailableElements As Boolean
@@ -250,7 +254,8 @@ solidySize As Double, solidzSize As Double) As Boolean
 	Do
 		randomCycle = Int(tgtLength^2/(solidxSize+solidySize+solidzSize)*solidNumber/6e5)+1
 		randomCycle = randomCycle-Int(ant.length/tgtLength*randomCycle) Mod randomCycle
-		ReportInformationToWindow "$Constructor: Random Cycle is "+CStr(randomCycle)
+		ReportInformationToWindow "$Constructor: Random Cycle is "&CStr(randomCycle)
+		ReportInformationToWindow "$Constructor: Antenna length is "&CStr(Round(length,2))&"mm"
 		currentElement.getValidFaceNeighbors(tempObj, tempStr, n_validFaceNeighbors)
 		'Estimate if the candidate neighbor can split all available elements into two parts, if yes
 		'estimate all available elements for all neighbors and then pick one meeting the target available elements
@@ -285,7 +290,7 @@ solidySize As Double, solidzSize As Double) As Boolean
 						neighborAvailableElementsLogic(i)=""
 					Next
 					ReportInformationToWindow "$Constructor: Need to re-estimate available elements number on going forward."
-					ReportInformationToWindow "$Constructor: Target available antenna Elements is " & CInt((tgtLength-length)*maxSize*2.5)
+					ReportInformationToWindow "$Constructor: Target available antenna Elements is " & CInt((tgtLength-length)*maxSize*2.6)
 					availableNum=0
 					availableStr = ""
 					'get the number ID of the face neighbor that uses the same connection string by the tailElement
@@ -361,7 +366,7 @@ solidySize As Double, solidzSize As Double) As Boolean
 					Dim isAnyNeighborAvailable As Boolean
 					isAnyNeighborAvailable=False
 					For i=0 To 2
-						If neighborAvailableElementsNum(i)>=CInt((tgtLength-length)*maxSize*2.5) Then
+						If neighborAvailableElementsNum(i)>=CInt((tgtLength-length)*maxSize*2.6) Then
 							isAnyNeighborAvailable=True
 							Exit For
 						End If
@@ -370,7 +375,7 @@ solidySize As Double, solidzSize As Double) As Boolean
 					If isAnyNeighborAvailable=True Then
 						j=0
 						For i=0 To 2
-							If neighborAvailableElementsNum(i) < CInt((tgtLength-length)*maxSize*2.5) And neighborAvailableElementsNum(i)<>0 Then
+							If neighborAvailableElementsNum(i) < CInt((tgtLength-length)*maxSize*2.6) And neighborAvailableElementsNum(i)<>0 Then
 								For ii=0 To n_validFaceNeighbors-1
 									If StrComp(neighborAvailableElementsLogic(i), tempStr(ii))=0 Then
 										Set tempObj(ii) = Nothing
@@ -480,9 +485,10 @@ solidySize As Double, solidzSize As Double) As Boolean
 						removeAvailableElements()
 						'When the straight one is valid face neighbor but with 1-N (N is less than target number)
 						If neighborAvailableElementsNum(2)>0 And _
-						neighborAvailableElementsNum(2)<CInt((tgtLength-length)*maxSize*2.5) Then
+						neighborAvailableElementsNum(2)<CInt((tgtLength-length)*maxSize*2.6) Then
 							ReportInformationToWindow "$Constructor: Set element: "+tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(j), False).solidName
 							tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(j), False).setMaterial(antMaterial)
+							Plot.update
 							elementNumber+=1
 							conLogics = conLogics & neighborAvailableElementsLogic(j)
 							Set tailElement = tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(j), False)
@@ -503,14 +509,14 @@ solidySize As Double, solidzSize As Double) As Boolean
 					Else
 						'when the strait one has no available alements
 						If neighborAvailableElementsNum(2)=0 Then
-							If neighborAvailableElementsNum(0)>=CInt((tgtLength-length)*maxSize*2.5) And _
-							neighborAvailableElementsNum(1)>=CInt((tgtLength-length)*maxSize*2.5) Then
+							If neighborAvailableElementsNum(0)>=CInt((tgtLength-length)*maxSize*2.6) And _
+							neighborAvailableElementsNum(1)>=CInt((tgtLength-length)*maxSize*2.6) Then
 								k = Int(2*Rnd)
-							ElseIf neighborAvailableElementsNum(0)>=CInt((tgtLength-length)*maxSize*2.5) And _
-							neighborAvailableElementsNum(1)<CInt((tgtLength-length)*maxSize*2.5) Then
+							ElseIf neighborAvailableElementsNum(0)>=CInt((tgtLength-length)*maxSize*2.6) And _
+							neighborAvailableElementsNum(1)<CInt((tgtLength-length)*maxSize*2.6) Then
 								k = 0
-							ElseIf neighborAvailableElementsNum(0)<CInt((tgtLength-length)*maxSize*2.5) And _
-							neighborAvailableElementsNum(1)>=CInt((tgtLength-length)*maxSize*2.5) Then
+							ElseIf neighborAvailableElementsNum(0)<CInt((tgtLength-length)*maxSize*2.6) And _
+							neighborAvailableElementsNum(1)>=CInt((tgtLength-length)*maxSize*2.6) Then
 								k = 1
 							End If
 							ReportInformationToWindow "$Constructor: Set element: "+tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(k), False).solidName
@@ -537,11 +543,11 @@ solidySize As Double, solidzSize As Double) As Boolean
 							removeAvailableElements()
 							'When having one side neighbor is valid but with number of valid elements less than target, take another step forward to
 							'straight
-							If (neighborAvailableElementsNum(0)>-1 And neighborAvailableElementsNum(0)<CInt((tgtLength-length)*maxSize*2.5)) And _
-							(neighborAvailableElementsNum(1)>-1 And neighborAvailableElementsNum(1)<CInt((tgtLength-length)*maxSize*2.5)) Then
+							If (neighborAvailableElementsNum(0)>-1 And neighborAvailableElementsNum(0)<CInt((tgtLength-length)*maxSize*2.6)) And _
+							(neighborAvailableElementsNum(1)>-1 And neighborAvailableElementsNum(1)<CInt((tgtLength-length)*maxSize*2.6)) Then
 								GoTo Rerouting
-							ElseIf (neighborAvailableElementsNum(0)>=CInt((tgtLength-length)*maxSize*2.5)) And _
-							(neighborAvailableElementsNum(1)>-1 And neighborAvailableElementsNum(1)<CInt((tgtLength-length)*maxSize*2.5)) Then
+							ElseIf (neighborAvailableElementsNum(0)>=CInt((tgtLength-length)*maxSize*2.6)) And _
+							(neighborAvailableElementsNum(1)>-1 And neighborAvailableElementsNum(1)<CInt((tgtLength-length)*maxSize*2.6)) Then
 								i=Int(2*Rnd)
 								If i=0 Then
 									k=0
@@ -549,8 +555,8 @@ solidySize As Double, solidzSize As Double) As Boolean
 									k=2
 								End If
 								GoTo Rerouting
-							ElseIf (neighborAvailableElementsNum(1)>=CInt((tgtLength-length)*maxSize*2.5)) And _
-							(neighborAvailableElementsNum(0)>-1 And neighborAvailableElementsNum(0)<CInt((tgtLength-length)*maxSize*2.5)) Then
+							ElseIf (neighborAvailableElementsNum(1)>=CInt((tgtLength-length)*maxSize*2.6)) And _
+							(neighborAvailableElementsNum(0)>-1 And neighborAvailableElementsNum(0)<CInt((tgtLength-length)*maxSize*2.6)) Then
 								i=Int(2*Rnd)
 								If i=0 Then
 									k=1
@@ -561,6 +567,7 @@ solidySize As Double, solidzSize As Double) As Boolean
 								Rerouting:
 								ReportInformationToWindow "$Constructor: Set element: "+tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(k), False).solidName
 								tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(k), False).setMaterial(antMaterial)
+								Plot.Update
 								elementNumber+=1
 								conLogics = conLogics & neighborAvailableElementsLogic(k)
 								Set tailElement = tailElement.getFaceNeighborFromString(neighborAvailableElementsLogic(k), False)
@@ -587,9 +594,10 @@ solidySize As Double, solidzSize As Double) As Boolean
 		ElseIf ant.length>=tgtLength Then
 
 			'Open logFile For Append As #2
-			Print #cFileNumber, conLogics
-			Close #cFileNumber
-			ReportInformationToWindow conLogics
+			Print #1, conLogics
+			Close #1
+			ReportinformationTowindow "$Constructor: close file #"&CStr(1)
+			ReportInformationToWindow "$Constructor: Antenna Logics: "&conLogics
 			ReportInformationToWindow "$Constructor: Antenna Length: "&cStr(Round(length,2))&"mm and is over target length."
 			Return True
 			'Exit Function
@@ -599,17 +607,19 @@ solidySize As Double, solidzSize As Double) As Boolean
 			availableNum=0
 			'*****************************************
 			Backward:
+			fallBackTimes += 1
+			ReportInformationToWindow "$Constructor: fall back counter--"&CStr(fallBackTimes)
 			'Open logFile For Append As #2
-			Print #cFileNumber, conLogics'+tailElement.solidName
+			Print #1, conLogics'+tailElement.solidName
 			'Close #2
 			'Call corrector to correct the routing of tail part
 			ReportInformationToWindow "$Constructor: Iteration #"+cStr(iteration)+"-----------------"
-			ReportInformationToWindow conLogics
+			ReportInformationToWindow "$Constructor: Antenna Logics: "&conLogics
 			ReportInformationToWindow "$Constructor: Antenna Length: "&cStr(Round(length,2))&"mm and is still below target length. Backward progress shall begin"
 			'tgtIncrement = (tgtLength-length)*0.2+2
 			'tgtIncrement = 15
 			'If (containerIndex > 0) And (containerIndex Mod 3 =0) Then
-			If ant.length>0.2*tgtLength Then
+			If ant.length>0.3*tgtLength Then
 				'If fallBackRatio<0.8 Then fallBackRatio+=0.04 Else fallBackRatio=0.8
 				fallBackRatio = 0
 			Else
@@ -623,7 +633,9 @@ solidySize As Double, solidzSize As Double) As Boolean
 			If Not tailElement Is Nothing Then
 				'Nothing to do
 			Else
-				Close #cFileNumber
+				ReportInformationToWindow "$Constructor: Corrector returns nothing object!"
+				Close #1
+				ReportinformationTowindow "$Constructor: close file #"&CStr(1)
 				Return False
 			End If
 			Set currentElement = tailElement
@@ -631,16 +643,20 @@ solidySize As Double, solidzSize As Double) As Boolean
 			'Return False
 		Else
 			'Open logFile For Append As #2
-			Print #cFileNumber, conLogics
-			Close #cFileNumber
-			ReportInformationToWindow conLogics
-			ReportInformationToWindow "$Constructor: Antenna Length: "+cStr(Round(length,2))+"mm in other conditions, go to next loop"
+			Print #1, conLogics
+			ReportInformationToWindow "$Constructor: Antenna Logics: "&conLogics
+			ReportInformationToWindow "$Constructor: Antenna Length: "&cStr(Round(length,2))&"mm in other conditions, go to next loop"
+			'Print #1, "$Constructor: Antenna Length: "+cStr(Round(length,2))+"mm in other conditions, go to next loop"
+			Close #1
+			ReportinformationTowindow "$Constructor: close file #"&CStr(1)
 			Return True
 		End If
 		iteration += 1
-	Loop Until iteration>=10000
-	ReportInformationToWindow "$Constructor: Over 10000 times trials, return failure"
-	Close #cFileNumber
+	Loop Until fallBackTimes>100
+	ReportInformationToWindow "$Constructor: Over 100 times falling back trials, return failure"
+	'Print #1, "$Constructor: Over 10000 times trials, return failure"
+	Close #1
+	ReportinformationTowindow "$Constructor: close file #"&CStr(1)
 	Return False
 End Function
 Function corrector(tgtLength As Double, maxSize As Double, fBR As Double) As AntennaElement
@@ -657,22 +673,24 @@ Function corrector(tgtLength As Double, maxSize As Double, fBR As Double) As Ant
 	Dim logicLength As Integer
 	Dim initialLength As Double
 
-	Dim coFileNumber As Integer
+	'Dim coFileNumber As Integer
 
 	'Dim pureNonMetalElements As Integer
 	'Dim currentConnectionStatus As Boolean
 	Dim needToReestimate As Boolean
 	Dim tgtCondition As Boolean
 	'Dim previousConnectionStatus As Boolean
-	coFileNumber=FreeFile
+	'coFileNumber=FreeFile
+	'ReportinformationTowindow "$Corrector: open file #"&CStr(2)
 	lineCount = 0
-	Open logFile For Input As #coFileNumber
+	Open logFile For Input As #2
 	'Count line number of Routing log.txt
-	While Not EOF(coFileNumber)
-		Line Input #coFileNumber, lineRead
+	While Not EOF(2)
+		Line Input #2, lineRead
 		lineCount += 1
 	Wend
-	Close #coFileNumber
+	Close #2
+	'ReportinformationTowindow "$Corrector: close file #"&CStr(2)
 	'tailElement.setMaterial(subMaterial)
 	Set currentElement = tailElement
 	'i = Len(conLogics)
@@ -724,25 +742,26 @@ Function corrector(tgtLength As Double, maxSize As Double, fBR As Double) As Ant
 			'lenght is greater than what is requred, or fBR
 			'currentElement.setMaterial(subMaterial)
 			'pureNonMetalElements+=currentElement.getNumberofPureNonMetalNeighbors()
-			ReportInformationToWindow "$Corrector: Target available antenna Elements is " & CInt((tgtLength-length)*maxSize*2.5)
+			ReportInformationToWindow "$Corrector: Target available antenna Elements is " & CInt((tgtLength-length)*maxSize*2.6)
 			ReportInformationToWindow "$Corrector: Available antenna Elements is " & CStr(availableNum)
 			iteration += 1
 			If fBR > 0 Then
 				tgtCondition=((initialLength-length)/initialLength > fBR)
 			Else
-				tgtCondition=(availableNum >= CInt((tgtLength-length)*maxSize*2.5))
+				tgtCondition=(availableNum >= CInt((tgtLength-length)*maxSize*2.6))
 			End If
-		Loop Until tgtCondition'pureNonMetalElements >= CInt((tgtLength-length)*maxSize*2.5)'Until (initialLength-length)/initialLength > fBR
+		Loop Until tgtCondition'pureNonMetalElements >= CInt((tgtLength-length)*maxSize*2.6)'Until (initialLength-length)/initialLength > fBR
 
 		currentElement.getValidFaceNeighbors(validFaceNeighbors, validFaceNeighborsStr, n_validFaceNeighbors)
 		If n_validFaceNeighbors>1 Then
 			'Check routing log to make sure if the lineCount is greater than 1. If so, collect all connection logics
 			usedNeighborStr = currentNeighborStr
 			lineNumber = lineCount
-			coFileNumber=FreeFile
-			Open logFile For Input As #coFileNumber
+			'2=FreeFile
+			'ReportinformationTowindow "$Corrector: open file #"&CStr(2)
+			Open logFile For Input As #2
 			While lineNumber > 1
-				Line Input #coFileNumber, lineRead
+				Line Input #2, lineRead
 				If Len(lineRead) >= logicLength-iteration*2  _
 				And StrComp(conLogics, Left(lineRead, logicLength-iteration*2-2))=0 And _
 				InStr(usedNeighborStr, Mid(lineRead, logicLength-iteration*2-1, 2))=0 Then
@@ -750,13 +769,15 @@ Function corrector(tgtLength As Double, maxSize As Double, fBR As Double) As Ant
 				End If
 				lineNumber -=1
 			Wend
-			Close #coFileNumber
+			Close #2
+			'ReportinformationTowindow "$Corrector: close file #"&CStr(2)
 			'need change it to be random instead of sequential!!!!!
 			For ii=0 To n_validFaceNeighbors-1
 
 				'Only if the connnection logic is not in the used connection logic collection, do the next step
 				If InStr(usedNeighborStr, validFaceNeighborsStr(ii))=0 Then
 					currentElement.getFaceNeighborFromString(validFaceNeighborsStr(ii), False).setMaterial(antMaterial)
+					Plot.Update
 					conLogics = conLogics & validFaceNeighborsStr(ii)
 					elementNumber += 1
 					If InStr(validFaceNeighborsStr(ii), "x")<>0 Then
@@ -1226,7 +1247,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.ypNeighbor.npLNeighbor Is Nothing Then
 										If tailElement.ypNeighbor.nPLNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr, tailElement.ypNeighbor.nPLNeighbor.solidName & "$" )<>0 Then
-											ReportInformationToWindow "$Forward check: xnyn-ypnPL"
+											ReportInformationToWindow "$Forward check: xnyn-ypnpL"
 											Return True
 										End If
 									End If
@@ -2123,6 +2144,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.ypNeighbor.ypNeighbor Is Nothing Then
 									If tailElement.ypNeighbor.ypNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr,tailElement.ypNeighbor.ypNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ypzn-ypyp"
 										Return True
 									End If
 								End If
@@ -2130,6 +2152,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.zpNeighbor.LppNeighbor Is Nothing Then
 										If tailElement.zpNeighbor.LppNeighbor.isPureNonMetal()=True  And _
 										InStr(availableStr,tailElement.zpNeighbor.LppNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ypzn-zpLpp"
 											Return True
 										End If
 									End If
@@ -2138,6 +2161,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.LppNeighbor.LppNeighbor Is Nothing Then
 										If tailElement.LppNeighbor.LppNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr,tailElement.LppNeighbor.LppNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ypzn-LppLpp"
 											Return True
 										End If
 									End If
@@ -2162,6 +2186,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.ypNeighbor.ypNeighbor Is Nothing Then
 									If tailElement.ypNeighbor.ypNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr,tailElement.ypNeighbor.ypNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ypzp-ypyp"
 										Return True
 									End If
 								End If
@@ -2169,7 +2194,8 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.znNeighbor.LpnNeighbor Is Nothing Then
 										If tailElement.znNeighbor.LpnNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr,tailElement.znNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
-											Return True
+												ReportInformationToWindow "$Forward check: ypzp-znLpn"
+												Return True
 										End If
 									End If
 								End If
@@ -2177,6 +2203,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.LpnNeighbor.LpnNeighbor Is Nothing Then
 										If tailElement.LpnNeighbor.LpnNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr,tailElement.LpnNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: ypzp-LpnLpn"
 											Return True
 										End If
 									End If
@@ -2210,6 +2237,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.zpNeighbor.LppNeighbor Is Nothing Then
 									If tailElement.zpNeighbor.LppNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr,tailElement.zpNeighbor.LppNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ypypz-zpLpp"
 										Return True
 									End If
 								End If
@@ -2218,6 +2246,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.LppNeighbor.LppNeighbor Is Nothing Then
 									If tailElement.LppNeighbor.LppNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr,tailElement.LppNeighbor.LppNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: ypypz-LppLpp"
 										Return True
 									End If
 								End If
@@ -2245,6 +2274,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.znNeighbor.znNeighbor Is Nothing Then
 									If tailElement.znNeighbor.znNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr, tailElement.znNeighbor.znNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: znxn-znzn"
 										Return True
 									End If
 								End If
@@ -2252,6 +2282,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.xpNeighbor.pLnNeighbor Is Nothing Then
 										If tailElement.xpNeighbor.pLnNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr, tailElement.xpNeighbor.pLnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: znxn-xppLn"
 											Return True
 										End If
 									End If
@@ -2260,6 +2291,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.pLnNeighbor.pLnNeighbor Is Nothing Then
 										If tailElement.pLnNeighbor.pLnNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr, tailElement.pLnNeighbor.pLnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: znxn-pLnpLn"
 											Return True
 										End If
 									End If
@@ -2284,6 +2316,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.znNeighbor.znNeighbor Is Nothing Then
 									If tailElement.znNeighbor.znNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr, tailElement.znNeighbor.znNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: znxp-znzn"
 										Return True
 									End If
 								End If
@@ -2291,6 +2324,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.xnNeighbor.nLnNeighbor Is Nothing Then
 										If tailElement.xnNeighbor.nLnNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr, tailElement.xnNeighbor.nLnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: znxp-xnnLn"
 											Return True
 										End If
 									End If
@@ -2299,6 +2333,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.nLnNeighbor.nLnNeighbor Is Nothing Then
 										If tailElement.nLnNeighbor.nLnNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr, tailElement.nLnNeighbor.nLnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: znxp-nLnnLn"
 											Return True
 										End If
 									End If
@@ -2332,6 +2367,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.xpNeighbor.pLnNeighbor Is Nothing Then
 									If tailElement.xpNeighbor.pLnNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr, tailElement.xpNeighbor.pLnNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: znznx-xppLn"
 										Return True
 									End If
 								End If
@@ -2340,6 +2376,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.pLnNeighbor.pLnNeighbor Is Nothing Then
 									If tailElement.pLnNeighbor.pLnNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr,tailElement.pLnNeighbor.pLnNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: znznx-pLnpLn"
 										Return True
 									End If
 								End If
@@ -2365,13 +2402,15 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.znNeighbor.znNeighbor Is Nothing Then
 									If tailElement.znNeighbor.znNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr,tailElement.znNeighbor.znNeighbor.solidName & "$" )<>0 Then
-										Return True
+									ReportInformationToWindow "$Forward check: znyn-znzn"
+									Return True
 									End If
 								End If
 								If Not tailElement.ypNeighbor Is Nothing Then
 									If Not tailElement.ypNeighbor.LpnNeighbor Is Nothing Then
 										If tailElement.ypNeighbor.LpnNeighbor.isPureNonMetal()=True  And _
 										InStr(availableStr,tailElement.ypNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: znyn-ypLpn"
 											Return True
 										End If
 									End If
@@ -2380,6 +2419,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.LpnNeighbor.LpnNeighbor Is Nothing Then
 										If tailElement.LpnNeighbor.LpnNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr,tailElement.LpnNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: znyn-LpnLpn"
 											Return True
 										End If
 									End If
@@ -2404,6 +2444,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.znNeighbor.znNeighbor Is Nothing Then
 									If tailElement.znNeighbor.znNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr,tailElement.znNeighbor.znNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: znyp-znzn"
 										Return True
 									End If
 								End If
@@ -2411,6 +2452,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.ynNeighbor.LnnNeighbor Is Nothing Then
 										If tailElement.ynNeighbor.LnnNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr,tailElement.ynNeighbor.LnnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: znyp-ynLnn"
 											Return True
 										End If
 									End If
@@ -2419,6 +2461,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.LnnNeighbor.LnnNeighbor Is Nothing Then
 										If tailElement.LnnNeighbor.LnnNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr,tailElement.LnnNeighbor.LnnNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: znyp-LnnLnn"
 											Return True
 										End If
 									End If
@@ -2452,6 +2495,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.ypNeighbor.LpnNeighbor Is Nothing Then
 									If tailElement.ypNeighbor.LpnNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr,tailElement.ypNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: znzny-ypLpn"
 										Return True
 									End If
 								End If
@@ -2460,6 +2504,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.LpnNeighbor.LpnNeighbor Is Nothing Then
 									If tailElement.LpnNeighbor.LpnNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr,tailElement.LpnNeighbor.LpnNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: znzny-LpnLpn"
 										Return True
 									End If
 								End If
@@ -2487,6 +2532,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.zpNeighbor.zpNeighbor Is Nothing Then
 									If tailElement.zpNeighbor.zpNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr, tailElement.zpNeighbor.zpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: zpxn-zpzp"
 										Return True
 									End If
 								End If
@@ -2494,6 +2540,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.xpNeighbor.pLpNeighbor Is Nothing Then
 										If tailElement.xpNeighbor.pLpNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr, tailElement.xpNeighbor.pLpNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: zpxn-xppLp"
 											Return True
 										End If
 									End If
@@ -2502,6 +2549,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.pLpNeighbor.pLpNeighbor Is Nothing Then
 										If tailElement.pLpNeighbor.pLpNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr, tailElement.pLpNeighbor.pLpNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: zpxn-pLppLp"
 											Return True
 										End If
 									End If
@@ -2526,6 +2574,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.zpNeighbor.zpNeighbor Is Nothing Then
 									If tailElement.zpNeighbor.zpNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr, tailElement.zpNeighbor.zpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: zpxp-zpzp"
 										Return True
 									End If
 								End If
@@ -2533,6 +2582,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.xnNeighbor.nLpNeighbor Is Nothing Then
 										If tailElement.xnNeighbor.nLpNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr, tailElement.xnNeighbor.nLpNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: zpxp-xnnLp"
 											Return True
 										End If
 									End If
@@ -2541,6 +2591,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.nLpNeighbor.nLpNeighbor Is Nothing Then
 										If tailElement.nLpNeighbor.nLpNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr, tailElement.nLpNeighbor.nLpNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: zpxp-nLpnLp"
 											Return True
 										End If
 									End If
@@ -2574,6 +2625,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.xpNeighbor.pLpNeighbor Is Nothing Then
 									If tailElement.xpNeighbor.pLpNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr, tailElement.xpNeighbor.pLpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: zpzpx-xppLp"
 										Return True
 									End If
 								End If
@@ -2582,6 +2634,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.pLpNeighbor.pLpNeighbor Is Nothing Then
 									If tailElement.pLpNeighbor.pLpNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr,tailElement.pLpNeighbor.pLpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: zpzpx-pLppLp"
 										Return True
 									End If
 								End If
@@ -2607,6 +2660,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.zpNeighbor.zpNeighbor Is Nothing Then
 									If tailElement.zpNeighbor.zpNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr,tailElement.zpNeighbor.zpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: zpyn-zpzp"
 										Return True
 									End If
 								End If
@@ -2614,6 +2668,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.ypNeighbor.LppNeighbor Is Nothing Then
 										If tailElement.ypNeighbor.LppNeighbor.isPureNonMetal()=True  And _
 										InStr(availableStr,tailElement.ypNeighbor.LppNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: zpyn-ypLpp"
 											Return True
 										End If
 									End If
@@ -2622,6 +2677,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.LppNeighbor.LppNeighbor Is Nothing Then
 										If tailElement.LppNeighbor.LppNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr,tailElement.LppNeighbor.LppNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: zpyn-LppLpp"
 											Return True
 										End If
 									End If
@@ -2646,6 +2702,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.zpNeighbor.zpNeighbor Is Nothing Then
 									If tailElement.zpNeighbor.zpNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr,tailElement.zpNeighbor.zpNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: zpyp-zpzp"
 										Return True
 									End If
 								End If
@@ -2653,6 +2710,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.ynNeighbor.LnpNeighbor Is Nothing Then
 										If tailElement.ynNeighbor.LnpNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr,tailElement.ynNeighbor.LnpNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: zpyp-ynLnp"
 											Return True
 										End If
 									End If
@@ -2661,6 +2719,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 									If Not tailElement.LnpNeighbor.LnpNeighbor Is Nothing Then
 										If tailElement.LnpNeighbor.LnpNeighbor.isPureNonMetal()=True And _
 										InStr(availableStr,tailElement.LnpNeighbor.LnpNeighbor.solidName & "$" )<>0 Then
+											ReportInformationToWindow "$Forward check: zpyp-LnpLnp"
 											Return True
 										End If
 									End If
@@ -2694,6 +2753,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.ypNeighbor.LppNeighbor Is Nothing Then
 									If tailElement.ypNeighbor.LppNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr,tailElement.ypNeighbor.LppNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: zpzpy-ypLpp"
 										Return True
 									End If
 								End If
@@ -2702,6 +2762,7 @@ Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsSt
 								If Not tailElement.LppNeighbor.LppNeighbor Is Nothing Then
 									If tailElement.LppNeighbor.LppNeighbor.isPureNonMetal()=True And _
 									InStr(availableStr,tailElement.LppNeighbor.LppNeighbor.solidName & "$" )<>0 Then
+										ReportInformationToWindow "$Forward check: zpzpy-LppLpp"
 										Return True
 									End If
 								End If
@@ -2730,6 +2791,25 @@ Public Function destructor()
 	historyCaption = "$SA$"
 	sCommand = ""
 	AddToHistory(historyCaption, sCommand)
+	'initialize(feedElement, antMaterial, subMaterial)
+End Function
+Public Function reconstructor() As Boolean
+	Dim A As AntennaElement, B As AntennaElement
+	Dim i As Integer
+	Set A=feedElement
+	For i=0 To elementNumber-2
+		Set B = A.getFaceNeighborFromString(Mid(conLogics,2*i+1,2),False)
+		B.setMaterial(antMaterial)
+		Set A = B
+		Plot.Update
+	Next
+
+	Return True
+	'Dim historyCaption As String
+	'Dim sCommand As String
+	'historyCaption = "$SA$"
+	'sCommand = ""
+	'AddToHistory(historyCaption, sCommand)
 	'initialize(feedElement, antMaterial, subMaterial)
 End Function
 Function patcher()
