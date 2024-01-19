@@ -927,7 +927,7 @@ Private Function isArrayIdentical(A() As Double, B() As Double) As Boolean
 	isArrayIdentical = True
 	For i=0 To UBound(A,1)-1'points
 		For j=0 To UBound(A,2)-1'coordiantes of points
-			If A(i,j) <> B(i,j) Then
+			If Abs(A(i,j)- B(i,j))>1e-6 Then
 				isArrayIdentical = False
 				Exit Function
 			End If
@@ -946,7 +946,7 @@ Public Function getVerticeNeighbors(ByRef NeighborNum As Integer) As Variant
     NeighborNum = 0
 
     For i=0 To 7
-    	If verticeNeighbors(i) IsNot Nothing Then
+    	If Not verticeNeighbors(i) Is Nothing Then
 			Set neighbor(NeighborNum)=verticeNeighbors(i)
 			'neighborStr(neighborNum)=vNeighborStr(i)
 			NeighborNum += 1
@@ -964,7 +964,7 @@ Public Function getNumberOfVerticeNeighbors() As Integer
     NeighborNum = 0
 
     For i=0 To 7
-    	If verticeNeighbors(i) IsNot Nothing Then
+    	If Not verticeNeighbors(i) Is Nothing Then
 			NeighborNum += 1
     	End If
     Next
@@ -980,7 +980,7 @@ Public Function getEdgeNeighbors(ByRef NeighborNum As Integer) As Variant
     NeighborNum = 0
 
     For i=0 To 11
-    	If edgeNeighbors(i) IsNot Nothing Then
+    	If Not edgeNeighbors(i) Is Nothing Then
 
 			Set neighbor(NeighborNum)=edgeNeighbors(i)
 			NeighborNum += 1
@@ -999,7 +999,7 @@ Public Function getNumberOfEdgeNeighbors() As Integer
     NeighborNum = 0
 
     For i=0 To 11
-    	If edgeNeighbors(i) IsNot Nothing Then
+    	If Not edgeNeighbors(i) Is Nothing Then
 			NeighborNum += 1
     	End If
     Next
@@ -1016,7 +1016,7 @@ Public Function getFaceNeighbors(ByRef NeighborNum As Integer) As Variant
     NeighborNum = 0
     'neighbor = ""
     For i=0 To 5
-    	If faceNeighbors(i) IsNot Nothing Then
+    	If Not faceNeighbors(i) Is  Nothing Then
 
 			Set neighbor(NeighborNum)=faceNeighbors(i)
 			'neighborStr(neighborNum)=fNeihgborStr(i)
@@ -1268,7 +1268,6 @@ Public Function getMetalFaceNeighbors(ByRef NeighborNum As Integer) As Variant
 	    If faceNeighbors(i) IsNot Nothing Then
 	    	If faceNeighbors(i).isMetal()=True Then
 				Set neighbor(NeighborNum)=faceNeighbors(i)
-				'neighborStr(neighborNum)=fNeighborStr(i)
 				NeighborNum += 1
 			End If
 	    End If
