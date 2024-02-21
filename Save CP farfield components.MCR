@@ -6,14 +6,13 @@ Public farfieldMode As Integer, missmatchLoss As Double
 
 Sub Main ()
     'Get current farfield plot mode
-    'Dim CurrentPlotMode As String
 
     If MsgBox("Local WCS shall be used for farfield calculation, please make sure the current WCS has been properly aligned.",vbYesNo,"Information") <> vbYes Then
     	Exit Sub
     End If
 
 
-	Begin Dialog UserDialog 220,105,"Save CP farfield componets" ' %GRID:10,7,1,1
+	Begin Dialog UserDialog 220,105,"Save CP farfield componets", .DialogFunction ' %GRID:10,7,1,1
 		OKButton 20,84,90,21
 		CancelButton 120,84,90,21
 		GroupBox 10,7,210,70,"Set plot mode:",.GroupBox6
@@ -28,204 +27,6 @@ Sub Main ()
 	If Dialog(dlg,-2) = 0 Then
 		Exit All
 	End If
-
-	farfieldMode = dlg.Group1
-	'FarfieldPlot.SelectComponent("Abs")
-	FarfieldPlot.PlotType("polar")
-	FarfieldPlot.SetAxesType("currentwcs")
-	FarfieldPlot.SetAntennaType("unknown")
-
-	Select Case farfieldMode
-   	Case 0
-		FarfieldPlot.SetPlotMode("directivity")
-	Case 1
-		FarfieldPlot.SetPlotMode("gain")
-	Case 2
-		FarfieldPlot.SetPlotMode("realized gain")
-   	End Select
-
-   	If FarfieldPlot.IsScaleLinear = True Then
-		FarfieldPlot.SetScaleLinear(False)
-   	End If
-
-	'FarfieldPlot.SetPlotMode("Directivity")
-	'FarfieldPlot.SetAntennaType("directional_linear")
-	'FarfieldPlot.SetAntennaType("directional_circular")
-	FarfieldPlot.SetCoordinateSystemType("ludwig3")
-	FarfieldPlot.SetAutomaticCoordinateSystem("True")
-	FarfieldPlot.SetPolarizationType("Circular")
-
-    'FarField Calculation
-
-    Dim SelectedItem As String
-
-    Dim n As Integer
-
-    Dim Frequency As Double, FrequencyStr As String
-    Dim PortStr As String
-
-    SelectedItem = GetSelectedTreeItem
-
-    If (InStr(SelectedItem,"farfield (") = 0) Then
-
-        MsgBox("Please select a farfield result before runing this macro.",vbCritical,"Warning")
-
-        Exit All
-
-    Else
-
-        'Get the frequency and port of the selected item
-
-        FrequencyStr = Mid$(SelectedItem$,InStr(SelectedItem,"=")+1,InStr(SelectedItem,")")-InStr(SelectedItem,"=")-1)
-        PortStr  = Mid$(SelectedItem$,InStr(SelectedItem,"[")+1,InStr(SelectedItem,"]")-InStr(SelectedItem,"[")-1)
-        Frequency = CDbl(FrequencyStr)
-
-        FarfieldPlot.Reset
-        '==============Upper Hemisphere RHCP and LHCP gain abstraction===============
-
-        Dim upperHemisphereRHCPdirectivity() As Double, upperHemisphereLHCPdirectivity() As Double
-
-        Dim Theta As Double, Phi As Double
-
-        Dim position_theta() As Double, position_phi() As Double
-        Dim AVGPower As Double
-        Dim Columns As String
-        Dim projectPath As String, dataFile As String
-        Dim NoticeInformation As String
-
-        For Phi=0 To 360 STEP 30
-
-             For Theta = 0 To 180 STEP 15
-
-                 FarfieldPlot.AddListEvaluationPoint(Theta, Phi, 0, "spherical", "frequency", Frequency)
-
-             Next Theta
-
-        Next Phi
-
-        FarfieldPlot.CalculateList("")
-
-        upperHemisphereRHCPdirectivity = FarfieldPlot.GetList("Spherical circular right abs")
-
-	    upperHemisphereLHCPdirectivity = FarfieldPlot.GetList("Spherical circular left abs")
-
-	    position_theta = FarfieldPlot.GetList("Point_T")
-
-	    position_phi = FarfieldPlot.GetList("Point_P")
-
-	    ReDim rhcpDirectivity(13,13)
-	    ReDim lhcpDirectivity(13,13)
-	    'EIRP of an isotropic antenna
-	    For n = 0 To UBound(upperHemisphereRHCPdirectivity)
-
-	    	'linear to dB, Log(UHRHCPEffi)/Log(10)*10
-	         rhcpDirectivity(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = upperHemisphereRHCPdirectivity(n)
-	         '10*CST_Log10(upperHemisphereRHCPdirectivity(n)) 'Log(upperHemisphereRHCPdirectivity(n)/AVGPower)/Log(10)*10
-	         lhcpDirectivity(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = upperHemisphereLHCPdirectivity(n)
-	         '10*CST_Log10(upperHemisphereLHCPdirectivity(n))'Log(upperHemisphereLHCPdirectivity(n)/AVGPower)/Log(10)*10
-	    Next n
-		 '==============================write directivity data============================
-		projectPath = GetProjectPath("Project")
-		Select Case farfieldMode
-	   	Case 0
-			dataFile = projectPath+"\Circularly polarized directivity_frequency="+FrequencyStr+"GHz Port="+PortStr+"_"+Replace(CStr(Time),":","_")+".xlsx"
-		Case 1
-			dataFile = projectPath+"\Circularly polarized gain_frequency="+FrequencyStr+"GHz Port="+PortStr+"_"+Replace(CStr(Time),":","_")+".xlsx"
-		Case 2
-			dataFile = projectPath+"\Circularly polarized realized gain_frequency="+FrequencyStr+"GHz Port="+PortStr+"_"+Replace(CStr(Time),":","_")+".xlsx"
-	   	End Select
-		'dataFile = projectPath+"\Circularly polarized directivity_frequency="+FrequencyStr+"GHz Port="+PortStr+".xlsx"
-		Columns = "BCDEFGHIJKLMN"
-
-		Select Case farfieldMode
-	   	Case 0
-			NoticeInformation = "The directivity data is under（"+projectPath+"\）"
-		Case 1
-			NoticeInformation = "The gain data is under（"+projectPath+"\）"
-		Case 2
-			NoticeInformation = "The realized gain data is under（"+projectPath+"\）"
-	   	End Select
-
-		'NoticeInformation = "The directivity data is under（"+projectPath+"\）"
-	    ReportInformationToWindow(NoticeInformation)
-		missmatchLoss = Round(FarfieldPlot.GetTotalEfficiency - FarfieldPlot.GetRadiationEfficiency,2)
-		Dim O As Object
-
-	    Set O = CreateObject("Excel.Application")
-		If Dir(dataFile) = "" Then
-		    Dim wBook As Object
-		    Set wBook = O.Workbooks.Add
-		    With wBook
-		        .Title = "Title"
-		        .Subject = "Subject"
-		        .SaveAs Filename:= dataFile
-			End With
-		Else
-		    Set wBook = O.Workbooks.Open(dataFile)
-		End If
-
-
-		'Add a sheet and rename it
-
-		wBook.Sheets.Add.Name = "Frequency="+FrequencyStr+"GHz"
-
-		Dim wSheet As Object
-		Set wSheet = wBook.Sheets("Frequency="+FrequencyStr+"GHz")
-
-		'write rhcp directivity
-		wSheet.Range("A1").value = "Polarization"
-		wSheet.Range("B1").value = "RHCP"
-		wSheet.Range("C1").value = "Frequency"
-		wSheet.Range("D1").value = FrequencyStr+"GHz"
-		wSheet.Range("E1").value = "Port"
-		wSheet.Range("F1").value = PortStr
-		wSheet.Range("A2").value = "Phi\Theta"
-
-		For n = 0 To Len(Columns)-1
-			wSheet.Range(Mid(Columns,n+1,1)+"2").value = n*15
-			wSheet.Range("A"+Cstr(n+3)) = n*30
-		Next
-
-		Dim i As Integer, j As Integer
-
-		For i  = 0 To 12
-			For j = 0 To 12
-				wSheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).value = Round(rhcpDirectivity(i,j),2)
-			Next
-		Next
-		'write lhcp directivity
-		wSheet.Range("A18").value = "Polarization"
-		wSheet.Range("B18").value = "LHCP"
-		wSheet.Range("C18").value = "Frequency"
-		wSheet.Range("D18").value = FrequencyStr+"GHz"
-		wSheet.Range("E18").value = "Port"
-		wSheet.Range("F18").value = PortStr
-		wSheet.Range("A19").value = "Phi\Theta"
-
-		For n = 0 To Len(Columns)-1
-			wSheet.Range(Mid(Columns,n+1,1)+"19").value = n*15
-			wSheet.Range("A"+Cstr(n+20)) = n*30
-		Next
-
-		For i  = 0 To 12
-			For j = 0 To 12
-				wSheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).value = Round(lhcpDirectivity(i,j),2)
-			Next
-		Next
-
-		Dim sheet As Object
-		For Each sheet In wBook.Sheets
-		    If sheet.Name Like "Sheet*" Then
-		        sheet.Delete
-		    End If
-		Next
-		'process sheet data, axial ratio, coloring, scoring and so on
-		processDirectivityData(wSheet, Columns)
-		wBook.Save
-		O.ActiveWorkbook.Close
-		O.quit
-
-    End If
 
 End Sub
 
@@ -266,7 +67,7 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 			'=======================Axial ratio estimating and coloring============================
 			deltaDirectivity = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value - sheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).Value
 
-			axialRatio = Sgn(deltaDirectivity-0.001)*20*CST_Log10((10^(deltaDirectivity/20)+1)/(Abs(10^(deltaDirectivity/20)-1)+0.01))
+			axialRatio = Sgn(deltaDirectivity-0.0001)*20*CST_Log10((10^(deltaDirectivity/20)+1)/(Abs(10^(deltaDirectivity/20)-1)+0.0001))
 
 			sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).value = Round(axialRatio,2)
 
@@ -442,6 +243,229 @@ Sub writeAverageDirectivityAndRating(sheet As Object, Columns As String)
 		"+0.25*SUMPRODUCT((I3:J15<=-12)*(I3:J15>-13)))))/117*100,2)"
    	End Select
 End Sub
+Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
+	'Dim parameterFile As String
+   	'Dim prjPath As String
+
+   	'prjPath = GetProjectPath("Project")
+   	'parameterFile = prjPath + "\dialog_parameter.txt"
+
+	Select Case Action%
+	Case 1 ' Dialog box initialization
+		'ReStoreAllDialogSettings_LIB(parameterFile)
+	Case 2 ' Value changing or button pressed
+		Rem DialogFunction = True ' Prevent button press from closing the dialog box
+		Select Case DlgItem
+		Case "Cancle"
+			Exit All
+		Case "OK"
+			Dim plotModes As Variant
+			plotModes = Array("directivity", "gain", "realized gain")
+			'farfieldMode = dlg.Group1
+			farfieldMode = DlgValue("Group1")
+			'FarfieldPlot.SelectComponent("Abs")
+			FarfieldPlot.PlotType("polar")
+			FarfieldPlot.SetAxesType("currentwcs")
+			FarfieldPlot.SetAntennaType("unknown")
+
+			'Select Case farfieldMode
+		   	'Case 0
+			'	FarfieldPlot.SetPlotMode("directivity")
+			'Case 1
+			'	FarfieldPlot.SetPlotMode("gain")
+			'Case 2
+			'	FarfieldPlot.SetPlotMode("realized gain")
+		   	'End Select
+			FarfieldPlot.SetPlotMode(plotModes(farfieldMode))
+
+		   	If FarfieldPlot.IsScaleLinear = True Then
+				FarfieldPlot.SetScaleLinear(False)
+		   	End If
+
+			'FarfieldPlot.SetPlotMode("Directivity")
+			'FarfieldPlot.SetAntennaType("directional_linear")
+			'FarfieldPlot.SetAntennaType("directional_circular")
+			FarfieldPlot.SetCoordinateSystemType("ludwig3")
+			FarfieldPlot.SetAutomaticCoordinateSystem("True")
+			FarfieldPlot.SetPolarizationType("Circular")
+
+		    'FarField Calculation
+
+		    Dim SelectedItem As String
+
+		    Dim n As Integer
+
+		    Dim Frequency As Double, FrequencyStr As String
+		    Dim PortStr As String
+
+		    SelectedItem = GetSelectedTreeItem
+
+		    If (InStr(SelectedItem,"farfield (") = 0) Then
+
+		        MsgBox("Please select a farfield result before runing this macro.",vbCritical,"Warning")
+
+		        Exit All
+
+		    Else
+
+		        'Get the frequency and port of the selected item
+
+		        FrequencyStr = Mid$(SelectedItem$,InStr(SelectedItem,"=")+1,InStr(SelectedItem,")")-InStr(SelectedItem,"=")-1)
+		        PortStr  = Mid$(SelectedItem$,InStr(SelectedItem,"[")+1,InStr(SelectedItem,"]")-InStr(SelectedItem,"[")-1)
+		        Frequency = CDbl(FrequencyStr)
+
+		        FarfieldPlot.Reset
+		        '==============Upper Hemisphere RHCP and LHCP gain abstraction===============
+
+		        Dim upperHemisphereRHCPdirectivity() As Double, upperHemisphereLHCPdirectivity() As Double
+
+		        Dim Theta As Double, Phi As Double
+
+		        Dim position_theta() As Double, position_phi() As Double
+		        Dim AVGPower As Double
+		        Dim Columns As String
+		        Dim projectPath As String, dataFile As String
+		        Dim NoticeInformation As String
+
+		        For Phi=0 To 360 STEP 30
+
+		             For Theta = 0 To 180 STEP 15
+
+		                 FarfieldPlot.AddListEvaluationPoint(Theta, Phi, 0, "spherical", "frequency", Frequency)
+
+		             Next Theta
+
+		        Next Phi
+
+		        FarfieldPlot.CalculateList("")
+
+		        upperHemisphereRHCPdirectivity = FarfieldPlot.GetList("Spherical circular right abs")
+
+			    upperHemisphereLHCPdirectivity = FarfieldPlot.GetList("Spherical circular left abs")
+
+			    position_theta = FarfieldPlot.GetList("Point_T")
+
+			    position_phi = FarfieldPlot.GetList("Point_P")
+
+			    ReDim rhcpDirectivity(13,13)
+			    ReDim lhcpDirectivity(13,13)
+			    'EIRP of an isotropic antenna
+			    For n = 0 To UBound(upperHemisphereRHCPdirectivity)
+
+			    	'linear to dB, Log(UHRHCPEffi)/Log(10)*10
+			         rhcpDirectivity(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = upperHemisphereRHCPdirectivity(n)
+			         '10*CST_Log10(upperHemisphereRHCPdirectivity(n)) 'Log(upperHemisphereRHCPdirectivity(n)/AVGPower)/Log(10)*10
+			         lhcpDirectivity(CInt(position_phi(n)/30),CInt(position_theta(n)/15)) = upperHemisphereLHCPdirectivity(n)
+			         '10*CST_Log10(upperHemisphereLHCPdirectivity(n))'Log(upperHemisphereLHCPdirectivity(n)/AVGPower)/Log(10)*10
+			    Next n
+				 '==============================write directivity data============================
+				projectPath = GetProjectPath("Project")
+				'Select Case farfieldMode
+			   	'Case 0
+				'	dataFile = projectPath+"\Circularly polarized directivity_frequency="+FrequencyStr+"GHz Port="+PortStr+"_"+Replace(CStr(Time),":","_")+".xlsx"
+				'Case 1
+				'	dataFile = projectPath+"\Circularly polarized gain_frequency="+FrequencyStr+"GHz Port="+PortStr+"_"+Replace(CStr(Time),":","_")+".xlsx"
+				'Case 2
+				'	dataFile = projectPath+"\Circularly polarized realized gain_frequency="+FrequencyStr+"GHz Port="+PortStr+"_"+Replace(CStr(Time),":","_")+".xlsx"
+			   	'End Select
+			   	dataFile = projectPath+"\Circularly polarized "+plotModes(farfieldMode)+"_frequency="+FrequencyStr+"GHz Port="+PortStr+"_"+Replace(CStr(Time),":","_")+".xlsx"
+				'dataFile = projectPath+"\Circularly polarized directivity_frequency="+FrequencyStr+"GHz Port="+PortStr+".xlsx"
+				Columns = "BCDEFGHIJKLMN"
+
+				'NoticeInformation = "The directivity data is under（"+projectPath+"\）"
+				ReportInformationToWindow "Data export in progress............."
+				missmatchLoss = Round(FarfieldPlot.GetTotalEfficiency - FarfieldPlot.GetRadiationEfficiency,2)
+				Dim O As Object
+
+			    Set O = CreateObject("Excel.Application")
+				If Dir(dataFile) = "" Then
+				    Dim wBook As Object
+				    Set wBook = O.Workbooks.Add
+				    With wBook
+				        .Title = "Title"
+				        .Subject = "Subject"
+				        .SaveAs Filename:= dataFile
+					End With
+				Else
+				    Set wBook = O.Workbooks.Open(dataFile)
+				End If
+
+
+				'Add a sheet and rename it
+
+				wBook.Sheets.Add.Name = "Frequency="+FrequencyStr+"GHz"
+
+				Dim wSheet As Object
+				Set wSheet = wBook.Sheets("Frequency="+FrequencyStr+"GHz")
+
+				'write rhcp directivity
+				wSheet.Range("A1").value = "Polarization"
+				wSheet.Range("B1").value = "RHCP"
+				wSheet.Range("C1").value = "Frequency"
+				wSheet.Range("D1").value = FrequencyStr+"GHz"
+				wSheet.Range("E1").value = "Port"
+				wSheet.Range("F1").value = PortStr
+				wSheet.Range("A2").value = "Phi\Theta"
+
+				For n = 0 To Len(Columns)-1
+					wSheet.Range(Mid(Columns,n+1,1)+"2").value = n*15
+					wSheet.Range("A"+Cstr(n+3)) = n*30
+				Next
+
+				Dim i As Integer, j As Integer
+
+				For i  = 0 To 12
+					For j = 0 To 12
+						wSheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).value = Round(rhcpDirectivity(i,j),2)
+					Next
+				Next
+				'write lhcp directivity
+				wSheet.Range("A18").value = "Polarization"
+				wSheet.Range("B18").value = "LHCP"
+				wSheet.Range("C18").value = "Frequency"
+				wSheet.Range("D18").value = FrequencyStr+"GHz"
+				wSheet.Range("E18").value = "Port"
+				wSheet.Range("F18").value = PortStr
+				wSheet.Range("A19").value = "Phi\Theta"
+
+				For n = 0 To Len(Columns)-1
+					wSheet.Range(Mid(Columns,n+1,1)+"19").value = n*15
+					wSheet.Range("A"+Cstr(n+20)) = n*30
+				Next
+
+				For i  = 0 To 12
+					For j = 0 To 12
+						wSheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).value = Round(lhcpDirectivity(i,j),2)
+					Next
+				Next
+
+				Dim sheet As Object
+				For Each sheet In wBook.Sheets
+				    If sheet.Name Like "Sheet*" Then
+				        sheet.Delete
+				    End If
+				Next
+				'process sheet data, axial ratio, coloring, scoring and so on
+				ReportInformationToWindow "Data estimation in progress............."
+				processDirectivityData(wSheet, Columns)
+				wBook.Save
+				O.ActiveWorkbook.Close
+				O.quit
+
+			   	NoticeInformation = "The realized "&plotModes(farfieldMode)&" data is under（"+projectPath+"\）"
+			   	ReportInformationToWindow "Progress ends successfully."
+			   	ReportInformationToWindow(NoticeInformation)
+			   	MsgBox "Farfied data are exported successfully.",vbInformation,"Done"
+
+			End If
+		End Select
+	Case 3 ' TextBox or ComboBox text changed
+	Case 4 ' Focus changed
+	Case 5 ' Idle
+		Rem Wait .1 : DialogFunction = True ' Continue getting idle actions
+	Case 6 ' Function key
+	End Select
+End Function
 
 
 
