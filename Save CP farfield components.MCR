@@ -2,7 +2,7 @@
 '2022-05-05 by Shawn Shi
 Option Explicit
 '#include "vba_globals_all.lib"
-Public farfieldMode As Integer, missmatchLoss As Double
+Public farfieldMode As Integer, TE As Double, RE As Double
 
 Sub Main ()
     'Get current farfield plot mode
@@ -94,10 +94,10 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 			Dvalue = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value
 
 			Select Case farfieldMode
-		   	Case 0	'reference total efficiency -10dB when the directivity is selected as the farfield component
-				Dvalue = Dvalue-10
+		   	Case 0	'reference total efficiency -7dB when the directivity is selected as the farfield component
+				Dvalue = Dvalue+TE
 			Case 1
-				Dvalue = Dvalue+missmatchLoss
+				Dvalue = Dvalue+TE-RE
 			Case 2
 				Dvalue = Dvalue
 		   	End Select
@@ -203,44 +203,73 @@ Sub writeAverageDirectivityAndRating(sheet As Object, Columns As String)
 	Select Case farfieldMode
   	Case 0	'reference total efficiency -10dB when the directivity is selected as the farfield component
 		sheet.Range("Q8").Formula = _
-		"=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=-7)*(B3:E15>-100))+1.25*SUMPRODUCT((B3:E15<=-6)*(B3:E15>-7))"+ _
-		"+SUMPRODUCT((B3:E15<=-5)*(B3:E15>-6))+0.75*SUMPRODUCT((B3:E15<=-4)*(B3:E15>-5))+0.5*SUMPRODUCT((B3:E15<=-3)"+ _
-		"*(B3:E15>-4))+0.25*SUMPRODUCT((B3:E15<=-2)*(B3:E15>-3)))+1.5*SUMPRODUCT((F3:H15<=-7)*(F3:H15>-100))+"+ _
-		"1.25*SUMPRODUCT((F3:H15<=-6)*(F3:H15>-7))+SUMPRODUCT((F3:H15<=-5)*(F3:H15>-6))+0.75*SUMPRODUCT((F3:H15<=-4)"+ _
-		"*(F3:H15>-5))+0.5*SUMPRODUCT((F3:H15<=-3)*(F3:H15>-4))+0.25*SUMPRODUCT((F3:H15<=-2)*(F3:H15>-3))+0.5*"+ _
-		"(1.5*SUMPRODUCT((I3:J15<=-7)*(I3:J15>-100))+1.25*SUMPRODUCT((I3:J15<=-6)*(I3:J15>-7))+SUMPRODUCT((I3:J15<=-5)*"+ _
-		"(I3:J15>-6))+0.75*SUMPRODUCT((I3:J15<=-4)*(I3:J15>-5))+0.5*SUMPRODUCT((I3:J15<=-3)*(I3:J15>-4))"+ _
-		"+0.25*SUMPRODUCT((I3:J15<=-2)*(I3:J15>-3)))))/117*100,2)"
+		"=ROUND((88-0.5*(1.5*(1.75*SUMPRODUCT((B4:F15<=(-17-"+CStr(RE)+"))*(B4:F15>-100))+"+ _
+		"1.5*SUMPRODUCT((B4:F15<=(-16-"+CStr(RE)+"))*(B4:F15>(-17-"+CStr(RE)+")))+"+ _
+		"SUMPRODUCT((B4:F15<=(-15-"+CStr(RE)+"))*(B4:F15>(-16-"+CStr(RE)+")))+"+ _
+		"0.75*SUMPRODUCT((B4:F15<=(-14-"+CStr(RE)+"))*(B4:F15>(-15-"+CStr(RE)+")))+"+ _
+		"0.5*SUMPRODUCT((B4:F15<=(-13-"+CStr(RE)+"))*(B4:F15>(-14-"+CStr(RE)+")))+"+ _
+		"0.25*SUMPRODUCT((B4:F15<=(-11-"+CStr(RE)+"))*(B4:F15>(-13-"+CStr(RE)+"))))+"+ _
+		"1.3*(1.75*(SUMPRODUCT((G4:H6<=(-17-"+CStr(RE)+"))*(G4:H6>-100))+"+ _
+		"SUMPRODUCT((G12:H15>-100)*(G12:H15<=(-17-"+CStr(RE)+"))))+"+ _
+		"1.5*(SUMPRODUCT((G4:H6<=(-16-"+CStr(RE)+"))*(G4:H6>(-17-"+CStr(RE)+")))+"+ _
+		"SUMPRODUCT((G12:H15<=(-16-"+CStr(RE)+"))*(G12:H15>(-17-"+CStr(RE)+"))))+"+ _
+		"1*(SUMPRODUCT((G4:H6<=(-15-"+CStr(RE)+"))*(G4:H6>(-16-"+CStr(RE)+")))+"+ _
+		"SUMPRODUCT((G12:H15<=(-15-"+CStr(RE)+"))*(G12:H15>(-16-"+CStr(RE)+"))))+"+ _
+		"0.75*(SUMPRODUCT((G4:H6<=(-14-"+CStr(RE)+"))*(G4:H6>(-15-"+CStr(RE)+")))+"+ _
+		"SUMPRODUCT((G12:H15=(-14-"+CStr(RE)+"))*(G12:H15>(-15-"+CStr(RE)+"))))+"+ _
+		"0.5*(SUMPRODUCT((G4:H6<=(-13-"+CStr(RE)+"))*(G4:H6>(-14-"+CStr(RE)+")))+"+ _
+		"SUMPRODUCT((G12:H15<=(-13-"+CStr(RE)+"))*(G12:H15>(-14-"+CStr(RE)+"))))+"+ _
+		"0.25*(SUMPRODUCT((G4:H6<=(-11-"+CStr(RE)+"))*(G4:H6>(-13-"+CStr(RE)+")))+"+ _
+		"SUMPRODUCT((G12:H15<=(-11-"+CStr(RE)+"))*(G12:H15>(-13-"+CStr(RE)+")))))+"+ _
+		"1.1*(1.75*(SUMPRODUCT((I4:J6<=(-17-"+CStr(RE)+"))*(I4:J6>-100))+"+ _
+		"SUMPRODUCT((I12:J15<=(-17-"+CStr(RE)+"))*(I12:J15>-100)))+"+ _
+		"1.5*(SUMPRODUCT((I4:J6<=(-16-"+CStr(RE)+"))*(I4:J6>(-17-"+CStr(RE)+")))+"+ _
+		"SUMPRODUCT((I12:J15<=(-16+"+CStr(RE)+"))*(I12:J15>(-17-"+CStr(RE)+"))))+"+ _
+		"(SUMPRODUCT((I4:J6<=(-15-"+CStr(RE)+"))*(I4:J6>(-16-"+CStr(RE)+")))+"+ _
+		"SUMPRODUCT((I12:J15<=(-15-"+CStr(RE)+"))*(I12:J15>(-16-"+CStr(RE)+"))))+"+ _
+		"0.75*(SUMPRODUCT((I4:J6<=(-14-"+CStr(RE)+"))*(I4:J6>(-15-"+CStr(RE)+")))+"+ _
+		"SUMPRODUCT((I12:J15<=(-14-"+CStr(RE)+"))*(I12:J15>(-15-"+CStr(RE)+"))))+"+ _
+		"0.5*(SUMPRODUCT((I4:J6<=(-13-"+CStr(RE)+"))*(I4:J6>(-14-"+CStr(RE)+")))+"+ _
+		"SUMPRODUCT((I12:J15<=(-13-"+CStr(RE)+"))*(I12:J15>(-14-"+CStr(RE)+"))))+"+ _
+		"0.25*(SUMPRODUCT((I4:J6<=(-11-"+CStr(RE)+"))*(I4:J6>(-13-"+CStr(RE)+")))+"+ _
+		"SUMPRODUCT((I12:J15<=(-11-"+CStr(RE)+"))*(I12:J15>(-13-"+CStr(RE)+")))))))/88*100,2)"
 	Case 1
 		sheet.Range("Q8").Formula = _
-		"=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=(-17-"+CStr(missmatchLoss)+"))*(B3:E15>-100))+"+ _
-		"1.25*SUMPRODUCT((B3:E15<=(-16-"+CStr(missmatchLoss)+"))*(B3:E15>(-17-"+CStr(missmatchLoss)+")))"+ _
-		"+SUMPRODUCT((B3:E15<=(-15-"+CStr(missmatchLoss)+"))*(B3:E15>(-16-"+CStr(missmatchLoss)+")))+"+ _
-		"0.75*SUMPRODUCT((B3:E15<=(-14-"+CStr(missmatchLoss)+"))*(B3:E15>(-15-"+CStr(missmatchLoss)+")))+"+ _
-		"0.5*SUMPRODUCT((B3:E15<=(-13-"+CStr(missmatchLoss)+"))*(B3:E15>(-14-"+CStr(missmatchLoss)+")))+"+ _
-		"0.25*SUMPRODUCT((B3:E15<=(-12-"+CStr(missmatchLoss)+"))*(B3:E15>(-13-"+CStr(missmatchLoss)+"))))+"+ _
-		"1.5*SUMPRODUCT((F3:H15<=(-17-"+CStr(missmatchLoss)+"))*(F3:H15>-100))+"+ _
-		"1.25*SUMPRODUCT((F3:H15<=(-16-"+CStr(missmatchLoss)+"))*(F3:H15>(-17-"+CStr(missmatchLoss)+")))+"+ _
-		"SUMPRODUCT((F3:H15<=(-15-"+CStr(missmatchLoss)+"))*(F3:H15>(-16-"+CStr(missmatchLoss)+")))+"+ _
-		"0.75*SUMPRODUCT((F3:H15<=(-14-"+CStr(missmatchLoss)+"))*(F3:H15>(-15-"+CStr(missmatchLoss)+")))+"+ _
-		"0.5*SUMPRODUCT((F3:H15<=(-13-"+CStr(missmatchLoss)+"))*(F3:H15>(-14-"+CStr(missmatchLoss)+")))+"+ _
-		"0.25*SUMPRODUCT((F3:H15<=(-12-"+CStr(missmatchLoss)+"))*(F3:H15>(-13-"+CStr(missmatchLoss)+")))+"+ _
-		"0.5*(1.5*SUMPRODUCT((I3:J15<=(-17-"+CStr(missmatchLoss)+"))*(I3:J15>-100))+"+ _
-		"1.25*SUMPRODUCT((I3:J15<=(-16-"+CStr(missmatchLoss)+"))*(I3:J15>(-17-"+CStr(missmatchLoss)+")))+"+ _
-		"SUMPRODUCT((I3:J15<=(-15-"+CStr(missmatchLoss)+"))*(I3:J15>(-16-"+CStr(missmatchLoss)+")))+"+ _
-		"0.75*SUMPRODUCT((I3:J15<=(-14-"+CStr(missmatchLoss)+"))*(I3:J15>(-15-"+CStr(missmatchLoss)+")))+"+ _
-		"0.5*SUMPRODUCT((I3:J15<=(-13-"+CStr(missmatchLoss)+"))*(I3:J15>(-14-"+CStr(missmatchLoss)+")))"+ _
-		"+0.25*SUMPRODUCT((I3:J15<=(-12-"+CStr(missmatchLoss)+"))*(I3:J15>(-13-"+CStr(missmatchLoss)+"))))))/117*100,2)"
+		"=ROUND((88-0.5*(1.5*(1.75*SUMPRODUCT((B4:F15<=-17)*(B4:F15>-100))+"+ _
+		"1.5*SUMPRODUCT((B4:F15<=-16)*(B4:F15>-17))+SUMPRODUCT((B4:F15<=-15)*(B4:F15>-16))+"+ _
+		"0.75*SUMPRODUCT((B4:F15<=-14)*(B4:F15>-15))+0.5*SUMPRODUCT((B4:F15<=-13)*(B4:F15>-14))+"+ _
+		"0.25*SUMPRODUCT((B4:F15<=-11)*(B4:F15>-13)))+1.3*(1.75*(SUMPRODUCT((G4:H6<=-17)*(G4:H6>-100))+"+ _
+		"SUMPRODUCT((G12:H15>-100)*(G12:H15<=-17)))+1.5*(SUMPRODUCT((G4:H6<=-16)*(G4:H6>-17))+"+ _
+		"SUMPRODUCT((G12:H15<=-16)*(G12:H15>-17)))+1*(SUMPRODUCT((G4:H6<=-15)*(G4:H6>-16))+"+ _
+		"SUMPRODUCT((G12:H15<=-15)*(G12:H15>-16)))+0.75*(SUMPRODUCT((G4:H6<=-14)*(G4:H6>-15))+"+ _
+		"SUMPRODUCT((G12:H15=-14)*(G12:H15>-15)))+0.5*(SUMPRODUCT((G4:H6<=-13)*(G4:H6>-14))+"+ _
+		"SUMPRODUCT((G12:H15<=-13)*(G12:H15>-14)))+0.25*(SUMPRODUCT((G4:H6<=-11)*(G4:H6>-13))+"+ _
+		"SUMPRODUCT((G12:H15<=-11)*(G12:H15>-13))))+1.1*(1.75*(SUMPRODUCT((I4:J6<=-17)*(I4:J6>-100))+"+ _
+		"SUMPRODUCT((I12:J15<=-17)*(I12:J15>-100)))+1.5*(SUMPRODUCT((I4:J6<=-16)*(I4:J6>-17))+"+ _
+		"SUMPRODUCT((I12:J15<=-16)*(I12:J15>-17)))+(SUMPRODUCT((I4:J6<=-15)*(I4:J6>-16))+"+ _
+		"SUMPRODUCT((I12:J15<=-15)*(I12:J15>-16)))+0.75*(SUMPRODUCT((I4:J6<=-14)*(I4:J6>-15))+"+ _
+		"SUMPRODUCT((I12:J15<=-14)*(I12:J15>-15)))+0.5*(SUMPRODUCT((I4:J6<=-13)*(I4:J6>-14))+"+ _
+		"SUMPRODUCT((I12:J15<=-13)*(I12:J15>-14)))+0.25*(SUMPRODUCT((I4:J6<=-11)*(I4:J6>-13))+"+ _
+		"SUMPRODUCT((I12:J15<=-11)*(I12:J15>-13))))))/88*100,2)"
+
 	Case 2
 		sheet.Range("Q8").Formula = _
-		"=ROUND((117-0.5*(1.75*(1.5*SUMPRODUCT((B3:E15<=-17)*(B3:E15>-100))+1.25*SUMPRODUCT((B3:E15<=-16)*(B3:E15>-17))"+ _
-		"+SUMPRODUCT((B3:E15<=-15)*(B3:E15>-16))+0.75*SUMPRODUCT((B3:E15<=-14)*(B3:E15>-15))+0.5*SUMPRODUCT((B3:E15<=-13)"+ _
-		"*(B3:E15>-14))+0.25*SUMPRODUCT((B3:E15<=-12)*(B3:E15>-13)))+1.5*SUMPRODUCT((F3:H15<=-17)*(F3:H15>-100))+"+ _
-		"1.25*SUMPRODUCT((F3:H15<=-16)*(F3:H15>-17))+SUMPRODUCT((F3:H15<=-15)*(F3:H15>-16))+0.75*SUMPRODUCT((F3:H15<=-14)"+ _
-		"*(F3:H15>-15))+0.5*SUMPRODUCT((F3:H15<=-13)*(F3:H15>-14))+0.25*SUMPRODUCT((F3:H15<=-12)*(F3:H15>-13))+0.5*"+ _
-		"(1.5*SUMPRODUCT((I3:J15<=-17)*(I3:J15>-100))+1.25*SUMPRODUCT((I3:J15<=-16)*(I3:J15>-17))+SUMPRODUCT((I3:J15<=-15)*"+ _
-		"(I3:J15>-16))+0.75*SUMPRODUCT((I3:J15<=-14)*(I3:J15>-15))+0.5*SUMPRODUCT((I3:J15<=-13)*(I3:J15>-14))"+ _
-		"+0.25*SUMPRODUCT((I3:J15<=-12)*(I3:J15>-13)))))/117*100,2)"
+		"=ROUND((88-0.5*(1.5*(1.75*SUMPRODUCT((B4:F15<=(-17+"+CStr(TE-RE)+"))*(B4:F15>-100))+"+ _
+		"1.5*SUMPRODUCT((B4:F15<=(-16+"+CStr(TE-RE)+"))*(B4:F15>(-17+"+CStr(TE-RE)+")))+SUMPRODUCT((B4:F15<=(-15+"+CStr(TE-RE)+"))*(B4:F15>(-16+"+CStr(TE-RE)+")))+"+ _
+		"0.75*SUMPRODUCT((B4:F15<=(-14+"+CStr(TE-RE)+"))*(B4:F15>(-15+"+CStr(TE-RE)+")))+0.5*SUMPRODUCT((B4:F15<=(-13+"+CStr(TE-RE)+"))*(B4:F15>(-14+"+CStr(TE-RE)+")))+"+ _
+		"0.25*SUMPRODUCT((B4:F15<=(-11+"+CStr(TE-RE)+"))*(B4:F15>(-13+"+CStr(TE-RE)+"))))+1.3*(1.75*(SUMPRODUCT((G4:H6<=(-17+"+CStr(TE-RE)+"))*(G4:H6>-100))+"+ _
+		"SUMPRODUCT((G12:H15>-100)*(G12:H15<=(-17+"+CStr(TE-RE)+"))))+1.5*(SUMPRODUCT((G4:H6<=(-16+"+CStr(TE-RE)+"))*(G4:H6>(-17+"+CStr(TE-RE)+")))+"+ _
+		"SUMPRODUCT((G12:H15<=(-16+"+CStr(TE-RE)+"))*(G12:H15>(-17+"+CStr(TE-RE)+"))))+1*(SUMPRODUCT((G4:H6<=(-15+"+CStr(TE-RE)+"))*(G4:H6>(-16+"+CStr(TE-RE)+")))+"+ _
+		"SUMPRODUCT((G12:H15<=(-15+"+CStr(TE-RE)+"))*(G12:H15>(-16+"+CStr(TE-RE)+"))))+0.75*(SUMPRODUCT((G4:H6<=(-14+"+CStr(TE-RE)+"))*(G4:H6>(-15+"+CStr(TE-RE)+")))+"+ _
+		"SUMPRODUCT((G12:H15=(-14+"+CStr(TE-RE)+"))*(G12:H15>(-15+"+CStr(TE-RE)+"))))+0.5*(SUMPRODUCT((G4:H6<=(-13+"+CStr(TE-RE)+"))*(G4:H6>(-14+"+CStr(TE-RE)+")))+"+ _
+		"SUMPRODUCT((G12:H15<=(-13+"+CStr(TE-RE)+"))*(G12:H15>(-14+"+CStr(TE-RE)+"))))+0.25*(SUMPRODUCT((G4:H6<=(-11+"+CStr(TE-RE)+"))*(G4:H6>(-13+"+CStr(TE-RE)+")))+"+ _
+		"SUMPRODUCT((G12:H15<=(-11+"+CStr(TE-RE)+"))*(G12:H15>(-13+"+CStr(TE-RE)+")))))+1.1*(1.75*(SUMPRODUCT((I4:J6<=(-17+"+CStr(TE-RE)+"))*(I4:J6>-100))+"+ _
+		"SUMPRODUCT((I12:J15<=(-17+"+CStr(TE-RE)+"))*(I12:J15>-100)))+1.5*(SUMPRODUCT((I4:J6<=(-16+"+CStr(TE-RE)+"))*(I4:J6>(-17+"+CStr(TE-RE)+")))+"+ _
+		"SUMPRODUCT((I12:J15<=(-16+"+CStr(TE-RE)+"))*(I12:J15>(-17+"+CStr(TE-RE)+"))))+(SUMPRODUCT((I4:J6<=(-15+"+CStr(TE-RE)+"))*(I4:J6>(-16+"+CStr(TE-RE)+")))+"+ _
+		"SUMPRODUCT((I12:J15<=(-15+"+CStr(TE-RE)+"))*(I12:J15>(-16+"+CStr(TE-RE)+"))))+0.75*(SUMPRODUCT((I4:J6<=(-14+"+CStr(TE-RE)+"))*(I4:J6>(-15+"+CStr(TE-RE)+")))+"+ _
+		"SUMPRODUCT((I12:J15<=(-14+"+CStr(TE-RE)+"))*(I12:J15>(-15+"+CStr(TE-RE)+"))))+0.5*(SUMPRODUCT((I4:J6<=(-13+"+CStr(TE-RE)+"))*(I4:J6>(-14+"+CStr(TE-RE)+")))+"+ _
+		"SUMPRODUCT((I12:J15<=(-13+"+CStr(TE-RE)+"))*(I12:J15>(-14+"+CStr(TE-RE)+"))))+0.25*(SUMPRODUCT((I4:J6<=(-11+"+CStr(TE-RE)+"))*(I4:J6>(-13+"+CStr(TE-RE)+")))+"+ _
+		"SUMPRODUCT((I12:J15<=(-11+"+CStr(TE-RE)+"))*(I12:J15>(-13+"+CStr(TE-RE)+")))))))/88*100,2)"
    	End Select
 End Sub
 Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
@@ -312,10 +341,12 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 
 		        FrequencyStr = Mid$(SelectedItem$,InStr(SelectedItem,"=")+1,InStr(SelectedItem,")")-InStr(SelectedItem,"=")-1)
 		        PortStr  = Mid$(SelectedItem$,InStr(SelectedItem,"[")+1,InStr(SelectedItem,"]")-InStr(SelectedItem,"[")-1)
+		        PortStr = Replace(PortStr,"[","")
+		        PortStr = Replace(PortStr,"]","")
 		        Frequency = CDbl(FrequencyStr)
 
 		        FarfieldPlot.Reset
-		        '==============Upper Hemisphere RHCP and LHCP gain abstraction===============
+		        '==============Upper Hemisphere RHCP and LHCP directivity abstraction===============
 
 		        Dim upperHemisphereRHCPdirectivity() As Double, upperHemisphereLHCPdirectivity() As Double
 
@@ -369,12 +400,16 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 				'	dataFile = projectPath+"\Circularly polarized realized gain_frequency="+FrequencyStr+"GHz Port="+PortStr+"_"+Replace(CStr(Time),":","_")+".xlsx"
 			   	'End Select
 			   	dataFile = projectPath+"\Circularly polarized "+plotModes(farfieldMode)+"_frequency="+FrequencyStr+"GHz Port="+PortStr+"_"+Replace(CStr(Time),":","_")+".xlsx"
+			   	dataFile = Replace(dataFile, "[", "")
+			   	dataFile = Replace(dataFile, "]", "")
 				'dataFile = projectPath+"\Circularly polarized directivity_frequency="+FrequencyStr+"GHz Port="+PortStr+".xlsx"
 				Columns = "BCDEFGHIJKLMN"
 
 				'NoticeInformation = "The directivity data is under（"+projectPath+"\）"
 				ReportInformationToWindow "Data export in progress............."
-				missmatchLoss = Round(FarfieldPlot.GetTotalEfficiency - FarfieldPlot.GetRadiationEfficiency,2)
+				'RE = Round(FarfieldPlot.GetTotalEfficiency - FarfieldPlot.GetRadiationEfficiency,2)
+				TE = FarfieldPlot.GetTotalEfficiency
+				RE = FarfieldPlot.GetRadiationEfficiency
 				Dim O As Object
 
 			    Set O = CreateObject("Excel.Application")
