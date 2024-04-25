@@ -390,7 +390,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			         '10*CST_Log10(upperHemisphereLHCPdirectivity(n))'Log(upperHemisphereLHCPdirectivity(n)/AVGPower)/Log(10)*10
 			    Next n
 				 '==============================write directivity data============================
-				projectPath = GetProjectPath("Project")
+				projectPath = GetProjectPath("Project")+"\Result"
 				'Select Case farfieldMode
 			   	'Case 0
 				'	dataFile = projectPath+"\Circularly polarized directivity_frequency="+FrequencyStr+"GHz Port="+PortStr+"_"+Replace(CStr(Time),":","_")+".xlsx"
