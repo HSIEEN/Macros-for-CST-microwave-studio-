@@ -3,6 +3,7 @@
 '20220828-By Shawn in COROS
 
 Public SelectedItem As String
+'#include "vba_globals_all.lib"
 
 Sub Main ()
   'Efficiency results parent path
@@ -26,7 +27,7 @@ Sub Main ()
    End If
 
     Dim InformationStr As String
-    InformationStr = "请输入要标注的频段（eg L1 L5 W2 W5）："
+    InformationStr = "请输入要标注的频段（eg L1 L5 W2 W5）或者直接输入频点（eg 1.56 2.4）："
 	Begin Dialog UserDialog 320,77,"根据输入频段添加Marker",.DialogFunction ' %GRID:10,7,1,1
 		Text 10,7,310,14,InformationStr,.Text1
 		TextBox 50,28,160,14,.Band
@@ -35,7 +36,7 @@ Sub Main ()
 	End Dialog
 	Dim dlg As UserDialog
 
-	dlg.Band = "L1"
+	dlg.Band = "L1 L5"
 
 	If Dialog(dlg,-2) = 0 Then
 		Exit All
@@ -44,9 +45,15 @@ Sub Main ()
 End Sub
 
 Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
+	Dim parameterFile As String
+	Dim prjPath As String
+
+	prjPath = GetProjectPath("Project")
+	parameterFile = prjPath + "\dialog_parameter.txt"
 
 	Select Case Action
 	Case 1 ' Dialog box initialization
+		RestoreAllDialogSettings_LIB(parameterFile)
 	Case 2 ' Value changing or button pressed
 		Rem DialogFunction = True ' Prevent button press from closing the dialog box
 
@@ -55,7 +62,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			Exit All
 		Case "OK"
 			DialogFunction = False
-
+			StoreAllDialogSettings_LIB(parameterFile)
 			Dim Bands As String
 		    Dim CurrentItem As String
 		    Dim Label As String
@@ -81,8 +88,8 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
             		If InStr(Bands,"L5")<> 0 Then
             			With Plot1D
 
-						     .AddMarker(1.165) '
-						     .AddMarker(1.187) '
+						     .AddMarker(1.164) '
+						     .AddMarker(1.189) '
 						     '.ShowMarkerAtMin
 						     .Plot ' make changes visible
 
@@ -92,7 +99,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
             		If InStr(Bands,"W2")<> 0 Then
 						With Plot1D
 
-						     .AddMarker(2.4) '
+						     .AddMarker(2.40) '
 						     .AddMarker(2.48) '
 						     '.ShowMarkerAtMin
 						     .Plot ' make changes visible
