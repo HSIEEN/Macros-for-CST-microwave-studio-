@@ -1,6 +1,6 @@
-' Calculate Power loss in dB
+' Format 1d plot
 
-'20220828-By Shawn in COROS
+'20230614-By Shawn in COROS
 'Public FirstChildItem As String
 Option Explicit
 Sub Main ()
@@ -13,6 +13,7 @@ Sub Main ()
 	Dim index As Integer
 
 	selectedItem = GetSelectedTreeItem
+	'selectedItem = GetNextSelectedTreeItem
 	While selectedItem <> ""
 
 		If (InStr(selectedItem,"1D Results") = 0) Then
@@ -20,7 +21,7 @@ Sub Main ()
 	        Exit All
 	    End If
 
-	    Dim paths As Variant, types As Variant, files As Variant, info As Variant, nResults As Long
+	    'Dim paths As Variant, types As Variant, files As Variant, info As Variant, nResults As Long
 	    Dim isSmith As Boolean
 	    isSmith = False
 
@@ -29,28 +30,32 @@ Sub Main ()
 	    	sselectedItem = Resulttree.GetFirstChildName(selectedItem)
 
 			While sselectedItem <> ""
-
-				If (Resulttree.GetResultTypeFromItemName(sselectedItem) = "xysignal" _
-				Or Resulttree.GetResultTypeFromItemName(sselectedItem) = "farfieldpolar") Then
+				If HasChildren(sselectedItem)=False Then
+				'If (Resulttree.GetResultTypeFromItemName(sselectedItem) = "xysignal" _
+				'Or Resulttree.GetResultTypeFromItemName(sselectedItem) = "farfieldpolar" _
+				'Or Resulttree.GetResultTypeFromItemName(sselectedItem) = "table") Then
 
 					curveLabel = Right(sselectedItem,Len(sselectedItem)-InStrRev(sselectedItem,"\"))
 
-				   With Plot1D
-				      index =.GetCurveIndexOfCurveLabel(curveLabel)
-				      If index = -1 Then
-				      	.PlotView("magnitudedb")
-				      	isSmith = True
-				      End If
-				       index =.GetCurveIndexOfCurveLabel(curveLabel)
+				    With Plot1D
+				    	index =.GetCurveIndexOfCurveLabel(curveLabel)
+				      	If index = -1 Then
+				      		.PlotView("magnitudedb")
+				      		isSmith = True
+				      		index =.GetCurveIndexOfCurveLabel(curveLabel)
+				      	End If
+						If index = -1 Then
+							Exit All
+						End If
 				      'ReportInformationToWindow("The above curve index is "+CStr(index))
 				      'index =.GetCurveIndexOfCurveLabel("S1,1")
-				     .SetLineStyle(index,"Solid",3) ' thick dashed line
-				     .SetFont("Tahoma","bold","14")
+				     	.SetLineStyle(index,"Solid",3) ' thick dashed line in while
+				     	.SetFont("Tahoma","bold","14")
 				     '.SetLineColor(index,255,255,0)  ' yellow
-				     If isSmith = True Then
-				     	.PlotView("smith")
-				     End If
-				     .Plot ' make changes visible
+				     	If isSmith = True Then
+				     		.PlotView("smith")
+				     	End If
+				    	 	.Plot ' make changes visible
 					End With
 
 				End If
@@ -58,18 +63,23 @@ Sub Main ()
 			Wend
 
 		Else
+
 			curveLabel = Right(selectedItem,Len(selectedItem)-InStrRev(selectedItem,"\"))
+			SelectTreeItem(Left(selectedItem,InStrRev(selectedItem,"\")-1))
 
 			With Plot1D
 			      index =.GetCurveIndexOfCurveLabel(curveLabel)
 			      If index = -1 Then
 			      	.PlotView("magnitudedb")
 			      	isSmith = True
+			      	index =.GetCurveIndexOfCurveLabel(curveLabel)
 			      End If
-			       index =.GetCurveIndexOfCurveLabel(curveLabel)
+			      If index = -1 Then
+			      	Exit All
+			      End If
 			      'ReportInformationToWindow("The above curve index is "+CStr(index))
 			      'index =.GetCurveIndexOfCurveLabel("S1,1")
-			     .SetLineStyle(index,"Solid",3) ' thick dashed line
+			     .SetLineStyle(index,"Solid",3)
 			     .SetFont("Tahoma","bold","14")
 			     '.SetLineColor(index,255,255,0)  ' yellow
 			     If isSmith = True Then
