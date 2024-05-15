@@ -11,6 +11,8 @@ Sub Main ()
 	Dim sselectedItem As String
 	Dim curveLabel As String
 	Dim index As Integer
+	Dim selectedItems(1000) As Variant
+	Dim n As Integer, i As Integer
 
 	selectedItem = GetSelectedTreeItem
 	'selectedItem = GetNextSelectedTreeItem
@@ -63,35 +65,43 @@ Sub Main ()
 			Wend
 
 		Else
-
-			curveLabel = Right(selectedItem,Len(selectedItem)-InStrRev(selectedItem,"\"))
-			SelectTreeItem(Left(selectedItem,InStrRev(selectedItem,"\")-1))
-
-			With Plot1D
-			      index =.GetCurveIndexOfCurveLabel(curveLabel)
-			      If index = -1 Then
-			      	.PlotView("magnitudedb")
-			      	isSmith = True
-			      	index =.GetCurveIndexOfCurveLabel(curveLabel)
-			      End If
-			      If index = -1 Then
-			      	Exit All
-			      End If
-			      'ReportInformationToWindow("The above curve index is "+CStr(index))
-			      'index =.GetCurveIndexOfCurveLabel("S1,1")
-			     .SetLineStyle(index,"Solid",3)
-			     .SetFont("Tahoma","bold","14")
-			     '.SetLineColor(index,255,255,0)  ' yellow
-			     If isSmith = True Then
-			     	.PlotView("smith")
-			     End If
-			     .Plot ' make changes visible
-			End With
-
+			n=GetNumberOfSelectedTreeItems
+			For i=0 To n-1
+				selectedItems(i)=selectedItem
+				selectedItem = GetNextSelectedTreeItem
+			Next
+			'If n>1 Then
+				'SelectTreeItem(Left(selectedItem,InStrRev(selectedItem,"\")-1))
+			'End If
+			For i=0 To n-1
+				SelectTreeItem(selectedItems(i))
+				curveLabel = Right(selectedItems(i),Len(selectedItems(i))-InStrRev(selectedItems(i),"\"))
+				With Plot1D
+				      index =.GetCurveIndexOfCurveLabel(curveLabel)
+				      If index = -1 Then
+				      	.PlotView("magnitudedb")
+				      	isSmith = True
+				      	index =.GetCurveIndexOfCurveLabel(curveLabel)
+				      End If
+				      If index = -1 Then
+				      	Exit All
+				      End If
+				      'selectedItems(n)=selectedItem
+					  'n=n+1
+				      'ReportInformationToWindow("The above curve index is "+CStr(index))
+				      'index =.GetCurveIndexOfCurveLabel("S1,1")
+				     .SetLineStyle(index,"Solid",3)
+				     .SetFont("Tahoma","bold","14")
+				     '.SetLineColor(index,255,255,0)  ' yellow
+				     If isSmith = True Then
+				     	.PlotView("smith")
+				     End If
+				     .Plot ' make changes visible
+				End With
+			Next
 	    End If
 		selectedItem = GetNextSelectedTreeItem
     Wend
-
 End Sub
 
 Function HasChildren( Item As String ) As Boolean
