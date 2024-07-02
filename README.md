@@ -1,5 +1,5 @@
 # Macros when simulating an antenna in CST Microwave Studio
-Some macros in VBA for CST microwave studio.
+## Some macros in VBA for CST microwave studio.
 
 Some functions are as follows:
 
@@ -26,3 +26,5 @@ Some functions are as follows:
 *Auto-format 1D plot: bolden the curve and font for the convenience of screenshot
 
 *Auto-replace solids with a brick or cylinder to simplify the model
+## About the author
+The author now is with Guangdong COROS as an antenna engineer. Any quesions or requirements please contact at utshixw@163.com
