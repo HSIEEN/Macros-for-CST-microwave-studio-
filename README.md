@@ -26,5 +26,11 @@ Some functions are as follows:
 *Auto-format 1D plot: bolden the curve and font for the convenience of screenshot
 
 *Auto-replace solids with a brick or cylinder to simplify the model
+
+*Select two 1D results and do subtraction
+
+*Import and formating test data from GTS test system
+
+
 ## About the author
 The author now is with Guangdong COROS as an antenna engineer. Any quesions or requirements please contact at utshixw@163.com
