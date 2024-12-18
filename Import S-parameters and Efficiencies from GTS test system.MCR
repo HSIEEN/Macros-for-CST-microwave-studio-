@@ -6,6 +6,20 @@ Public Const lib_rundef = -1.2345678e27
 Sub Main
 
 
+	Dim time_suffix As String
+	Dim time_str As String
+	Dim date_str As String
+
+	'time_str = Cstr(Time)
+	time_str = Format(Time, "hhmmss")
+
+	'time_str = Replace(time_str, ":", "")
+
+	'date_str = CStr(Month(Date))+CStr(Day(Date))
+	date_str = Format(Date, "mmdd")
+
+	time_suffix = date_str + time_str
+
 	'formating simulated results
 	'If there is only one sp result, one re result and one te result, get the mag format of them and move it to comparison directory
 	'else, only format them without moving
@@ -29,42 +43,48 @@ Sub Main
 		Set sre = Mag_Linear2dB(sre)
 		Set ste = Mag_Linear2dB(ste)
 
-
+		sSP.DeleteAt("never")
 		sSP.Type("dB")
 		sSP.Xlabel("Frequecy/GHz")
 		sSP.Ylabel("dB")
-		sSP.Save("simulated_SP_mag.sig")
-		sSP.AddToTree("1D Results\SP\Simulated_SP")
+		sSP.Save("simulated_SP_mag_"+time_suffix+".sig")
+		sSP.AddToTree("1D Results\SP\Simulated_SP_"+time_suffix)
 
+
+		sre.DeleteAt("never")
 		sre.Type("dB")
 		sre.Xlabel("Frequecy/GHz")
 		sre.Ylabel("dB")
-		sre.Save("simulated_RE_mag.sig")
-		sre.AddToTree("1D Results\RE\Simulated_RE")
+		sre.Save("simulated_RE_mag_"+time_suffix+".sig")
+		sre.AddToTree("1D Results\RE\Simulated_RE_"+time_suffix)
 
+		ste.DeleteAt("never")
 		ste.Type("dB")
 		ste.Xlabel("Frequecy/GHz")
 		ste.Ylabel("dB")
-		ste.Save("simulated_TE_mag.sig")
-		ste.AddToTree("1D Results\TE\Simulated_TE")
+		ste.Save("simulated_TE_mag_"+time_suffix+".sig")
+		ste.AddToTree("1D Results\TE\Simulated_TE_"+time_suffix)
 
 	ElseIf nResults>2 Then
     	Dim childItem As String
     	Dim os As Object
     	Dim sfile As String
-    	Dim suffix As String
+    	Dim suffix_0 As String, suffix_1 As String, suffix As String
 
     	childItem = ResultTree.GetFirstChildName("1D Results\S-Parameters\")
 
 		While childItem <>"" And InStr(childItem, "Simulated") = 0
-			suffix = Right(childItem, Len(childItem)-InStr(childItem,","))
-			sfile = ResultTree.GetFileFromTreeItem(childItem)
-			Set os = Result1DComplex(sfile)
-			Set os = Mag_Linear2dB(os)
-			os.Xlabel("Frequecy/GHz")
-			os.Ylabel("dB")
-			os.Save("simulated_sp_"+suffix+".sig")
-			os.AddToTree("1D Results\S-Parameters\Simulated_SP_"+suffix)
+			suffix_0 = Right(childItem, Len(childItem)-InStr(childItem,","))
+			suffix_1 = Mid(childItem,InStr(childItem, ",")-1, 1)
+			If StrComp(suffix_1, suffix_0) = 0 Then
+				sfile = ResultTree.GetFileFromTreeItem(childItem)
+				Set os = Result1DComplex(sfile)
+				Set os = Mag_Linear2dB(os)
+				os.Xlabel("Frequecy/GHz")
+				os.Ylabel("dB")
+				os.Save("simulated_sp_"+suffix+".sig")
+				os.AddToTree("1D Results\S-Parameters\Simulated_SP_"+suffix)
+			End If
 			childItem = ResultTree.GetNextItemName(childItem)
 			'suffix = Right(childItem, Len(childItem)-InStr(childItem,","))
 		Wend
@@ -103,12 +123,23 @@ Sub Main
 	Dim efilename As String
 	efilename  = GetFilePath("", "xls;xlsx", "", "Browse excel-file exported from GTS test system", 0)
 
+	If efilename = "" Then
+		GoTo theEnd
+	End If
+
 	'Open the Excel file and begin reading data
 	Dim O As Object
 	Set O = CreateObject("Excel.Application")
 
 	Dim wBook As Object
 	Set wBook = O.Workbooks.Open(efilename)
+
+	Dim efilename_suffix As String
+
+
+
+	'efilename_suffix =
+
 
 	Dim wSheet As Object
 	Set wSheet = wBook.Sheets("Sheet1")
@@ -174,17 +205,24 @@ Sub Main
 	ore.Ylabel("dB" )
 	ote.Ylabel("dB" )
 
+	osp.DeleteAt("never")
+	ore.DeleteAt("never")
+	ote.DeleteAt("never")
+
+
 	osp.Type("dB")
 	ore.Type("dB")
 	ote.Type("dB")
 
-	osp.Save("measured_SP_From_GTS"+".sig")
-	ore.Save("measured_RE_From_GTS"+".sig")
-	ote.Save("measured_TE_From_GTS"+".sig")
+	osp.Save("measured_SP_From_GTS_"+time_suffix+".sig")
+	ore.Save("measured_RE_From_GTS_"+time_suffix+".sig")
+	ote.Save("measured_TE_From_GTS_"+time_suffix+".sig")
 
-	osp.AddToTree("1D Results\SP\Measured_SP")
-	ore.AddToTree("1D Results\RE\Measured_RE")
-	ote.AddToTree("1D Results\TE\Measured_TE")
+	osp.AddToTree("1D Results\SP\Measured_SP_"+time_suffix)
+	ore.AddToTree("1D Results\RE\Measured_RE_"+time_suffix)
+	ote.AddToTree("1D Results\TE\Measured_TE_"+time_suffix)
+	theEnd:
+	MsgBox "Operation finished", vbInformation, "Done"
 
 
 End Sub
