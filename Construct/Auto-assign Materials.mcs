@@ -1,0 +1,73 @@
+'Assign materials for shapes according to the Material.xlsx
+'2022-06-04
+
+Option Explicit
+
+Sub Main
+
+	Dim  i As Integer, j As Integer, n As Integer
+	Dim sName As String, sMaterial As String
+	Dim O As Object
+	Dim wBook As Object
+	Dim wSheet As Object
+	Dim PrjPath As String
+	Dim DataFile As String
+	Dim NoticeInformation As String
+	Dim TotCol As Integer,TotRow As Integer
+	Dim NameIndex As String
+	Dim MaterialIndex As String
+	Dim ssName() As String, ssMaterial() As String
+	PrjPath = GetProjectPath("Project")
+	DataFile = PrjPath+"\Materials.xlsx"
+BeginHide
+	NoticeInformation = "Please put the file Materials.xlsx in the directory£¨"+PrjPath+"\£©"
+    If MsgBox(NoticeInformation,vbYesNo,"Attention") <> vbYes Then
+		Exit Sub
+    End If
+EndHide
+	Set O = CreateObject("Excel.Application")
+	Set wBook  = O.Workbooks.Open(DataFile)
+	Set wSheet = wBook.Sheets(1)
+	'Set wSheet = wBook.ActiveWorkbook.Sheets(1)
+	TotRow = wBook.Sheets(1).UsedRange.Rows.Count
+	ReDim ssName(TotRow-2)
+	ReDim ssMaterial(TotRow-2)
+	For i = 0 To TotRow-2 STEP 1
+		NameIndex = "A"&Cstr(i+2)
+		MaterialIndex = "B"&Cstr(i+2)
+		ssName(i) = wSheet.Range(NameIndex).Value
+		'Dim TmpName As String
+		'TmpName = ssName(i)
+		ssMaterial(i) = wSheet.Range(MaterialIndex).Value
+	Next i
+
+	For i = 0 To TotRow-2 STEP 1
+		For j = 0 To Material.GetNumberOfMaterials() STEP 1
+
+			If InStr(Material.GetNameOfMaterialFromIndex(j),ssMaterial(i)) Then
+				ssMaterial(i) = Material.GetNameOfMaterialFromIndex(j)
+				Exit For
+			End If
+		Next
+	Next
+
+	O.ActiveWorkbook.Close
+	O.quit
+
+	n =  Solid.GetNumberOfShapes
+	For i = 0 To n-1 STEP 1
+		sName = Solid.GetNameOfShapeFromIndex(i)
+		'Dim TmpStr As String
+		Dim SolidName As String
+		SolidName = Right(sName,Len(sName)-InStr(sName,":"))
+		sMaterial = Solid.GetMaterialNameForShape(sName)
+		For j = 0 To TotRow-2 STEP 1
+            If ssName(j) = SolidName And sMaterial <> ssMaterial(j) Then
+				Solid.ChangeMaterial(sName,ssMaterial(j))
+            End If
+		Next
+	Next i
+
+
+End Sub
+
