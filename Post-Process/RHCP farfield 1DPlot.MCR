@@ -134,20 +134,17 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			FarfieldPlot.SetCoordinateSystemType("ludwig3")
 			FarfieldPlot.SetAutomaticCoordinateSystem("True")
 			FarfieldPlot.SetPolarizationType("Circular")
-
 			FarfieldPlot.StoreSettings
-
 			FarfieldPlot.Plot
+
 			Dim DirName As String
 			Dim ChildItem As String
-			Select Case componentValue
-		   	Case 0
-				DirName = "CP directivity\@"+FrequencyStr+"GHz"
-			Case 1
-				DirName = "CP gain\@"+FrequencyStr+"GHz"
-			Case 2
-				DirName = "CP realized gain\@"+FrequencyStr+"GHz"
-		   	End Select
+			Dim DirNamePrefix() As Variant
+			Dim cutPlane() As Variant
+
+			DirNamePrefix = Array("CP directivity\","CP gain\","CP realized gain\")
+			cutPlane = Array("theta","phi")
+			DirName = DirNamePrefix(componentValue)+FrequencyStr+"GHz@"+cutPlane(planeValue)+"="+Cstr(angle)+"бу"
 
 			If Resulttree.DoesTreeItemExist("1D Results\"+DirName) Then
 				ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName)

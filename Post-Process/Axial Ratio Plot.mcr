@@ -59,9 +59,9 @@ Sub Main ()
     	 Exit Sub
     End If
 
-    childItem = Resulttree.GetFirstChildName(farfieldPath)
+    childItem = ResultTree.GetFirstChildName(farfieldPath)
 	 ii = 1
-	childItem = Resulttree.GetNextItemName(childItem)
+	childItem = ResultTree.GetNextItemName(childItem)
     While childItem <> ""
 		Port = Mid(childItem,InStr(childItem,"[")+1,InStr(childItem,"]")-InStr(childItem,"[")-1)
    		If ii > 1 Then
@@ -73,13 +73,13 @@ Sub Main ()
    		End If
    		portArray(ii-1) = Port
    		ii = ii+1
-   		childItem = Resulttree.GetNextItemName(childItem)
+   		childItem = ResultTree.GetNextItemName(childItem)
 
     Wend
 
     Dim InformationStr As String
     InformationStr = "Input values should be within "+CStr(FarfieldFreq(0))+"GHz to "+CStr(FarfieldFreq(m-1))+"GHz:"
-	Begin Dialog UserDialog 420,210,"Axial Raio_Frequency Plot",.DialogFunction ' %GRID:10,7,1,1
+	Begin Dialog UserDialog 420,210,"Axial Ratio_Frequency Plot",.DialogFunction ' %GRID:10,7,1,1
 		GroupBox 0,0,420,70,"Frequency settings:",.GroupBox1
 		Text 10,21,390,14,InformationStr,.Text1
 		TextBox 50,42,30,14,.Fmin
@@ -151,7 +151,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			portNum = DlgText("port")
 
 
-		    If FreqMin - FarfieldFreq(0)>1e-3 Or FreqMax - FarfieldFreq(m-1)<-1e-3 Then
+		    If FreqMin - FarfieldFreq(0)<-1e-3 Or FreqMax - FarfieldFreq(m-1)>1e-3 Then
 		    	MsgBox("Input frequency is out of Range",1,"Warning")
 		    	Exit All
 		    End If

@@ -95,11 +95,11 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 
 			Select Case farfieldMode
 		   	Case 0	'reference total efficiency -7dB when the directivity is selected as the farfield component
-				Dvalue = Dvalue+TE
+				Dvalue = Dvalue+RE
 			Case 1
-				Dvalue = Dvalue+TE-RE
-			Case 2
 				Dvalue = Dvalue
+			Case 2
+				Dvalue = Dvalue-TE+RE
 		   	End Select
 
 

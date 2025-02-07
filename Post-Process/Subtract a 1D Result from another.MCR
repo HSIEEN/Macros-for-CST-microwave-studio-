@@ -25,8 +25,17 @@ Sub Main
 	selectedItem0 = GetSelectedTreeItem
 	SelectedItem1 = GetNextSelectedTreeItem
 
+	Dim tmpstr As String
+
+	If StrComp(selectedItem0, SelectedItem1) > 0 Then
+		tmpstr = selectedItem0
+		selectedItem0 = SelectedItem1
+		SelectedItem1 = tmpstr
+	End If
+
 	file0 = ResultTree.GetFileFromTreeItem(selectedItem0)
 	file1 = ResultTree.GetFileFromTreeItem(SelectedItem1)
+
 
 	Set o0 = Result1D(file0)
 	Set o1 = Result1D(file1)
@@ -76,7 +85,12 @@ Sub Main
 	o2.Ylabel("dB")
 	o2.save(Right(selectedItem0, Len(selectedItem0)-InStrRev(selectedItem0 ,"\"))+ _
 	"_subtract_"+Right(SelectedItem1, Len(SelectedItem1)-InStrRev(SelectedItem1 ,"\"))+".sig")
-	o2.AddToTree(Left(selectedItem0, InStrRev(selectedItem0 ,"\"))+ _
+
+	Dim treeItem As String
+	treeItem = Left(selectedItem0, InStrRev(selectedItem0 ,"\"))+ _
 	Right(selectedItem0, Len(selectedItem0)-InStrRev(selectedItem0 ,"\"))+ _
-	" - "+Right(SelectedItem1, Len(SelectedItem1)-InStrRev(SelectedItem1 ,"\")))
+	" - "+Right(SelectedItem1, Len(SelectedItem1)-InStrRev(SelectedItem1 ,"\"))
+
+	o2.AddToTree(treeItem)
+	SelectTreeItem(treeItem)
 End Sub

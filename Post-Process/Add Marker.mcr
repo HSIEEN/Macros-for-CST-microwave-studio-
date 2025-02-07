@@ -14,8 +14,8 @@ Sub Main ()
    	 Exit All
    	Else
    		Dim nResults As Integer
-   		nResults = Resulttree.GetTreeResults(SelectedItem,"folder 0D/1D recursive","",paths,types,files,info)
-   		If InStr(SelectedItem,"1D Results\") = 0 Then
+   		nResults = ResultTree.GetTreeResults(SelectedItem,"folder 0D/1D recursive","",paths,types,files,info)
+   		If InStr(SelectedItem,"1D Results") = 0 Then
 			MsgBox("Selected item is not in 1D Results, please select at least one 1D curve!",vbCritical,"Warning")
    			Exit All
    		'Else
@@ -71,7 +71,19 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 
             While SelectedItem <> ""
                     SelectTreeItem(SelectedItem)
-                    
+
+            		If InStr(Bands,"L5")<> 0 Then
+            			With Plot1D
+
+						     .AddMarker(1.164) '
+						     .AddMarker(1.189) '
+						     '.ShowMarkerAtMin
+						     .Plot ' make changes visible
+
+						End With
+
+            		End If
+
             		If InStr(Bands,"L1")<> 0 Then
 						'Label = Right(SelectedItem,Len(SelectedItem)-InStrRev(SelectedItem,"\"))
                			With Plot1D
@@ -83,17 +95,6 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 
 						End With
 
-
-            		End If
-            		If InStr(Bands,"L5")<> 0 Then
-            			With Plot1D
-
-						     .AddMarker(1.164) '
-						     .AddMarker(1.189) '
-						     '.ShowMarkerAtMin
-						     .Plot ' make changes visible
-
-						End With
 
             		End If
             		If InStr(Bands,"W2")<> 0 Then
@@ -116,6 +117,19 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 
 						End With
             		End If
+
+        			If IsNumeric(Bands) = True Then
+        				Dim x_val As Double
+						x_val = Round(Cdbl(Bands),2)
+						With Plot1D
+
+						     .AddMarker(x_val) '
+						     '.AddMarker(5.85) '
+						     '.ShowMarkerAtMin
+						     .Plot ' make changes visible
+
+						End With
+        			End If
 
             	SelectedItem = GetNextSelectedTreeItem
             Wend
