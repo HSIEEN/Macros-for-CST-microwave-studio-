@@ -221,6 +221,7 @@ Sub Main
 	osp.AddToTree("1D Results\SP\Measured_SP_"+time_suffix)
 	ore.AddToTree("1D Results\RE\Measured_RE_"+time_suffix)
 	ote.AddToTree("1D Results\TE\Measured_TE_"+time_suffix)
+	selectTreeItem("1D Results\SP")
 	theEnd:
 	MsgBox "Operation finished", vbInformation, "Done"
 
