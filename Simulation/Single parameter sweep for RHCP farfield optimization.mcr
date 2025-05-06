@@ -79,8 +79,8 @@ Sub Main ()
 
 		GroupBox 640,336,210,63,"Cut angle settings in 1D plot:",.GroupBox4
 		OptionGroup .Group1
-			OptionButton 700,357,40,14,"¦È",.OptionButton1
-			OptionButton 770,357,40,14,"¦Õ",.OptionButton2
+			OptionButton 700,357,40,14,"Â¦Ãˆ",.OptionButton1
+			OptionButton 770,357,40,14,"Â¦Ã•",.OptionButton2
 		Text 680,378,90,14,"with angle of",.Text6
 		TextBox 780,378,40,14,.Angle
 
@@ -221,6 +221,8 @@ Sub Main ()
 						Print #2, "%-%-% RHCP Realized gain at frequency "+ CStr(FarfieldFreq(i))+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
 				   	End Select
 			    End If
+		ElseIf FarfieldFreq(i) > fMax Then
+			Exit for
 		    End If
 	    Next i
 
@@ -230,7 +232,7 @@ Sub Main ()
 		If stepSize = 0 Then
 			Exit While
 		End If
-		xSim = xMin + n*fStep
+		xSim = xMin + n*stepSize
 	Wend
 
 	Print #2, "##########Sweep of " + parameter + " ends at " + CStr(Now) +"'###########."
@@ -453,11 +455,11 @@ Sub savefarfieldComponent(xSim As Double,frequency As Double)
 
 	Select Case farfieldComponentValue
    	Case 0
-		NoticeInformation = "The directivity data is under£¨"+projectPath+"\£©"
+		NoticeInformation = "The directivity data is underÂ£Â¨"+projectPath+"\Â£Â©"
 	Case 1
-		NoticeInformation = "The gain data is under£¨"+projectPath+"\£©"
+		NoticeInformation = "The gain data is underÂ£Â¨"+projectPath+"\Â£Â©"
 	Case 2
-		NoticeInformation = "The realized gain data is under£¨"+projectPath+"\£©"
+		NoticeInformation = "The realized gain data is underÂ£Â¨"+projectPath+"\Â£Â©"
    	End Select
 
 
