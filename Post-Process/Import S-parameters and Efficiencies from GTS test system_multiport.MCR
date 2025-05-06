@@ -67,55 +67,107 @@ Sub Main
 
 	ElseIf nResults>2 Then
 
-		'MsgBox "Please select one 1D results to compare", vbInformation
+		MsgBox "Please select one 1D results to compare", vbInformation
+		Dim selectedItem0 As String ,Dim S1 As Integer ,  Dim pos As Integer , Dim Length As Integer
 
 
-    	Dim childItem As String
-    	Dim os As Object
-    	Dim sfile As String
-    	Dim suffix_0 As String, suffix_1 As String, suffix As String
+		selectedItem0 = GetSelectedTreeItem
 
-    	childItem = ResultTree.GetFirstChildName("1D Results\S-Parameters\")
+		pos = InStr( selectedItem0, ",")
+		Length = Len(selectedItem0)- pos
+		S1 = Right(selectedItem0, Length)
 
-		While childItem <>"" And InStr(childItem, "Simulated") = 0
-			suffix_0 = Right(childItem, Len(childItem)-InStr(childItem,","))
-			suffix_1 = Mid(childItem,InStr(childItem, ",")-1, 1)
-			If StrComp(suffix_1, suffix_0) = 0 Then
-				sfile = ResultTree.GetFileFromTreeItem(childItem)
-				Set os = Result1DComplex(sfile)
-				Set os = Mag_Linear2dB(os)
-				os.Xlabel("Frequecy/GHz")
-				os.Ylabel("dB")
-				os.Save("simulated_sp_"+suffix+".sig")
-				os.AddToTree("1D Results\S-Parameters\Simulated_SP_"+suffix)
-			End If
-			childItem = ResultTree.GetNextItemName(childItem)
+		'selectedItem1 = GetSelectedTreeItem
+		'selectedItem2 = GetSelectedTreeItem
+		Dim sSP As Object, sre As Object, ste As Object
+		Dim spfile As String, refile As String, tefile As String
+
+		spfile = ResultTree.GetFileFromTreeItem("1D Results\S-Parameters\S"+S1+","+S1)
+		refile = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\Rad. Efficiency ["+S1+"]")
+		tefile = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\Tot. Efficiency ["+S1+"]")
+		Set sSP = Result1DComplex(spfile)
+		Set sre = Result1DComplex(refile)
+		Set ste = Result1DComplex(tefile)
+
+		Set sSP = Mag_Linear2dB(sSP)
+		Set sre = Mag_Linear2dB(sre)
+		Set ste = Mag_Linear2dB(ste)
+
+		sSP.DeleteAt("never")
+		sSP.Type("dB")
+		sSP.Xlabel("Frequecy/GHz")
+		sSP.Ylabel("dB")
+		sSP.Save("Port"+S1+"_simulated_SP_mag_"+time_suffix+".sig")
+		sSP.AddToTree("1D Results\Port"+S1+"_SP\Simulated_SP_"+time_suffix)
+
+
+		sre.DeleteAt("never")
+		sre.Type("dB")
+		sre.Xlabel("Frequecy/GHz")
+		sre.Ylabel("dB")
+		sre.Save("simulated_RE_mag_"+time_suffix+".sig")
+		sre.AddToTree("1D Results\Port"+S1+"_RE\Simulated_RE_"+time_suffix)
+
+		ste.DeleteAt("never")
+		ste.Type("dB")
+		ste.Xlabel("Frequecy/GHz")
+		ste.Ylabel("dB")
+		ste.Save("simulated_TE_mag_"+time_suffix+".sig")
+		ste.AddToTree("1D Results\Port"+S1+"_TE\Simulated_TE_"+time_suffix)
+
+
+
+
+
+
+
+
+    	'Dim childItem As String
+    	'Dim os As Object
+    	'Dim sfile As String
+    	'Dim suffix_0 As String, suffix_1 As String, suffix As String
+
+    	'childItem = ResultTree.GetFirstChildName("1D Results\S-Parameters\")
+
+		'While childItem <>"" And InStr(childItem, "Simulated") = 0
+			'suffix_0 = Right(childItem, Len(childItem)-InStr(childItem,","))
+			'suffix_1 = Mid(childItem,InStr(childItem, ",")-1, 1)
+			'If StrComp(suffix_1, suffix_0) = 0 Then
+				'sfile = ResultTree.GetFileFromTreeItem(childItem)
+				'Set os = Result1DComplex(sfile)
+				'Set os = Mag_Linear2dB(os)
+				'os.Xlabel("Frequecy/GHz")
+				'os.Ylabel("dB")
+				'os.Save("simulated_sp_"+suffix+".sig")
+				'os.AddToTree("1D Results\S-Parameters\Simulated_SP_"+suffix)
+			'End If
+			'childItem = ResultTree.GetNextItemName(childItem)
 			'suffix = Right(childItem, Len(childItem)-InStr(childItem,","))
-		Wend
+		'Wend
 
 		'Dim childItem As String
     	'Dim os As Object
     	'Dim sfile As String
     	'Dim suffix As String
-    	Dim prefix As String
+    	'Dim prefix As String
 
-    	childItem = ResultTree.GetFirstChildName("1D Results\Efficiencies\")
+    	'childItem = ResultTree.GetFirstChildName("1D Results\Efficiencies\")
 
 		'suffix = Right(childItem, 1)
-		While childItem <>"" And InStr(childItem, "Simulated") = 0
-			prefix = Mid$(childItem$,InStrRev(childItem,"\")+1,3)
-			suffix = Mid$(childItem$,InStr(childItem,"[")+1,InStr(childItem,"]")-InStr(childItem,"[")-1)
-			sfile = ResultTree.GetFileFromTreeItem(childItem)
-			Set os = Result1DComplex(sfile)
-			Set os = Mag_Linear2dB(os)
-			os.Xlabel("Frequecy/GHz")
-			os.Ylabel("dB")
-			os.Save("simulated_Effi_"+prefix+"_"+suffix+".sig")
-			os.AddToTree("1D Results\Efficiencies\Simulated_Eff_"+prefix+"_"+suffix)
-			childItem = ResultTree.GetNextItemName(childItem)
+		'While childItem <>"" And InStr(childItem, "Simulated") = 0
 			'prefix = Mid$(childItem$,InStrRev(childItem,"\")+1,3)
 			'suffix = Mid$(childItem$,InStr(childItem,"[")+1,InStr(childItem,"]")-InStr(childItem,"[")-1)
-		Wend
+			'sfile = ResultTree.GetFileFromTreeItem(childItem)
+			'Set os = Result1DComplex(sfile)
+			'Set os = Mag_Linear2dB(os)
+			'os.Xlabel("Frequecy/GHz")
+			'os.Ylabel("dB")
+			'os.Save("simulated_Effi_"+prefix+"_"+suffix+".sig")
+			'os.AddToTree("1D Results\Efficiencies\Simulated_Eff_"+prefix+"_"+suffix)
+			'childItem = ResultTree.GetNextItemName(childItem)
+			'prefix = Mid$(childItem$,InStrRev(childItem,"\")+1,3)
+			'suffix = Mid$(childItem$,InStr(childItem,"[")+1,InStr(childItem,"]")-InStr(childItem,"[")-1)
+		'Wend
 	ElseIf nResults<2 Then
 		'Nothing to do
 
@@ -124,6 +176,7 @@ Sub Main
 	'------------------------------------------------------"
 
 	'Select a Excel file containing target data
+
 	Dim efilename As String
 	efilename  = GetFilePath("", "xls;xlsx", "", "Browse excel-file exported from GTS test system", 0)
 
@@ -184,6 +237,7 @@ Sub Main
 	O.quit
 
 	'plot data
+
 	Dim osp As Object
 	Dim ore As Object
 	Dim ote As Object
@@ -218,6 +272,9 @@ Sub Main
 	ore.Type("dB")
 	ote.Type("dB")
 
+If nResults=2 Then
+
+
 	osp.Save("measured_SP_From_GTS_"+time_suffix+".sig")
 	ore.Save("measured_RE_From_GTS_"+time_suffix+".sig")
 	ote.Save("measured_TE_From_GTS_"+time_suffix+".sig")
@@ -225,6 +282,21 @@ Sub Main
 	osp.AddToTree("1D Results\SP\Measured_SP_"+time_suffix)
 	ore.AddToTree("1D Results\RE\Measured_RE_"+time_suffix)
 	ote.AddToTree("1D Results\TE\Measured_TE_"+time_suffix)
+
+ElseIf nResults>2 Then
+
+	osp.Save("measured_SP_From_GTS_"+time_suffix+".sig")
+	ore.Save("measured_RE_From_GTS_"+time_suffix+".sig")
+	ote.Save("measured_TE_From_GTS_"+time_suffix+".sig")
+
+	osp.AddToTree("1D Results\Port"+S1+"_SP\Measured_SP_"+time_suffix)
+	ore.AddToTree("1D Results\Port"+S1+"_RE\Measured_RE_"+time_suffix)
+	ote.AddToTree("1D Results\Port"+S1+"_TE\Measured_TE_"+time_suffix)
+
+
+
+
+
 	theEnd:
 	MsgBox "Operation finished", vbInformation, "Done"
 

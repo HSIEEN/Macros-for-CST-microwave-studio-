@@ -64,7 +64,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
    	Dim prjPath As String
 
    	prjPath = GetProjectPath("Project")
-   	parameterFile = prjPath + "\dialog_parameter.txt"
+   	parameterFile = prjPath + "\farfiled_cp_1D_dialog_parameter.txt"
 
 	Select Case Action%
 	Case 1 ' Dialog box initialization
@@ -134,27 +134,30 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			FarfieldPlot.SetCoordinateSystemType("ludwig3")
 			FarfieldPlot.SetAutomaticCoordinateSystem("True")
 			FarfieldPlot.SetPolarizationType("Circular")
-			FarfieldPlot.StoreSettings
-			FarfieldPlot.Plot
 
+			FarfieldPlot.StoreSettings
+
+			FarfieldPlot.Plot
 			Dim DirName As String
 			Dim ChildItem As String
-			Dim DirNamePrefix() As Variant
-			Dim cutPlane() As Variant
+			Select Case componentValue
+		   	Case 0
+				DirName = "CP directivity\@"+FrequencyStr+"GHz"
+			Case 1
+				DirName = "CP gain\@"+FrequencyStr+"GHz"
+			Case 2
+				DirName = "CP realized gain\@"+FrequencyStr+"GHz"
+		   	End Select
 
-			DirNamePrefix = Array("CP directivity\","CP gain\","CP realized gain\")
-			cutPlane = Array("theta","phi")
-			DirName = DirNamePrefix(componentValue)+FrequencyStr+"GHz@"+cutPlane(planeValue)+"="+Cstr(angle)+"бу"
-
-			If Resulttree.DoesTreeItemExist("1D Results\"+DirName) Then
-				ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName)
+			If ResultTree.DoesTreeItemExist("1D Results\"+DirName) Then
+				ChildItem = ResultTree.GetFirstChildName("1D Results\"+DirName)
 
 				While ChildItem <> ""
-					With Resulttree
+					With ResultTree
 						.Name ChildItem
 						.Delete
 					End With
-					ChildItem = Resulttree.GetFirstChildName("1D Results\"+DirName)
+					ChildItem = ResultTree.GetFirstChildName("1D Results\"+DirName)
 				Wend
 
 			End If
@@ -175,7 +178,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 		Dim index As Integer
 		'Dim SelectedItem As String
 
-		SelectedItem = Resulttree.GetFirstChildName("1D Results\"+DirName)
+		SelectedItem = ResultTree.GetFirstChildName("1D Results\"+DirName)
 		While SelectedItem <> ""
 			'SelectTreeItem(selectedItem)
 			curveLabel = Right(SelectedItem,Len(SelectedItem)-InStrRev(SelectedItem,"\"))
@@ -188,7 +191,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 		     .Plot ' make changes visible
 			End With
 
-			SelectedItem = Resulttree.GetNextItemName(SelectedItem)
+			SelectedItem = ResultTree.GetNextItemName(SelectedItem)
 		Wend
 
 		End Select

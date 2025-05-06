@@ -79,29 +79,35 @@ Sub Main ()
 
     Dim InformationStr As String
     InformationStr = "Input values should be within "+CStr(FarfieldFreq(0))+"GHz to "+CStr(FarfieldFreq(m-1))+"GHz:"
-	Begin Dialog UserDialog 420,210,"Axial Ratio_Frequency Plot",.DialogFunction ' %GRID:10,7,1,1
+	Begin Dialog UserDialog 420,210,"Axial Raio_Frequency Plot",.DialogFunction ' %GRID:10,7,1,1
+
 		GroupBox 0,0,420,70,"Frequency settings:",.GroupBox1
 		Text 10,21,390,14,InformationStr,.Text1
+		Text 10,42,40,14,"From",.Text6
 		TextBox 50,42,30,14,.Fmin
+		Text 370,42,30,14,"GHz",.Text7
+		Text 90,42,50,14,"GHz  to",.Text8
 		TextBox 150,42,30,14,.Fmax
+		Text 190,42,120,14,"GHz with step of ",.Text9
+		TextBox 310,42,50,14,.Fstep
+
+
+		GroupBox 0,112,420,70,"Farfield Cuts settings",.GroupBox3
+		Text 60,133,30,14,"¦È1=",.Text4
+		TextBox 100,133,40,14,.Theta1
+		Text 60,161,30,14,"¦È2=",.Text11
+		TextBox 100,161,40,14,.Theta2
+
+		Text 180,133,30,14,"¦Õ1=",.Text5
+		TextBox 220,133,40,14,.Phi1
+		Text 180,161,30,14,"¦Õ2=",.Text12
+		TextBox 220,161,40,14,.Phi2
+
+		GroupBox 0,70,420,42,"Port selection:",.GroupBox2
+		DropListBox 150,84,90,14,portArray(),.port
+
 		OKButton 80,189,90,21
 		CancelButton 190,189,90,21
-		GroupBox 0,112,420,70,"Farfield Cuts settings",.GroupBox3
-		TextBox 310,42,50,14,.Fstep
-		Text 60,133,30,14,"¦È1=",.Text4
-		Text 60,161,30,14,"¦È2=",.Text11
-		TextBox 100,133,40,14,.Theta1
-		TextBox 100,161,40,14,.Theta2
-		Text 180,133,30,14,"¦Õ1=",.Text5
-		Text 180,161,30,14,"¦Õ2=",.Text12
-		TextBox 220,133,40,14,.Phi1
-		TextBox 220,161,40,14,.Phi2
-		Text 10,42,40,14,"From",.Text6
-		Text 370,42,30,14,"GHz",.Text7
-		GroupBox 0,70,420,42,"Port selection:",.GroupBox2
-		Text 90,42,50,14,"GHz  to",.Text8
-		Text 190,42,120,14,"GHz with step of ",.Text9
-		DropListBox 150,84,90,14,portArray(),.port
 	End Dialog
 	Dim dlg As UserDialog
 
@@ -122,9 +128,15 @@ Sub Main ()
 End Sub
 
 Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
+	Dim parameterFile As String
+	Dim prjPath As String
+
+	prjPath = GetProjectPath("Project")
+	parameterFile = prjPath + "\ar_plot_dialog_parameter.txt"
 
 	Select Case Action
 	Case 1 ' Dialog box initialization
+		RestoreAllDialogSettings_LIB(parameterFile)
 	Case 2 ' Value changing or button pressed
 		Rem DialogFunction = True ' Prevent button press from closing the dialog box
 
@@ -133,7 +145,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			Exit All
 		Case "OK"
 			DialogFunction = False
-
+			StoreAllDialogSettings_LIB(parameterFile)
 			Dim FreqMin As Double, FreqMax As Double, FreqStep As Double
 		    Dim Theta1 As Integer,Theta2 As Integer
 		    Dim Phi1 As Integer, Phi2 As Integer
@@ -151,7 +163,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			portNum = DlgText("port")
 
 
-		    If FreqMin - FarfieldFreq(0)<-1e-3 Or FreqMax - FarfieldFreq(m-1)>1e-3 Then
+		    If FreqMin - FarfieldFreq(0)<-1e-2 Or FreqMax - FarfieldFreq(m-1)>1e-2 Then
 		    	MsgBox("Input frequency is out of Range",1,"Warning")
 		    	Exit All
 		    End If
@@ -182,24 +194,30 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 		    For i = 0 To m-1 STEP 1
 
 		    	If FarfieldFreq(i) >= FreqMin And FarfieldFreq(i) <= FreqMax Then
-		    		Dim FarfieldName As String
-		    		FarfieldName = "farfield (f="+ CStr(FarfieldFreq(i))+") ["+portNum+"]"
-			    	If SelectTreeItem("Farfields\"+ FarfieldName) <> False Then
-			    		'Dim MidValue As Double
+					'Check if the frquency is valid
+					Dim quotient As Double
+					quotient = (FarfieldFreq(i) - FreqMin)/FreqStep
+					If Abs(quotient - Int(quotient))<1e-6 Then
 
-			    		'MidValue = FarfieldFreq(i)
+			    		Dim FarfieldName As String
+			    		FarfieldName = "farfield (f="+ CStr(FarfieldFreq(i))+") ["+portNum+"]"
+				    	If SelectTreeItem("Farfields\"+ FarfieldName) <> False Then
+				    		'Dim MidValue As Double
 
-			    		'FarfieldPlot.AddListEvaluationPoint(Theta, Phi, 0, "spherical", "frequency", FarfieldFreq(i))
-			    		AxialRatio1(Nstep) = FarfieldPlot.CalculatePoint(Theta1,Phi1,"Spherical  circular axialratio",FarfieldName)
-			    		AxialRatio2(Nstep) = FarfieldPlot.CalculatePoint(Theta2,Phi2,"Spherical  circular axialratio",FarfieldName)
-			    		PlotFreq(Nstep) = FarfieldFreq(i)
-			    		Nstep = Nstep+1
-			    	Else
-			    		MsgBox("The selected port does not exist!",1,"warning")
-		            	Exit All
+				    		'MidValue = FarfieldFreq(i)
 
-			    	End If
-			    	End If
+				    		'FarfieldPlot.AddListEvaluationPoint(Theta, Phi, 0, "spherical", "frequency", FarfieldFreq(i))
+				    		AxialRatio1(Nstep) = FarfieldPlot.CalculatePoint(Theta1,Phi1,"Spherical  circular axialratio",FarfieldName)
+				    		AxialRatio2(Nstep) = FarfieldPlot.CalculatePoint(Theta2,Phi2,"Spherical  circular axialratio",FarfieldName)
+				    		PlotFreq(Nstep) = FarfieldFreq(i)
+				    		Nstep = Nstep+1
+				    	Else
+				    		MsgBox("The selected port does not exist!",1,"warning")
+			            	Exit All
+
+				    	End If
+				    End If
+			    End If
 
 		    Next i
 
@@ -213,7 +231,8 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 
 		    Set o1 = Result1D("")
 		    Set o2 = Result1D("")
-
+			o1.DeleteAt("never")
+			o2.deleteAt("never")
 
 		    For i = 0 To Nstep-1 STEP 1
 
@@ -238,12 +257,12 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			'Dim ResultItem As String
 			'ResultItem = "1D Results\AxialRatio\AR_Freq_¦È="+CStr(Theta)+"deg_¦Õ="+CStr(Phi)+"deg"
 			Dim sName1 As String, sName2 As String
-			sName1 = "1D Results\AxialRatio\AR_Port["+portNum+"]_¦È="+CStr(Theta1)+"deg_¦Õ="+CStr(Phi1)+"deg"
-			sName2 = "1D Results\AxialRatio\AR_Port["+portNum+"]_¦È="+CStr(Theta2)+"deg_¦Õ="+CStr(Phi2)+"deg"
+			sName1 = "1D Results\Axial Ratio\AR_Port["+portNum+"]_¦È="+CStr(Theta1)+"deg_¦Õ="+CStr(Phi1)+"deg"
+			sName2 = "1D Results\Axial Ratio\AR_Port["+portNum+"]_¦È="+CStr(Theta2)+"deg_¦Õ="+CStr(Phi2)+"deg"
 			AddPlotToTree_LIB(o1, sName1, True)
-			o1.DeleteAt("never")
+
 			AddPlotToTree_LIB(o2, sName2, True)
-			o2.deleteAt("never")
+
 			'o1.AddToTree("1D Results\AxialRatio\AR_Port["+PortNum+"]_¦È="+CStr(Theta1)+"deg_¦Õ="+CStr(Phi1)+"deg")
 			'o2.AddToTree("1D Results\AxialRatio\AR_Port["+PortNum+"]_¦È="+CStr(Theta2)+"deg_¦Õ="+CStr(Phi2)+"deg")
 

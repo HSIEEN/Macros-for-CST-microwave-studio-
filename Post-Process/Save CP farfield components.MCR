@@ -33,16 +33,18 @@ End Sub
 
 Sub processDirectivityData(sheet As Object, Columns As String)
 
-	Dim i As Integer
-	Dim j As Integer
+	Dim i As Integer, j As Integer
+    Dim headers As Variant
+    headers = Array("Polarization", "AR", "Frequency", sheet.Range("D1").Value, "Port", sheet.Range("F1").Value)
+    Dim headerCols As Variant
+    headerCols = Array("A", "B", "C", "D", "E", "F")
 
-	sheet.Range("A35").value = "Polarization"
-	sheet.Range("B35").value = "AR"
-	sheet.Range("C35").value = "Frequency"
-	sheet.Range("D35").value = sheet.Range("D1").Value
-	sheet.Range("E35").value = "Port"
-	sheet.Range("F35").value = sheet.Range("F1").Value
+    For i = LBound(headers) To UBound(headers)
+        sheet.Range(headerCols(i) & "35").Value = headers(i)
+    Next i
+
 	sheet.Range("A36").value = "Phi\Theta"
+
 	For i = 0 To Len(Columns)-1
 		sheet.Range(Mid(Columns,i+1,1)+"36").value = i*15
 		sheet.Range("A"+Cstr(i+37)) = i*30
@@ -53,12 +55,14 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 
 	'formatting cells
 
-	sheet.Columns("A").ColumnWidth = 14
-	sheet.Columns("C").ColumnWidth = 10
-	sheet.Rows("1").RowHeight = 25
-	sheet.Rows("35").RowHeight = 25
-	sheet.Range("A1:Z100").HorizontalAlignment =  -4108 	'Center
-	sheet.Range("P2:Q8").Borders.LineStyle = 1			 'Continous border
+    With sheet
+       .Columns("A").ColumnWidth = 14
+       .Columns("C").ColumnWidth = 10
+       .Rows("1").RowHeight = 25
+       .Rows("35").RowHeight = 25
+       .Range("A1:Z100").HorizontalAlignment = -4108
+       .Range("P2:Q8").Borders.LineStyle = 1
+    End With
 
 	Dim Dvalue As Double, deltaDirectivity As Double, axialRatio As Double
 	For i  = 0 To 12
@@ -95,11 +99,12 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 
 			Select Case farfieldMode
 		   	Case 0	'reference total efficiency -7dB when the directivity is selected as the farfield component
-				Dvalue = Dvalue+RE
+				'Dvalue = Dvalue
+				Dvalue = Dvalue+TE
 			Case 1
-				Dvalue = Dvalue
+				Dvalue = Dvalue+TE-RE
 			Case 2
-				Dvalue = Dvalue-TE+RE
+				Dvalue = Dvalue
 		   	End Select
 
 
@@ -408,8 +413,15 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 				'NoticeInformation = "The directivity data is under£¨"+projectPath+"\£©"
 				ReportInformationToWindow "Data export in progress............."
 				'RE = Round(FarfieldPlot.GetTotalEfficiency - FarfieldPlot.GetRadiationEfficiency,2)
-				TE = FarfieldPlot.GetTotalEfficiency
-				RE = FarfieldPlot.GetRadiationEfficiency
+				If FarfieldPlot.GetSystemTotalEfficiency > -100 Then
+
+					TE = FarfieldPlot.GetSystemTotalEfficiency
+					RE = FarfieldPlot.GetSystemRadiationEfficiency
+				Else
+					TE = FarfieldPlot.GetTotalEfficiency
+					RE = FarfieldPlot.GetRadiationEfficiency
+				End If
+
 				Dim O As Object
 
 			    Set O = CreateObject("Excel.Application")
