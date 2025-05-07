@@ -111,23 +111,23 @@ ElseIf n_of_ppoints Mod 2 <> 0 Then
     sCommand = sCommand + "     .Zrange""" +StrValue(Array_z(i*2))+""", """+StrValue(Array_z(i*2+1))+"""" + vbLf
     sCommand = sCommand + "     .Create" + vbLf
     sCommand = sCommand + "End With" + vbLf
-    AddToHistory "define Port mesh: "+ CStr(i+1+port_nr_offset), sCommand
+    'AddToHistory "define Port mesh: "+ CStr(i+1+port_nr_offset), sCommand
 
-	sCommand = "Group.AddItem ""solid$9 Mesh box:PortMesh_"+CStr(i+1+port_nr_offset)+""", ""Excluded from Simulation"""+ vbLf
-	AddToHistory "Exclude PortMesh_"+ CStr(i+1+port_nr_offset)+" from simulation", sCommand
+	'sCommand = "Group.AddItem ""solid$9 Mesh box:PortMesh_"+CStr(i+1+port_nr_offset)+""", ""Excluded from Simulation"""+ vbLf
+	'AddToHistory "Exclude PortMesh_"+ CStr(i+1+port_nr_offset)+" from simulation", sCommand
 
-	sCommand = ""
+	'sCommand = ""
 
-	If deltax >= deltay And deltax >= deltaz Then
-		sCommand = "Group.AddItem ""solid$9 Mesh box:PortMesh_"+CStr(i+1+port_nr_offset)+""", ""7 XBox"""+ vbLf
-		AddToHistory "Add Portmesh_"+ CStr(i+1+port_nr_offset)+" to 7 XBox", sCommand
-	ElseIf deltay >= deltax And deltay >= deltaz Then
-		sCommand = "Group.AddItem ""solid$9 Mesh box:PortMesh_"+CStr(i+1+port_nr_offset)+""", ""8 YBox"""+ vbLf
-		AddToHistory "Add Portmesh_"+ CStr(i+1+port_nr_offset)+" to 8 YBox", sCommand
-	ElseIf deltaz >= deltay And deltaz >= deltax Then
-		sCommand = "Group.AddItem ""solid$9 Mesh box:PortMesh_"+CStr(i+1+port_nr_offset)+""", ""9 ZBox"""+ vbLf
-		AddToHistory "Add Portmesh_"+ CStr(i+1+port_nr_offset)+" to 9 ZBox", sCommand
-	End If
+	'If deltax >= deltay And deltax >= deltaz Then
+	'	sCommand = "Group.AddItem ""solid$9 Mesh box:PortMesh_"+CStr(i+1+port_nr_offset)+""", ""7 XBox"""+ vbLf
+	'	AddToHistory "Add Portmesh_"+ CStr(i+1+port_nr_offset)+" to 7 XBox", sCommand
+	'ElseIf deltay >= deltax And deltay >= deltaz Then
+	'	sCommand = "Group.AddItem ""solid$9 Mesh box:PortMesh_"+CStr(i+1+port_nr_offset)+""", ""8 YBox"""+ vbLf
+	'	AddToHistory "Add Portmesh_"+ CStr(i+1+port_nr_offset)+" to 8 YBox", sCommand
+	'ElseIf deltaz >= deltay And deltaz >= deltax Then
+	'	sCommand = "Group.AddItem ""solid$9 Mesh box:PortMesh_"+CStr(i+1+port_nr_offset)+""", ""9 ZBox"""+ vbLf
+	'	AddToHistory "Add Portmesh_"+ CStr(i+1+port_nr_offset)+" to 9 ZBox", sCommand
+	'End If
 
  Next i
 

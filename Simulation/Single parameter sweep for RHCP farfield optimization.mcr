@@ -1,8 +1,9 @@
 'sweep single parameter to meet the target
 '2023-01-10 By Shawn
 '#include "vba_globals_all.lib"
+
 Option Explicit
-Public startTime As String, parameter As String, portStr As String
+Public startTime As String, parameter As String, portStr As String, componentNames() As String
 Public cutPlaneValue As Integer, farfieldComponentValue As Integer, cutAngle As Double
 Public TE As Double, RE As Double
 
@@ -13,6 +14,11 @@ Sub Main ()
 	Dim HasFarfieldMonitor As Boolean
     Dim TempStr As String
 	Dim ii As Integer, m As Integer, i As Integer
+
+	ReDim componentNames(2)
+	componentNames(0) = "directivity"
+	componentNames(1) = "gain"
+	componentNames(2) = "realized gain"
 	'Dim sAllSelectedParaNames As String
 	'============Collect parameters and store them to an array================
 	For ii = 0 To GetNumberOfParameters-1
@@ -79,8 +85,8 @@ Sub Main ()
 
 		GroupBox 640,336,210,63,"Cut angle settings in 1D plot:",.GroupBox4
 		OptionGroup .Group1
-			OptionButton 700,357,40,14,"¦È",.OptionButton1
-			OptionButton 770,357,40,14,"¦Õ",.OptionButton2
+			OptionButton 700,357,40,14,"��",.OptionButton1
+			OptionButton 770,357,40,14,"��",.OptionButton2
 		Text 680,378,90,14,"with angle of",.Text6
 		TextBox 780,378,40,14,.Angle
 
@@ -166,29 +172,13 @@ Sub Main ()
 	projectPath = GetProjectPath("Project")
 	startTime = Replace(CStr(Time),":","_")
 
-	Select Case farfieldComponentValue
-   	Case 0
-		logFile = projectPath + "\Directivity sweep log_"+startTime+".txt"
-	Case 1
-		logFile = projectPath + "\Gain sweep log_"+startTime+".txt"
-	Case 2
-		logFile = projectPath + "\Realized gain sweep log_"+startTime+".txt"
-   	End Select
-
+	logFile = projectPath + "\"+componentNames(farfieldComponentValue)+" sweep log_"+startTime+".txt"
 
    	Open logFile For Output As #2
    	Print #2, "##########Sweep of " + parameter + " begins at " + CStr(Now) +"'###########."
    	Print #2, " "
 
-
-   	Select Case farfieldComponentValue
-   	Case 0
-		FarfieldPlot.SetPlotMode("directivity")
-	Case 1
-		FarfieldPlot.SetPlotMode("gain")
-	Case 2
-		FarfieldPlot.SetPlotMode("realized gain")
-   	End Select
+	FarfieldPlot.SetPlotMode(componentNames(farfieldComponentValue))
 
 	If FarfieldPlot.IsScaleLinear = True Then
 		FarfieldPlot.SetScaleLinear(False)
@@ -210,19 +200,11 @@ Sub Main ()
 				Dim quotient As Double
 				quotient = (FarfieldFreq(i) - fMin)/fStep
 				If Abs(quotient - Int(quotient))<1e-6 Then
-
 					directivity = Copy1DFarfieldResult(xSim, FarfieldFreq(i))
-				   	Select Case farfieldComponentValue
-				   	Case 0
-						Print #2, "%-%-% RHCP Directivity at frequency "+ CStr(FarfieldFreq(i))+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
-					Case 1
-						Print #2, "%-%-% RHCP gain at frequency "+ CStr(FarfieldFreq(i))+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
-					Case 2
-						Print #2, "%-%-% RHCP Realized gain at frequency "+ CStr(FarfieldFreq(i))+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
-				   	End Select
+					Print #2, "%-%-% RHCP "+componentNames(farfieldComponentValue)+" at frequency "+ CStr(FarfieldFreq(i))+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
 			    End If
-		ElseIf FarfieldFreq(i) > fMax Then
-			Exit for
+			ElseIf FarfieldFreq(i) > fMax Then
+				Exit For
 		    End If
 	    Next i
 
@@ -248,10 +230,11 @@ Sub runWithParameter(para As String, value As Double)
 	Solver.MeshAdaption(False)
 	Solver.SteadyStateLimit(-40)
 	Solver.Start
-
+	ReportInformationToWindow "###Finish simulation loop with " +para+"="+Cstr(Round(value,3))
 End Sub
 
 Function Copy1DFarfieldResult(xSim As Double, freq As Double)
+	ReportInformationToWindow "###Copying farfield results to 1D when parameter="+CStr(Round(xSim, 3))+" and frequency="+CStr(Round(freq, 3)) +"GHz"
 	'parameters: cutPlaneValue denotes the cutting plane,0->theta, 1->phi; cutAngle denotes the angle in the plane specified by cutPlaneValue; theta0 and phi0
 	'denote the angle where the directivity is estimated; xSim is the rotate angle of the ham; freq is the operation frequency we care about
 		Dim selectedItem As String, frequencyStr As String
@@ -282,14 +265,9 @@ Function Copy1DFarfieldResult(xSim As Double, freq As Double)
 
 		FarfieldPlot.SetAxesType("currentwcs")
 		FarfieldPlot.SetAntennaType("unknown")
-		Select Case farfieldComponentValue
-	   	Case 0
-			FarfieldPlot.SetPlotMode("directivity")
-		Case 1
-			FarfieldPlot.SetPlotMode("gain")
-		Case 2
-			FarfieldPlot.SetPlotMode("realized gain")
-	   	End Select
+
+		FarfieldPlot.SetPlotMode(componentNames(farfieldComponentValue))
+
 		FarfieldPlot.SetCoordinateSystemType("ludwig3")
 		FarfieldPlot.SetAutomaticCoordinateSystem("True")
 		FarfieldPlot.SetPolarizationType("Circular")
@@ -298,15 +276,8 @@ Function Copy1DFarfieldResult(xSim As Double, freq As Double)
 
 		'FarfieldPlot.Plot
 		Dim dirName As String
+		dirName = "CP "+componentNames(farfieldComponentValue)+"@port="+portStr+"\"+parameter+"="+CStr(xSim)+ "@"+frequencyStr+"GHz"
 
-		Select Case farfieldComponentValue
-	   	Case 0
-			dirName = "CP directivity@port="+portStr+"\"+parameter+"="+CStr(xSim)+ "@"+frequencyStr+"GHz"
-		Case 1
-			dirName = "CP gain@port="+portStr+"\"+parameter+"="+CStr(xSim)+ "@"+frequencyStr+"GHz"
-		Case 2
-			dirName = "CP realized gain@port="+portStr+"\"+parameter+"="+CStr(xSim)+ "@"+frequencyStr+"GHz"
-	   	End Select
 
 		Dim ChildItem As String
 		If ResultTree.DoesTreeItemExist("1D Results\"+dirName) Then
@@ -345,13 +316,13 @@ Function Copy1DFarfieldResult(xSim As Double, freq As Double)
 		savefarfieldComponent(xSim, freq)
         'CurrentItem = FirstChildItem
         Copy1DFarfieldResult = getfarfieldComponent()
-        SelectTreeItem("1D Results\"+DirName)
+        SelectTreeItem("1D Results\"+dirName)
 
 		Dim curveLabel As String
 		Dim index As Integer
 		'Dim SelectedItem As String
 
-		selectedItem = ResultTree.GetFirstChildName("1D Results\"+DirName)
+		selectedItem = ResultTree.GetFirstChildName("1D Results\"+dirName)
 		While selectedItem <> ""
 			'SelectTreeItem(selectedItem)
 			curveLabel = Right(selectedItem,Len(selectedItem)-InStrRev(selectedItem,"\"))
@@ -381,7 +352,7 @@ Function getfarfieldComponent()
 
 End Function
 Sub savefarfieldComponent(xSim As Double,frequency As Double)
-
+	ReportInformationToWindow "###Saving farfield components to xlsx file when parameter="+CStr(Round(xSim, 3))+" and frequency="+CStr(Round(frequency, 3)) +"GHz......"
     Dim selectedItem As String
     Dim n As Integer
     Dim frequencyStr As String
@@ -439,32 +410,14 @@ Sub savefarfieldComponent(xSim As Double,frequency As Double)
 	 '==============================write directivity data============================
 	projectPath = GetProjectPath("Project")
 
-	Select Case farfieldComponentValue
-   	Case 0
-		xlsxFile = projectPath+"\Circularly polarized directivity_frequency="+frequencyStr+"GHz Port="+portStr+" "+parameter+"="+CStr(xSim)+ " @" +Replace(CStr(Time),":","-")+".xlsx"
-	Case 1
-		xlsxFile = projectPath+"\Circularly polarized gain_frequency="+frequencyStr+"GHz Port="+portStr+" "+parameter+"="+CStr(xSim)+ " @" +Replace(CStr(Time),":","-")+".xlsx"
-	Case 2
-		xlsxFile = projectPath+"\Circularly polarized realized gain_frequency="+frequencyStr+"GHz Port="+portStr+" "+parameter+"="+CStr(xSim)+ " @" +Replace(CStr(Time),":","-")+".xlsx"
-   	End Select
-
-	Columns = "BCDEFGHIJKLMN"
+	xlsxFile = projectPath & "\Circularly polarized " & componentNames(farfieldComponentValue) & "_frequency=" _
+	& frequencyStr & "GHz Port=" & portStr & " " & parameter & "=" & CStr(xSim) & " @" & Replace(CStr(Time), ":", "-") & ".xlsx"
 
 	Dim NoticeInformation As String
+	NoticeInformation = "The " & componentNames(farfieldComponentValue) & " data is under��" & projectPath & "\��"
+	ReportInformationToWindow(NoticeInformation)
+
 	Dim O As Object
-
-	Select Case farfieldComponentValue
-   	Case 0
-		NoticeInformation = "The directivity data is under£¨"+projectPath+"\£©"
-	Case 1
-		NoticeInformation = "The gain data is under£¨"+projectPath+"\£©"
-	Case 2
-		NoticeInformation = "The realized gain data is under£¨"+projectPath+"\£©"
-   	End Select
-
-
-    ReportInformationToWindow(NoticeInformation)
-
     Set O = CreateObject("Excel.Application")
 	If Dir(xlsxFile) = "" Then
 	    Dim wBook As Object
@@ -478,7 +431,7 @@ Sub savefarfieldComponent(xSim As Double,frequency As Double)
 	    Set wBook = O.Workbooks.Open(xlsxFile)
 	End If
 
-
+	Columns = "BCDEFGHIJKLMN"
 	'Add a sheet and rename it
 	Dim wSheet As Object
 
@@ -538,11 +491,11 @@ Sub savefarfieldComponent(xSim As Double,frequency As Double)
 	wBook.Save
 	O.ActiveWorkbook.Close
 	O.quit
-
+	ReportInformationToWindow "###Finish saving farfield components to xlsx file when parameter="+CStr(Round(xSim, 3))+" and frequency="+CStr(Round(frequency, 3)) +"GHz"
 End Sub
 
 Sub processDirectivityData(sheet As Object, Columns As String)
-
+	ReportInformationToWindow "%%%Processing farfield data in the xlsx file......"
 	Dim i As Integer
 	Dim j As Integer
 

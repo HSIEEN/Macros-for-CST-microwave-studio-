@@ -2,7 +2,7 @@
 '2023-01-10 By Shawn
 '#include "vba_globals_all.lib"
 Option Explicit
-Public startTime As String, parameter1 As String, parameter2 As String, portStr As String
+Public startTime As String, parameter1 As String, parameter2 As String, portStr As String, componentNames() As String
 Public cutPlaneValue As Integer, farfieldComponentValue As Integer, cutAngle As Double
 Public TE As Double, RE As Double
 
@@ -13,6 +13,12 @@ Sub Main ()
 	Dim HasFarfieldMonitor As Boolean
     Dim TempStr As String
 	Dim ii As Integer, i As Integer, m As Integer
+
+	ReDim componentNames(2)
+	componentNames(0) = "directivity"
+	componentNames(1) = "gain"
+	componentNames(2) = "realized gain"
+
 	'Dim sAllSelectedParaNames As String
 	'============Collect parameters and store them to an array================
 	For ii = 0 To GetNumberOfParameters-1
@@ -229,29 +235,14 @@ Sub Main ()
 	projectPath = GetProjectPath("Project")
 	startTime = Replace(CStr(Time),":","_")
 
-	Select Case farfieldComponentValue
-   	Case 0
-		logFile = projectPath + "\Directivity sweep log_"+startTime+".txt"
-	Case 1
-		logFile = projectPath + "\Gain sweep log_"+startTime+".txt"
-	Case 2
-		logFile = projectPath + "\Realized gain sweep log_"+startTime+".txt"
-   	End Select
+	logFile = projectPath + "\"+componentNames(farfieldComponentValue)+" sweep log_"+startTime+".txt"
 
 
    	Open logFile For Output As #2
    	Print #2, "##########Parameters sweep begins at " + CStr(Now) +"'###########."
    	Print #2, " "
 
-
-   	Select Case farfieldComponentValue
-   	Case 0
-		FarfieldPlot.SetPlotMode("directivity")
-	Case 1
-		FarfieldPlot.SetPlotMode("gain")
-	Case 2
-		FarfieldPlot.SetPlotMode("realized gain")
-   	End Select
+	FarfieldPlot.SetPlotMode(componentNames(farfieldComponentValue))
 
 	If FarfieldPlot.IsScaleLinear = True Then
 		FarfieldPlot.SetScaleLinear(False)
@@ -276,16 +267,8 @@ Sub Main ()
 					Dim quotient As Double
 					quotient = (FarfieldFreq(i) - fmin)/fStep
 					If Abs(quotient - Int(quotient))<1e-6 Then
-
 						directivity = Copy1DFarfieldResult(xSim, ySim, FarfieldFreq(i))
-					   	Select Case farfieldComponentValue
-					   	Case 0
-							Print #2, "%-%-% RHCP Directivity at frequency "+ CStr(FarfieldFreq(i))+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
-						Case 1
-							Print #2, "%-%-% RHCP gain at frequency "+ CStr(FarfieldFreq(i))+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
-						Case 2
-							Print #2, "%-%-% RHCP Realized gain at frequency "+ CStr(FarfieldFreq(i))+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
-					   	End Select
+						Print #2, "%-%-% RHCP "+componentNames(farfieldComponentValue)+" at frequency "+ CStr(FarfieldFreq(i))+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
 				    End If
 			    End If
 		    Next i
@@ -354,14 +337,9 @@ Function Copy1DFarfieldResult(xSim As Double, ySim As Double, freq As Double)
 
 		FarfieldPlot.SetAxesType("currentwcs")
 		FarfieldPlot.SetAntennaType("unknown")
-		Select Case farfieldComponentValue
-	   	Case 0
-			FarfieldPlot.SetPlotMode("directivity")
-		Case 1
-			FarfieldPlot.SetPlotMode("gain")
-		Case 2
-			FarfieldPlot.SetPlotMode("realized gain")
-	   	End Select
+
+		FarfieldPlot.SetPlotMode(componentNames(farfieldComponentValue))
+
 		FarfieldPlot.SetCoordinateSystemType("ludwig3")
 		FarfieldPlot.SetAutomaticCoordinateSystem("True")
 		FarfieldPlot.SetPolarizationType("Circular")
@@ -370,15 +348,7 @@ Function Copy1DFarfieldResult(xSim As Double, ySim As Double, freq As Double)
 
 		'FarfieldPlot.Plot
 		Dim DirName As String
-
-		Select Case farfieldComponentValue
-	   	Case 0
-			DirName = "CP directivity@port="+portStr+"\"+parameter1+"="+CStr(xSim)+" "+parameter2+"="+CStr(ySim)+ "@"+frequencyStr+"GHz"
-		Case 1
-			DirName = "CP gain@port="+portStr+"\"+parameter1+"="+CStr(xSim)+" "+parameter2+"="+CStr(ySim)+ "@"+frequencyStr+"GHz"
-		Case 2
-			DirName = "CP realized gain@port="+portStr+"\"+parameter1+"="+CStr(xSim)+" "+parameter2+"="+CStr(ySim)+ "@"+frequencyStr+"GHz"
-	   	End Select
+		DirName = "CP "+componentNames(farfieldComponentValue)+"@port="+portStr+"\"+parameter1+"="+CStr(xSim)+" "+parameter2+"="+CStr(ySim)+ "@"+frequencyStr+"GHz"
 
 		Dim ChildItem As String
 		If ResultTree.DoesTreeItemExist("1D Results\"+DirName) Then
@@ -509,32 +479,15 @@ Sub savefarfieldComponent(xSim As Double, ySim As Double, frequency As Double)
 	 '==============================write directivity data============================
 	projectPath = GetProjectPath("Project")
 
-	Select Case farfieldComponentValue
-   	Case 0
-		xlsxFile = projectPath+"\Circularly polarized directivity_frequency="+frequencyStr+"GHz Port="+portStr+ _
-   		" "+parameter1+"="+CStr(xSim)+" "+parameter2+"="+CStr(ySim)+ " @" +Replace(CStr(Time),":","-")+".xlsx"
-	Case 1
-		xlsxFile = projectPath+"\Circularly polarized gain_frequency="+frequencyStr+"GHz Port="+portStr+ _
-		" "+parameter1+"="+CStr(xSim)+" "+parameter2+"="+CStr(ySim)+ " @" +Replace(CStr(Time),":","-")+".xlsx"
-	Case 2
-		xlsxFile = projectPath+"\Circularly polarized realized gain_frequency="+frequencyStr+"GHz Port="+portStr+ _
-		" "+parameter1+"="+CStr(xSim)+" "+parameter2+"="+CStr(ySim)+ " @" +Replace(CStr(Time),":","-")+".xlsx"
-   	End Select
+	xlsxFile = projectPath+"\Circularly polarized "+componentNames(farfieldComponentValue)+"_frequency="+frequencyStr+"GHz Port="+portStr+ _
+   	" "+parameter1+"="+CStr(xSim)+" "+parameter2+"="+CStr(ySim)+ " @" +Replace(CStr(Time),":","-")+".xlsx"
+
 
 	Columns = "BCDEFGHIJKLMN"
 
 	Dim NoticeInformation As String
 	Dim O As Object
-
-	Select Case farfieldComponentValue
-   	Case 0
-		NoticeInformation = "The directivity data is under£¨"+projectPath+"\£©"
-	Case 1
-		NoticeInformation = "The gain data is under£¨"+projectPath+"\£©"
-	Case 2
-		NoticeInformation = "The realized gain data is under£¨"+projectPath+"\£©"
-   	End Select
-
+	NoticeInformation = "The "+componentNames(farfieldComponentValue)+" data is under£¨"+projectPath+"\£©"
 
     ReportInformationToWindow(NoticeInformation)
 
@@ -554,7 +507,12 @@ Sub savefarfieldComponent(xSim As Double, ySim As Double, frequency As Double)
 
 	'Add a sheet and rename it
 	Dim wSheet As Object
-
+	Dim sheetName As String
+	sheetName= parameter1+"="+CStr(xSim)+" "+parameter2+"="+CStr(ySim)
+	If Len(sheetName) >= 30 Then
+		MsgBox "Name of a sheet is too long, please make change!!", vbCritical
+		Exit All
+	End If
 	wBook.Sheets.Add.Name = parameter1+"="+CStr(xSim)+" "+parameter2+"="+CStr(ySim)
 	Set wSheet = wBook.Sheets(parameter1+"="+CStr(xSim)+" "+parameter2+"="+CStr(ySim))
 
