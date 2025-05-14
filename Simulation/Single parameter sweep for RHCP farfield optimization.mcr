@@ -45,7 +45,7 @@ Sub Main ()
     For i = 0 To ii-1 STEP 1
     	TempStr = Monitor.GetMonitorTypeFromIndex(i)
 
-    	If InStr(Monitor.GetMonitorTypeFromIndex(i),"Farfield") <> 0 Then
+    	If StrComp(TempStr, "Farfield") = 0 Then
     		'Dim MidValue0 As Double
     		'MidValue0 =  Monitor.GetMonitorFrequencyFromIndex(i)
     		FarfieldFreq(m) = Monitor.GetMonitorFrequencyFromIndex(i)
@@ -58,62 +58,70 @@ Sub Main ()
     	End If
 
     Next i
+    ReDim Preserve FarfieldFreq(m-1)
     If HasFarfieldMonitor = False Then
     	 MsgBox("No Farfield monitors found!",vbCritical,"Warning")
     	 Exit Sub
     End If
 
-	Begin Dialog UserDialog 860,427,"Single parameter sweep for farfield optimization" ' %GRID:10,7,1,1
-		GroupBox 640,7,210,56,"Select a parameter:",.GroupBox1
-		DropListBox 660,28,170,21,parameterArray(),.parameterIndex
+	Begin Dialog UserDialog 990,427,"Single parameter sweep for farfield optimization" ' %GRID:10,7,1,1
+		GroupBox 640,7,340,42,"Select a parameter:",.GroupBox1
+		DropListBox 740,21,170,21,parameterArray(),.parameterIndex
 
-		GroupBox 640,63,210,63,"Parameter sweep settings:",.GroupBox2
-		Text 650,84,40,14,"From",.Text1
-		TextBox 700,84,40,14,.xMin
-		Text 750,84,20,14,"to",.Text2
-		TextBox 780,84,40,14,.xMax
-		Text 660,105,100,14,"with step size:",.Text3
-		TextBox 770,105,50,14,.stepSize
+		GroupBox 640,49,340,56,"Parameter sweep settings:",.GroupBox2
+		Text 650,77,40,14,"From",.Text1
+		TextBox 700,77,40,14,.xMin
+		Text 750,77,20,14,"to",.Text2
+		TextBox 780,77,40,14,.xMax
+		Text 840,77,80,14,"stepwidth:",.Text3
+		TextBox 920,77,50,14,.xStep
 
-		GroupBox 640,175,210,84,"Frequency settings:",.GroupBox3
-		Text 670,196,40,14,"From:",.Text5
-		TextBox 720,196,40,14,.fMin
-		Text 670,217,30,14,"to:",.Text7
-		TextBox 720,217,40,14,.fMax
-		Text 670,238,40,14,"step:",.Text8
-		TextBox 720,238,40,14,.fStep
+		GroupBox 640,154,340,119,"Frequency settings:",.GroupBox3
+		TextBox 680,196,260,14,.sampleList
+		Text 790,224,30,14,"Or",.Text10
+		Text 670,245,40,14,"From:",.Text5
+		Text 670,175,280,14,"Samples: use semicolon as a separator",.Text9
+		TextBox 710,245,40,14,.fMin
+		Text 760,245,30,14,"to:",.Text7
+		TextBox 790,245,40,14,.fMax
+		Text 840,245,70,14,"stepwidth:",.Text8
+		TextBox 920,245,40,14,.fStep
 
-		GroupBox 640,336,210,63,"Cut angle settings in 1D plot:",.GroupBox4
+		GroupBox 640,343,340,49,"Cut angle settings in 1D plot:",.GroupBox4
 		OptionGroup .Group1
-			OptionButton 700,357,40,14,"¦È",.OptionButton1
-			OptionButton 770,357,40,14,"¦Õ",.OptionButton2
-		Text 680,378,90,14,"with angle of",.Text6
-		TextBox 780,378,40,14,.Angle
+			OptionButton 670,364,40,14,"¦È",.OptionButton1
+			OptionButton 740,364,40,14,"¦Õ",.OptionButton2
+		Text 800,364,90,14,"with angle of",.Text6
+		TextBox 900,364,40,14,.Angle
 
 		Picture 0,7,630,420,GetInstallPath + "\Library\Macros\Coros\Simulation\Single parameter sweep instructions For RHCP optimization.bmp",0,.Picture1
-		GroupBox 640,126,210,49,"Select a port:",.GroupBox5
-		DropListBox 700,147,80,21,portArray(),.portIndex
+		GroupBox 640,105,340,42,"Select a port:",.GroupBox5
+		DropListBox 780,119,80,21,portArray(),.portIndex
 
-		GroupBox 640,259,210,70,"Set plot mode:",.GroupBox6
+		GroupBox 640,280,340,56,"Set plot mode:",.GroupBox6
 		OptionGroup .Group2
-			OptionButton 650,280,100,14,"Directivity",.OptionButton3
-			OptionButton 770,280,70,14,"Gain",.OptionButton4
-			OptionButton 650,301,120,14,"Realized Gain",.OptionButton5
+			OptionButton 650,308,100,14,"Directivity",.OptionButton3
+			OptionButton 770,308,70,14,"Gain",.OptionButton4
+			OptionButton 840,308,120,14,"Realized Gain",.OptionButton5
 
-		OKButton 640,406,90,21
-		CancelButton 750,406,90,21
+		OKButton 680,399,90,21
+		CancelButton 830,399,90,21
+
+
 	End Dialog
 
 	Dim dlg As UserDialog
 	dlg.xMin = "0"
 	dlg.xMax = "360"
 	'dlg.Mono = "0"
+	dlg.sampleList = "0;0"
 	dlg.fMin = CStr(FarfieldFreq(0))
 	dlg.fMax = CStr(FarfieldFreq(m-1))
 	dlg.fStep = CStr(Round(FarfieldFreq(1)-FarfieldFreq(0),2))
+	'dlg.paraThreads = "4"
 	dlg.Group1 = 1
 	dlg.Angle = "270"
-	dlg.stepSize = "10"
+	dlg.xStep = "10"
 	dlg.Group2 = 0
 
 	If Dialog(dlg,-2) = 0 Then
@@ -123,8 +131,8 @@ Sub Main ()
 	'Dim parameter As String
 	Dim xMin As Double, xMax As Double, theta0 As Double, phi0 As Double, directivity As Double
 	Dim xSim As Double
-	Dim stepSize As Double
-	Dim fMin As Double, fMax As Double, fStep As Double
+	Dim xStep As Double
+	Dim fMin As Double, fMax As Double, fStep As Double, fSamples As String
 
 	If dlg.parameterIndex = -1 Then
 		MsgBox("No parameter is selected!!",vbCritical,"Error")
@@ -141,20 +149,50 @@ Sub Main ()
 
     xMin = Evaluate(dlg.xMin)
     xMax = Evaluate(dlg.xMax)
-	stepSize = Evaluate(dlg.stepSize)
+	xStep = Evaluate(dlg.xStep)
 
     fMin = Evaluate(dlg.fMin)
     fMax = Evaluate(dlg.fMax)
     fStep = Evaluate(dlg.fStep)
+    fSamples = dlg.sampleList
 
-	'============Check validity of frequency================
+	'============first check the validity of frequency================
 	If fMin - FarfieldFreq(0)<-1e-2 Or fMax - FarfieldFreq(m-1)>1e-2 Then
 		MsgBox("Input frequency is out of Range",1,"Warning")
 		Exit All
 	End If
+	'============Normalize the frequency samples======
+	Dim freqSamples() As Double, freqStrArray() As String
 
+	If fSamples <> "0;0" Then
+		freqStrArray = Split(fSamples, ";")
+		ReDim freqSamples(UBound(freqStrArray))
+		For i=0 To UBound(freqStrArray)
+			freqSamples(i) = CDbl(freqStrArray(i))
+		Next
+	Else
+		ReDim freqSamples(Round((fMax-fMin)/fStep))
+		For i=0 To Round((fMax-fMin)/fStep)
+			freqSamples(i) = fMin+i*fStep
+		Next
+	End If
+	'==============Double check the validity of frequency samples======
+	Dim index As Integer
+	Dim freqFinalSamples() As Double, nn As Integer
+	ReDim freqFinalSamples(UBound(FarfieldFreq))
+	nn = 0
+	For i = 0 To UBound(FarfieldFreq) STEP 1
+		For index=0 To UBound(freqSamples)
+			If Abs(FarfieldFreq(i)-freqSamples(index))<1e-10 Then
+				freqFinalSamples(nn) = freqSamples(index)
+				nn = nn+1
+				Exit For
+			End If
+		Next
+    Next i
+    ReDim Preserve freqFinalSamples(nn-1)
 
-
+	'=============================================================
 	Dim n As Integer
 	'Dim rotateAngle As Double
 	Dim projectPath As String
@@ -186,35 +224,26 @@ Sub Main ()
 
 	n = 0
 	xSim = xMin
-
+	
     While xSim <= xMax
 		Print #2, "%-%-% On step "+CStr(n+1)+": "+parameter+"="+Cstr(xSim)+"."
 		Print #2, "%-%-% Start time: " + CStr(Now) +"."
 		'run simulation with specified value of xSim
 		runWithParameter(parameter,xSim)
 		Print #2, "%-%-%  Step "+CStr(n+1)+" simulation is done."
-		For i = 0 To UBound(FarfieldFreq) STEP 1
 
-	    	If FarfieldFreq(i) >= fMin And FarfieldFreq(i) <= fMax Then
-				'Check if the frquency is valid
-				Dim quotient As Double
-				quotient = (FarfieldFreq(i) - fMin)/fStep
-				If Abs(quotient - Int(quotient))<1e-6 Then
-					directivity = Copy1DFarfieldResult(xSim, FarfieldFreq(i))
-					Print #2, "%-%-% RHCP "+componentNames(farfieldComponentValue)+" at frequency "+ CStr(FarfieldFreq(i))+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
-			    End If
-			ElseIf FarfieldFreq(i) > fMax Then
-				Exit For
-		    End If
+		For i = 0 To UBound(freqFinalSamples) STEP 1
+			directivity = Copy1DFarfieldResult(xSim, freqFinalSamples(i))
+			Print #2, "%-%-% RHCP "+componentNames(farfieldComponentValue)+" at frequency "+ CStr(freqFinalSamples(i))+ "Ghz is "+ CStr(Round(directivity, 2)) + "dBi."
 	    Next i
 
 		Print #2, "%-%-% Finish time: " + CStr(Now) +"."
 		Print #2, " "
 		n = n+1
-		If stepSize = 0 Then
+		If xStep = 0 Then
 			Exit While
 		End If
-		xSim = xMin + n*stepSize
+		xSim = xMin + n*xStep
 	Wend
 
 	Print #2, "##########Sweep of " + parameter + " ends at " + CStr(Now) +"'###########."
@@ -234,7 +263,7 @@ Sub runWithParameter(para As String, value As Double)
 End Sub
 
 Function Copy1DFarfieldResult(xSim As Double, freq As Double)
-	ReportInformationToWindow "###Copying farfield results to 1D when parameter="+CStr(Round(xSim, 3))+" and frequency="+CStr(Round(freq, 3)) +"GHz"
+	ReportInformationToWindow "###Copying farfield results to 1D when "+parameter+"="+CStr(Round(xSim, 3))+" and frequency="+CStr(Round(freq, 3)) +"GHz"
 	'parameters: cutPlaneValue denotes the cutting plane,0->theta, 1->phi; cutAngle denotes the angle in the plane specified by cutPlaneValue; theta0 and phi0
 	'denote the angle where the directivity is estimated; xSim is the rotate angle of the ham; freq is the operation frequency we care about
 		Dim selectedItem As String, frequencyStr As String
@@ -292,17 +321,16 @@ Function Copy1DFarfieldResult(xSim As Double, freq As Double)
 
 		End If
 
-		FarfieldPlot.SelectComponent("Abs")
-		FarfieldPlot.Plot
-		FarfieldPlot.CopyFarfieldTo1DResults(dirName,"farfield (f="+frequencyStr+")["+portStr+"]_Abs")
-		FarfieldPlot.SelectComponent("Right")
-		'FarfieldPlot.PlotType("polar")
-		FarfieldPlot.Plot
-		FarfieldPlot.CopyFarfieldTo1DResults(dirName,"farfield (f="+frequencyStr+")["+portStr+"]_Right")
-		FarfieldPlot.SelectComponent("Left")
-		'FarfieldPlot.PlotType("polar")
-		FarfieldPlot.Plot
-		FarfieldPlot.CopyFarfieldTo1DResults(dirName,"farfield (f="+frequencyStr+")["+portStr+"]_Left")
+		Dim circularComponents() As String, i As Integer
+		ReDim circularComponents(2)
+		circularComponents(0)="Abs"
+		circularComponents(1)="Right"
+		circularComponents(2)="Left"
+		For i=0 To UBound(circularComponents)
+			FarfieldPlot.SelectComponent(circularComponents(i))
+			FarfieldPlot.Plot
+			FarfieldPlot.CopyFarfieldTo1DResults(dirName,"farfield (f="+frequencyStr+")["+portStr+"]_"+circularComponents(i))
+		Next
 
 		If FarfieldPlot.GetSystemTotalEfficiency > -100 Then
 
@@ -352,7 +380,7 @@ Function getfarfieldComponent()
 
 End Function
 Sub savefarfieldComponent(xSim As Double,frequency As Double)
-	ReportInformationToWindow "###Saving farfield components to xlsx file when parameter="+CStr(Round(xSim, 3))+" and frequency="+CStr(Round(frequency, 3)) +"GHz......"
+	ReportInformationToWindow "###Saving farfield components to xlsx file when "+parameter+"="+CStr(Round(xSim, 3))+" and frequency="+CStr(Round(frequency, 3)) +"GHz......"
     Dim selectedItem As String
     Dim n As Integer
     Dim frequencyStr As String
@@ -410,11 +438,11 @@ Sub savefarfieldComponent(xSim As Double,frequency As Double)
 	 '==============================write directivity data============================
 	projectPath = GetProjectPath("Project")
 
-	xlsxFile = projectPath & "\Circularly polarized " & componentNames(farfieldComponentValue) & "_frequency=" _
-	& frequencyStr & "GHz Port=" & portStr & " " & parameter & "=" & CStr(xSim) & " @" & Replace(CStr(Time), ":", "-") & ".xlsx"
+	xlsxFile = projectPath & "\CP " & componentNames(farfieldComponentValue) & " f=" _
+	& frequencyStr & " P=" & portStr & " " & parameter & "=" & CStr(xSim) & " @" & Replace(CStr(Time), ":", "-") & ".xlsx"
 
 	Dim NoticeInformation As String
-	NoticeInformation = "The " & componentNames(farfieldComponentValue) & " data is under£¨" & projectPath & "\£©"
+	NoticeInformation = "The " & componentNames(farfieldComponentValue) & " data for frequency="+frequencyStr+"GHz is under£¨" & projectPath & "\£©"
 	ReportInformationToWindow(NoticeInformation)
 
 	Dim O As Object
@@ -425,7 +453,7 @@ Sub savefarfieldComponent(xSim As Double,frequency As Double)
 	    With wBook
 	        .Title = "Title"
 	        .Subject = "Subject"
-	        .SaveAs Filename:= xlsxFile
+	        .SaveAs fileName:= xlsxFile
 		End With
 	Else
 	    Set wBook = O.Workbooks.Open(xlsxFile)
@@ -433,49 +461,60 @@ Sub savefarfieldComponent(xSim As Double,frequency As Double)
 
 	Columns = "BCDEFGHIJKLMN"
 	'Add a sheet and rename it
-	Dim wSheet As Object
+	Dim sSheet As Object
+	Dim farfieldSheet As Object
 
-	wBook.Sheets.Add.Name = parameter+"="+CStr(xSim)
-	Set wSheet = wBook.Sheets(parameter+"="+CStr(xSim))
+	wBook.Sheets.Add.Name = "CP farfield data"
+	wBook.Sheets.Add.Name = "S-para and Efficiencies"
+
+	'wBook.Save
+	'O.ActiveWorkbook.Close
+	'O.quit
+
+	'Dim farfieldSheet As Object
+	Set farfieldSheet = wBook.Sheets("CP farfield data")
+
+	'Dim sSheet As Object
+	Set sSheet = wBook.Sheets("S-para and Efficiencies")
 
 	'write rhcp directivity
-	wSheet.Range("A1").value = "Polarization"
-	wSheet.Range("B1").value = "RHCP"
-	wSheet.Range("C1").value = "Frequency"
-	wSheet.Range("D1").value = frequencyStr+"GHz"
-	wSheet.Range("E1").value = "Port"
-	wSheet.Range("F1").value = portStr
-	wSheet.Range("A2").value = "Phi\Theta"
+	farfieldSheet.Range("A1").value = "Polarization"
+	farfieldSheet.Range("B1").value = "RHCP"
+	farfieldSheet.Range("C1").value = "Frequency"
+	farfieldSheet.Range("D1").value = frequencyStr+"GHz"
+	farfieldSheet.Range("E1").value = "Port"
+	farfieldSheet.Range("F1").value = portStr
+	farfieldSheet.Range("A2").value = "Phi\Theta"
 
 	For n = 0 To Len(Columns)-1
-		wSheet.Range(Mid(Columns,n+1,1)+"2").value = n*15
-		wSheet.Range("A"+Cstr(n+3)) = n*30
+		farfieldSheet.Range(Mid(Columns,n+1,1)+"2").value = n*15
+		farfieldSheet.Range("A"+Cstr(n+3)) = n*30
 	Next
 
 	Dim i As Integer, j As Integer
 
 	For i  = 0 To 12
 		For j = 0 To 12
-			wSheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).value = Round(rhcpDirectivity(i,j),2)
+			farfieldSheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).value = Round(rhcpDirectivity(i,j),2)
 		Next
 	Next
 	'write lhcp directivity
-	wSheet.Range("A18").value = "Polarization"
-	wSheet.Range("B18").value = "LHCP"
-	wSheet.Range("C18").value = "Frequency"
-	wSheet.Range("D18").value = frequencyStr+"GHz"
-	wSheet.Range("E18").value = "Port"
-	wSheet.Range("F18").value = portStr
-	wSheet.Range("A19").value = "Phi\Theta"
+	farfieldSheet.Range("A18").value = "Polarization"
+	farfieldSheet.Range("B18").value = "LHCP"
+	farfieldSheet.Range("C18").value = "Frequency"
+	farfieldSheet.Range("D18").value = frequencyStr+"GHz"
+	farfieldSheet.Range("E18").value = "Port"
+	farfieldSheet.Range("F18").value = portStr
+	farfieldSheet.Range("A19").value = "Phi\Theta"
 
 	For n = 0 To Len(Columns)-1
-		wSheet.Range(Mid(Columns,n+1,1)+"19").value = n*15
-		wSheet.Range("A"+Cstr(n+20)) = n*30
+		farfieldSheet.Range(Mid(Columns,n+1,1)+"19").value = n*15
+		farfieldSheet.Range("A"+Cstr(n+20)) = n*30
 	Next
 
 	For i  = 0 To 12
 		For j = 0 To 12
-			wSheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).value = Round(lhcpDirectivity(i,j),2)
+			farfieldSheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).value = Round(lhcpDirectivity(i,j),2)
 		Next
 	Next
 
@@ -487,11 +526,16 @@ Sub savefarfieldComponent(xSim As Double,frequency As Double)
 	    End If
 	Next
 	'process sheet data, axial ratio, coloring, scoring and so on
-	processDirectivityData(wSheet, Columns)
-	wBook.Save
+	processDirectivityData(farfieldSheet, Columns)
+	process1DResults(sSheet)
+	Dim xlsxFileNewName As String, pos As Integer
+	pos = InStr(xlsxFile, "@")
+	xlsxFileNewName = Left(xlsxFile, pos-1) & "Sc=" & CStr(Round(farfieldSheet.Range("Q8").value)) & Right(xlsxFile, Len(xlsxFile)-pos+1)&".xlsx"
+	wBook.SaveAS(xlsxFileNewName)
 	O.ActiveWorkbook.Close
 	O.quit
-	ReportInformationToWindow "###Finish saving farfield components to xlsx file when parameter="+CStr(Round(xSim, 3))+" and frequency="+CStr(Round(frequency, 3)) +"GHz"
+	Kill xlsxFile
+	ReportInformationToWindow "###Finish saving farfield components to xlsx file when "+parameter+"="+CStr(Round(xSim, 3))+" and frequency="+CStr(Round(frequency, 3)) +"GHz"
 End Sub
 
 Sub processDirectivityData(sheet As Object, Columns As String)
@@ -735,5 +779,86 @@ Sub writeAverageFarfieldComponentAndRating(sheet As Object, Columns As String)
    	End Select
 End Sub
 
+Sub process1DResults(sSheet As Object)
 
+	Dim fileName As String, nPoints As Integer, n As Integer
+	sSheet.Range("A1").Value = "Freq_" & portStr
+	sSheet.Range("B1").Value = "S11/dB"
+	sSheet.Range("C1").Value = "Rad_eff"
+	sSheet.Range("D1").Value = "Tot_eff"
+
+	'System efficiencies or efficiencies?
+	fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\System Rad. Efficiency [" & portStr & "]")
+	If fileName = "" Then
+		fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\Rad. Efficiency [" & portStr & "]")
+	End If
+	Dim realPart As Object
+	With Result1DComplex(fileName) 'load data
+		Set realPart = .real()
+		nPoints = .GetN 'get number of points
+
+		For n = 0 To nPoints-1
+
+		'read all points, index of first point is zero.
+
+			sSheet.Range("A" & CStr(n+2)).Value = .GetX(n)
+
+			sSheet.Range("C" & CStr(n+2)).Value = Round(10*CST_log10(realPart.GetY(n)),2)
+
+		Next n
+
+	End With
+
+	fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\System Tot. Efficiency [" & portStr & "]")
+	If fileName = "" Then
+		fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\Tot. Efficiency [" & portStr & "]")
+	End If
+	'Dim reaPart As Object
+	With Result1DComplex(fileName) 'load data
+		Set realPart = .real()
+		'nPoints = .GetN 'get number of points
+
+		For n = 0 To nPoints-1
+
+		'read all points, index of first point is zero.
+
+			'sSheet.Range("A" & CStr(n+2)).Value = .GetX(n)
+
+			sSheet.Range("D" & CStr(n+2)).Value = Round(10*CST_log10(realPart.GetY(n)),2)
+
+		Next n
+
+	End With
+
+	fileName = ResultTree.GetFileFromTreeItem("1D Results\S-Parameters\S" & portStr & ","& portStr)
+	Dim m As Integer, x As Double, y As Double
+	With Result1DComplex(fileName) 'load data
+		Set realPart = .real()
+		'nPoints = .GetN 'get number of points
+
+		For n = 0 To nPoints-1
+			m = realPart.GetClosestIndexFromX(sSheet.Range("A" & CStr(n+2)).Value)
+		'read all points, index of first point is zero.
+
+			'C.Value = .GetX(n)
+
+			'sSheet.Range("B" & CStr(n+2)).Value = 10*CST_log10(realPart.GetY(m))
+			'sSheet.Range("B" & CStr(n+2)).Value = realPart.GetY(m)
+			x = .GetYRe(m)
+			y = .GetYIm(m)
+			sSheet.Range("B" & CStr(n+2)).Value = Round(20*CST_Log10(Sqr((x^2+y^2))),2)
+
+		Next n
+
+	End With
+	With sSheet
+	    '.Columns("P").ColumnWidth = 15
+	    '.Columns("Q").ColumnWidth = 33
+	    .Range("A1").Interior.Color = RGB(221, 235, 247)
+	    .Range("B1").Interior.Color = RGB(0, 176, 240)
+	    .Range("C1:D1").Interior.Color = RGB(255, 217, 102)
+	    .Range("A1:D100").Font.Bold = True
+	    '.Range("Q3:Q8").Font.Color = RGB(255, 0, 0)
+	End With
+End Sub
 
