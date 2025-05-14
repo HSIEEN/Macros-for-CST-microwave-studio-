@@ -8,6 +8,7 @@ Public cutPlaneValue As Integer, farfieldComponentValue As Integer, cutAngle As 
 Public TE As Double, RE As Double
 
 Sub Main ()
+	MsgBox "Please set solver to store results in cache and apply it!", vbExclamation
 	Dim parameterArray(1000) As String
 	Dim portArray(100) As String
 	Dim FarfieldFreq() As Double
@@ -236,9 +237,11 @@ Sub Main ()
 
 	sequenceName = "Single_para_sweep " & parameter
 	'Solver.RemoteCalculation "True"
+	Solver.StoreTDResultsInCache  "True"
+	AddToHistory("Store results in cache", _
+	"Solver.StoreTDResultsInCache ""True""")
 	'Setting parameter sweep--------------------------------------------
     While xSim <= xMax
-    	Solver.StoreTDResultsInCache  "True"
 		ParameterSweep.DeleteAllSequences
 		ParameterSweep.AddSequence(sequenceName)
 		MaxNumberOfDistributedComputingParameters(threads)
@@ -256,7 +259,7 @@ Sub Main ()
 			xSim = xMax + xStep
 		End If
 		ReportInformationToWindow "###Parameter sweep with DC computing is in progress......"
-		'ParameterSweep.Start()
+		ParameterSweep.Start()
 		retrieveSimulationResultsFromCache(freqFinalSamples)
 	Wend
 End Sub
@@ -310,7 +313,7 @@ Sub retrieveSimulationResultsFromCache(f() As Double)
 
 	For i=0 To nDir-1
 		Set mws = app.OpenFile(subDirs(i) & "\" & fileName)
-		mws.SelectTreeItem("1D Results\S-Parameters") 'just for test
+		'mws.SelectTreeItem("1D Results\S-Parameters") 'just for test
     	pValue = mws.RestoreParameter(parameter)
     	'For n=0 To UBound(f)
 		Copy1DFarfieldResult(mws, pValue, f)
@@ -341,6 +344,7 @@ Sub retrieveSimulationResultsFromCache(f() As Double)
     	End If
     Next
     Set fso = Nothing ' release the object
+	DeleteResults
 End Sub
 
 
@@ -542,49 +546,58 @@ Sub savefarfieldComponent(ByRef mws As Object, xSim As Double,frequency As Doubl
 
 	Columns = "BCDEFGHIJKLMN"
 	'Add a sheet and rename it
-	Dim wSheet As Object
 
-	wBook.Sheets.Add.Name = parameter+"="+CStr(xSim)
-	Set wSheet = wBook.Sheets(parameter+"="+CStr(xSim))
+	wBook.Sheets.Add.Name = "CP farfield data"
+	wBook.Sheets.Add.Name = "S-para and Efficiencies"
+
+	'wBook.Save
+	'O.ActiveWorkbook.Close
+	'O.quit
+
+	Dim farfieldSheet As Object
+	Set farfieldSheet = wBook.Sheets("CP farfield data")
+
+	Dim sSheet As Object
+	Set sSheet = wBook.Sheets("S-para and Efficiencies")
 
 	'write rhcp directivity
-	wSheet.Range("A1").value = "Polarization"
-	wSheet.Range("B1").value = "RHCP"
-	wSheet.Range("C1").value = "Frequency"
-	wSheet.Range("D1").value = frequencyStr+"GHz"
-	wSheet.Range("E1").value = "Port"
-	wSheet.Range("F1").value = portStr
-	wSheet.Range("A2").value = "Phi\Theta"
+	farfieldSheet.Range("A1").value = "Polarization"
+	farfieldSheet.Range("B1").value = "RHCP"
+	farfieldSheet.Range("C1").value = "Frequency"
+	farfieldSheet.Range("D1").value = frequencyStr+"GHz"
+	farfieldSheet.Range("E1").value = "Port"
+	farfieldSheet.Range("F1").value = portStr
+	farfieldSheet.Range("A2").value = "Phi\Theta"
 
 	For n = 0 To Len(Columns)-1
-		wSheet.Range(Mid(Columns,n+1,1)+"2").value = n*15
-		wSheet.Range("A"+Cstr(n+3)) = n*30
+		farfieldSheet.Range(Mid(Columns,n+1,1)+"2").value = n*15
+		farfieldSheet.Range("A"+Cstr(n+3)) = n*30
 	Next
 
 	Dim i As Integer, j As Integer
 
 	For i  = 0 To 12
 		For j = 0 To 12
-			wSheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).value = Round(rhcpDirectivity(i,j),2)
+			farfieldSheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).value = Round(rhcpDirectivity(i,j),2)
 		Next
 	Next
 	'write lhcp directivity
-	wSheet.Range("A18").value = "Polarization"
-	wSheet.Range("B18").value = "LHCP"
-	wSheet.Range("C18").value = "Frequency"
-	wSheet.Range("D18").value = frequencyStr+"GHz"
-	wSheet.Range("E18").value = "Port"
-	wSheet.Range("F18").value = portStr
-	wSheet.Range("A19").value = "Phi\Theta"
+	farfieldSheet.Range("A18").value = "Polarization"
+	farfieldSheet.Range("B18").value = "LHCP"
+	farfieldSheet.Range("C18").value = "Frequency"
+	farfieldSheet.Range("D18").value = frequencyStr+"GHz"
+	farfieldSheet.Range("E18").value = "Port"
+	farfieldSheet.Range("F18").value = portStr
+	farfieldSheet.Range("A19").value = "Phi\Theta"
 
 	For n = 0 To Len(Columns)-1
-		wSheet.Range(Mid(Columns,n+1,1)+"19").value = n*15
-		wSheet.Range("A"+Cstr(n+20)) = n*30
+		farfieldSheet.Range(Mid(Columns,n+1,1)+"19").value = n*15
+		farfieldSheet.Range("A"+Cstr(n+20)) = n*30
 	Next
 
 	For i  = 0 To 12
 		For j = 0 To 12
-			wSheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).value = Round(lhcpDirectivity(i,j),2)
+			farfieldSheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).value = Round(lhcpDirectivity(i,j),2)
 		Next
 	Next
 
@@ -596,10 +609,11 @@ Sub savefarfieldComponent(ByRef mws As Object, xSim As Double,frequency As Doubl
 	    End If
 	Next
 	'process sheet data, axial ratio, coloring, scoring and so on
-	processDirectivityData(wSheet, Columns)
+	processDirectivityData(farfieldSheet, Columns)
+	process1DResults(sSheet)
 	Dim xlsxFileNewName As String, pos As Integer
 	pos = InStr(xlsxFile, "@")
-	xlsxFileNewName = Left(xlsxFile, pos-1) & "Sc=" & CStr(Round(wSheet.Range("Q8").value)) & Right(xlsxFile, Len(xlsxFile)-pos+1)&".xlsx"
+	xlsxFileNewName = Left(xlsxFile, pos-1) & "Sc=" & CStr(Round(farfieldSheet.Range("Q8").value)) & Right(xlsxFile, Len(xlsxFile)-pos+1)&".xlsx"
 	wBook.SaveAS(xlsxFileNewName)
 	O.ActiveWorkbook.Close
 	O.quit
@@ -848,5 +862,86 @@ Sub writeAverageFarfieldComponentAndRating(sheet As Object, Columns As String)
    	End Select
 End Sub
 
+Sub process1DResults(sSheet As Object)
 
+	Dim fileName As String, nPoints As Integer, n As Integer
+	sSheet.Range("A1").Value = "Freq_" & portStr
+	sSheet.Range("B1").Value = "S11/dB"
+	sSheet.Range("C1").Value = "Rad_eff"
+	sSheet.Range("D1").Value = "Tot_eff"
+
+	'System efficiencies or efficiencies?
+	fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\System Rad. Efficiency [" & portStr & "]")
+	If fileName = "" Then
+		fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\Rad. Efficiency [" & portStr & "]")
+	End If
+	Dim realPart As Object
+	With Result1DComplex(fileName) 'load data
+		Set realPart = .real()
+		nPoints = .GetN 'get number of points
+
+		For n = 0 To nPoints-1
+
+		'read all points, index of first point is zero.
+
+			sSheet.Range("A" & CStr(n+2)).Value = .GetX(n)
+
+			sSheet.Range("C" & CStr(n+2)).Value = Round(10*CST_log10(realPart.GetY(n)),2)
+
+		Next n
+
+	End With
+
+	fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\System Tot. Efficiency [" & portStr & "]")
+	If fileName = "" Then
+		fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\Tot. Efficiency [" & portStr & "]")
+	End If
+	'Dim reaPart As Object
+	With Result1DComplex(fileName) 'load data
+		Set realPart = .real()
+		'nPoints = .GetN 'get number of points
+
+		For n = 0 To nPoints-1
+
+		'read all points, index of first point is zero.
+
+			'sSheet.Range("A" & CStr(n+2)).Value = .GetX(n)
+
+			sSheet.Range("D" & CStr(n+2)).Value = Round(10*CST_log10(realPart.GetY(n)),2)
+
+		Next n
+
+	End With
+
+	fileName = ResultTree.GetFileFromTreeItem("1D Results\S-Parameters\S" & portStr & ","& portStr)
+	Dim m As Integer, x As Double, y As Double
+	With Result1DComplex(fileName) 'load data
+		Set realPart = .real()
+		'nPoints = .GetN 'get number of points
+
+		For n = 0 To nPoints-1
+			m = realPart.GetClosestIndexFromX(sSheet.Range("A" & CStr(n+2)).Value)
+		'read all points, index of first point is zero.
+
+			'C.Value = .GetX(n)
+
+			'sSheet.Range("B" & CStr(n+2)).Value = 10*CST_log10(realPart.GetY(m))
+			'sSheet.Range("B" & CStr(n+2)).Value = realPart.GetY(m)
+			x = .GetYRe(m)
+			y = .GetYIm(m)
+			sSheet.Range("B" & CStr(n+2)).Value = Round(20*CST_Log10(Sqr((x^2+y^2))),2)
+
+		Next n
+
+	End With
+	With sSheet
+	    '.Columns("P").ColumnWidth = 15
+	    '.Columns("Q").ColumnWidth = 33
+	    .Range("A1").Interior.Color = RGB(221, 235, 247)
+	    .Range("B1").Interior.Color = RGB(0, 176, 240)
+	    .Range("C1:D1").Interior.Color = RGB(255, 217, 102)
+	    .Range("A1:D100").Font.Bold = True
+	    '.Range("Q3:Q8").Font.Color = RGB(255, 0, 0)
+	End With
+End Sub
 
