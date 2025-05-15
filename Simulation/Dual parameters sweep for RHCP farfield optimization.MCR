@@ -911,6 +911,54 @@ Sub process1DResults(sSheet As Object)
 	    .Range("A1:D100").Font.Bold = True
 	    '.Range("Q3:Q8").Font.Color = RGB(255, 0, 0)
 	End With
+	ExecuteVBACodeToPlot(sSheet)
 End Sub
 
+Sub ExecuteVBACodeToPlot(ws As Object)
+    Dim vbaCode As String
+    Dim moduleObj As Object, wBook As Object
+    Dim sheetName As String
 
+    Set wBook = ws.Parent
+    sheetName = ws.Name
+
+    vbaCode = "Sub CreateChartFromCode()" & vbCrLf & _
+                "    Dim ws As Worksheet" & vbCrLf & _
+                "    Set ws = ThisWorkbook.Sheets(""" & sheetName & """)" & vbCrLf & _
+                "    ws.Columns(""A:D"").Select" & vbCrLf & _
+                "    ws.Shapes.AddChart.Select" & vbCrLf & _
+                "    ActiveChart.ChartType = xlXYScatterSmoothNoMarkers" & vbCrLf & _
+                "    ActiveChart.SetSourceData Source:=ws.Range(""A:D"")" & vbCrLf & _
+                "    ActiveSheet.Shapes(ActiveSheet.Shapes.Count).IncrementLeft -50" & vbCrLf & _
+                "    ActiveSheet.Shapes(ActiveSheet.Shapes.Count).IncrementTop -50" & vbCrLf & _
+                "    ActiveChart.Axes(xlCategory).Select" & vbCrLf & _
+     			"    Dim minVal As Double, maxVal As Double" & vbCrLf & _
+                "    minVal = WorksheetFunction.Min(ws.Range(""A:A""))" & vbCrLf & _
+                "    maxVal = WorksheetFunction.Max(ws.Range(""A:A""))" & vbCrLf & _
+                "    ActiveChart.Axes(xlCategory).MinimumScale = minVal" & vbCrLf & _
+                "    ActiveChart.Axes(xlCategory).MaximumScale = maxVal" & vbCrLf & _
+                "    ActiveSheet.Shapes(ActiveSheet.Shapes.Count).ScaleWidth 2.044791776, msoFalse, msoScaleFromTopLeft" & vbCrLf & _
+                "    ActiveSheet.Shapes(ActiveSheet.Shapes.Count).ScaleHeight 1.9982640712, msoFalse, msoScaleFromTopLeft" & vbCrLf & _
+                "End Sub"
+
+    On Error Resume Next
+    Set moduleObj = wBook.VBProject.VBComponents.Add(1)
+    If Err.Number <> 0 Then
+        MsgBox "Unable to insert code module: " & Err.Description, vbCritical
+        Exit Sub
+    End If
+    On Error GoTo 0
+
+    moduleObj.CodeModule.AddFromString vbaCode
+    Dim Application As Object
+    Set Application = ws.Application
+    On Error Resume Next
+    Application.Run "CreateChartFromCode"
+    If Err.Number <> 0 Then
+        MsgBox "Executing module failed!: " & Err.Description, vbCritical
+    End If
+    On Error GoTo 0
+    On Error Resume Next
+    wBook.VBProject.VBComponents.Remove moduleObj
+    On Error GoTo 0
+End Sub
