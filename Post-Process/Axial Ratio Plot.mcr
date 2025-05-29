@@ -197,7 +197,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 					'Check if the frquency is valid
 					Dim quotient As Double
 					quotient = (FarfieldFreq(i) - FreqMin)/FreqStep
-					If Abs(quotient - Int(quotient))<1e-6 Then
+					If Abs(quotient - Round(quotient))<1e-6 Then
 
 			    		Dim FarfieldName As String
 			    		FarfieldName = "farfield (f="+ CStr(FarfieldFreq(i))+") ["+portNum+"]"

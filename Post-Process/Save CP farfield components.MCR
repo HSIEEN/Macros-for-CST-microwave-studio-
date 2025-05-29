@@ -13,7 +13,7 @@ Sub Main ()
     End If
 
 
-	Begin Dialog UserDialog 320,70,"Save CP farfield componets",.DialogFunction ' %GRID:10,7,1,1
+	Begin Dialog UserDialog 320,70,"Save CP farfield components",.DialogFunction ' %GRID:10,7,1,1
 		OKButton 70,49,90,21
 		CancelButton 170,49,90,21
 		GroupBox 0,7,320,42,"Set plot mode:",.GroupBox6
@@ -574,6 +574,9 @@ Sub process1DResults(sSheet As Object)
 	End With
 
 	fileName = ResultTree.GetFileFromTreeItem("1D Results\S-Parameters\S" & PortStr & ","& PortStr)
+	If fileName = "" Then
+		GoTo Post
+	End If
 	Dim m As Integer, x As Double, y As Double
 	With Result1DComplex(fileName) 'load data
 		Set realPart = .real()
@@ -594,8 +597,10 @@ Sub process1DResults(sSheet As Object)
 		Next n
 
 	End With
+	Post:
 	With sSheet
-	    '.Columns("P").ColumnWidth = 15
+	    .Columns("A").ColumnWidth = 18
+	    .Range("A1:Z100").HorizontalAlignment = -4108
 	    '.Columns("Q").ColumnWidth = 33
 	    .Range("A1").Interior.Color = RGB(221, 235, 247)
 	    .Range("B1").Interior.Color = RGB(0, 176, 240)
@@ -631,6 +636,7 @@ Sub ExecuteVBACodeToPlot(ws As Object)
                 "    ActiveChart.Axes(xlCategory).MaximumScale = maxVal" & vbCrLf & _
                 "    ActiveSheet.Shapes(ActiveSheet.Shapes.Count).ScaleWidth 2.044791776, msoFalse, msoScaleFromTopLeft" & vbCrLf & _
                 "    ActiveSheet.Shapes(ActiveSheet.Shapes.Count).ScaleHeight 1.9982640712, msoFalse, msoScaleFromTopLeft" & vbCrLf & _
+    			"	 ws.Range(""A1"").Select" & vbCrLf & _
                 "End Sub"
 
     On Error Resume Next

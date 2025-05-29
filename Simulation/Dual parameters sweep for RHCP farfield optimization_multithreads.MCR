@@ -1,14 +1,29 @@
 'sweep single parameter to meet the target
 '2023-01-10 By Shawn
 '#include "vba_globals_all.lib"
-
+'#include "vba_coros_all.lib"
 Option Explicit
 Public startTime As String, parameter1 As String, parameter2 As String, portStr As String, componentNames() As String
 Public cutPlaneValue As Integer, farfieldComponentValue As Integer, cutAngle As Double, threads As Integer
 Public TE As Double, RE As Double
 
 Sub Main ()
-	MsgBox "Please set solver to store TDResults in cache and apply it!", vbExclamation
+	Dim cacheDirs() As String
+	cacheDirs() = getCacheDirectory()
+
+	If UBound(cacheDirs)>=1 Then
+		If MsgBox("All cache directories will be deleted, press OK to continue!", vbOkCancel)=vbOK Then
+			deleteCacheDirectory(cacheDirs)
+		Else
+			Exit All
+		End If
+	End If
+
+	If MsgBox("Please set solver to store results in cache and apply it!",vbOkCancel, "Check solver settings!")=vbCancel Then
+		Exit All
+	End If
+
+	'MsgBox "Please delete all cache results and set solver to store TDResults in cache and apply it!", vbExclamation
 	Dim parameterArray(1000) As String
 	Dim portArray(100) As String
 	Dim FarfieldFreq() As Double
@@ -283,6 +298,9 @@ Sub Main ()
 	'"Solver.StoreTDResultsInCache ""True""")
 	'Solver.RemoteCalculation "True"
 	'Setting parameter sweep--------------------------------------------
+	Dim delResults As Boolean
+	'delete all results after one turn simulation?
+	delResults = True
     While simLoops <= UBound(paraPairs)
 		ParameterSweep.DeleteAllSequences
 		'UseDistributedComputingForParameters(True)
@@ -300,6 +318,9 @@ Sub Main ()
 				ParameterSweep.AddParameter_Samples(sequenceName, parameter2, Split(paraPairs(simLoops+n), "!")(1), Split(paraPairs(simLoops+n), "!")(1), 1, False)
 			Next
 			simLoops = simLoops + threads
+			If simLoops > UBound(paraPairs) Then
+				delResults = False
+			End If
 		Else
 			For n=0 To UBound(paraPairs)-simLoops
 				sequenceName = "Dual_para_sweep " & parameter1 & "&" & parameter2 &" " & CStr(simLoops+n)
@@ -308,44 +329,26 @@ Sub Main ()
 				ParameterSweep.AddParameter_Samples(sequenceName, parameter2, Split(paraPairs(simLoops+n), "!")(1), Split(paraPairs(simLoops+n), "!")(1), 1, False)
 			Next
 			simLoops = UBound(paraPairs)+1
+			delResults = False
 		End If
 		ReportInformationToWindow "###Parameter sweep with DC computing is in progress......"
 		ParameterSweep.Start()
-		retrieveSimulationResultsFromCache(freqFinalSamples)
+		retrieveSimulationResultsFromCache(freqFinalSamples, delResults)
 	Wend
 End Sub
 
-Sub retrieveSimulationResultsFromCache(f() As Double)
+Sub retrieveSimulationResultsFromCache(f() As Double,  delRes As Boolean)
 	Dim app As Object
 	Dim mws As Object
 	Dim pValue1 As Double, pValue2 As Double
 
 	Dim prjPath As String, cachePath As String
-	Dim subDir As String, subDirs() As String
-	Dim n As Integer, i As Integer, nDir As Integer
-	ReDim subDirs(1000)
+	Dim subDirs() As String
+	Dim n As Integer, i As Integer
 
-	prjPath = GetProjectPath("Result")
-	cachePath = prjPath & "Cache\"
-	subDir = Dir(cachePath, vbDirectory)
-	nDir=0 '
-	Do While subDir <> ""
-        ' exclude . and ..
-        If subDir <> "." And subDir <> ".." Then
-            ' determine whether it is a dir
-            If (GetAttr(cachePath & subDir) And vbDirectory) = vbDirectory Then
-                ' print the name of the subdir
-				subDirs(nDir) = cachePath & subDir
-                'Debug.Print cachePath & subDir
-                nDir = nDir+1
-            End If
-        End If
-        ' get a next subdir
-        subDir = Dir
-    Loop
-    If nDir >= 1 Then
-    	ReDim Preserve subDirs(nDir-1)
-    Else
+	subDirs = getCacheDirectory()
+
+    If UBound(subDirs) < 1 Then
     	MsgBox "No Cache results found, please check",vbCritical
     	Exit All
 	End If
@@ -353,7 +356,7 @@ Sub retrieveSimulationResultsFromCache(f() As Double)
 	fileName = BaseName(getProjectPath("Project")) & ".cst"
 	Set app = CreateObject ("CSTStudio.Application")
 
-	For i=0 To nDir-1
+	For i=0 To UBound(subDirs)
 		Set mws = app.OpenFile(subDirs(i) & "\" & fileName)
 		'mws.SelectTreeItem("1D Results\S-Parameters") 'just for test
     	pValue1 = mws.RestoreParameter(parameter1)
@@ -365,29 +368,11 @@ Sub retrieveSimulationResultsFromCache(f() As Double)
 	Next
 
 	'delete all subdirectories under .\Result\Cache\
-	Dim fso As Object
-    Dim folderPath As String
+	deleteCacheDirectory(subDirs)
+    If delRes Then
+		  DeleteResults
+    End If
 
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    For i=0 To nDir-1
-		folderPath = subDirs(i)
-		If fso.FolderExists(folderPath) Then
-        	On Error Resume Next
-        	fso.DeleteFolder(folderPath, True)
-
-        	' Check if deleting succesfully
-        	If Err.Number <> 0 Then
-           		MsgBox "Deletion failed: " & Err.Description, vbExclamation
-       	 	Else
-            	ReportInformationToWindow "Cache result delete successfully!"
-        	End If
-        	On Error GoTo 0
-    	Else
-        	MsgBox "Directory does not exist!", vbExclamation
-    	End If
-    Next
-    Set fso = Nothing ' release the object
-    DeleteResults
 End Sub
 
 
@@ -475,15 +460,6 @@ Function Copy1DFarfieldResults(ByRef mws As Object, xSim As Double, ySim, freq()
 			'==================================================================================
 			'---------------------------------------------------------------------------------------------------
 
-			If mws.FarfieldPlot.GetSystemTotalEfficiency > -100 Then
-
-				TE = mws.FarfieldPlot.GetSystemTotalEfficiency
-				RE = mws.FarfieldPlot.GetSystemRadiationEfficiency
-			Else
-				TE = mws.FarfieldPlot.GetTotalEfficiency
-				RE = mws.FarfieldPlot.GetRadiationEfficiency
-			End If
-
 			savefarfieldComponent(mws, xSim, ySim, freq(nn))
 	        'CurrentItem = FirstChildItem
 	        Copy1DFarfieldResults = getfarfieldComponent(mws)
@@ -516,6 +492,14 @@ Sub savefarfieldComponent(ByRef mws As Object, xSim As Double, ySim As Double,fr
 	frequencyStr = CStr(frequency)
 
 	mws.SelectTreeItem("Farfields\farfield (f="+frequencyStr+") [" +portStr+"]")
+	If mws.FarfieldPlot.GetSystemTotalEfficiency > -100 Then
+
+		TE = mws.FarfieldPlot.GetSystemTotalEfficiency
+		RE = mws.FarfieldPlot.GetSystemRadiationEfficiency
+	Else
+		TE = mws.FarfieldPlot.GetTotalEfficiency
+		RE = mws.FarfieldPlot.GetRadiationEfficiency
+	End If
     '==============Upper Hemisphere rhcp directivity and rhcp directivity estimation===============
 
     Dim  upperHemisphereRHCPdirectivity() As Double, upperHemisphereLHCPdirectivity() As Double
@@ -581,7 +565,7 @@ Sub savefarfieldComponent(ByRef mws As Object, xSim As Double, ySim As Double,fr
 	    With wBook
 	        .Title = "Title"
 	        .Subject = "Subject"
-	        .SaveAs Filename:= xlsxFile
+	        .SaveAs fileName:= xlsxFile
 		End With
 	Else
 	    Set wBook = O.Workbooks.Open(xlsxFile)
@@ -672,105 +656,202 @@ Sub savefarfieldComponent(ByRef mws As Object, xSim As Double, ySim As Double,fr
 	ReportInformationToWindow "###Finish saving farfield components to xlsx file when parameter="+CStr(Round(xSim, 3))+" and frequency="+CStr(Round(frequency, 3)) +"GHz"
 End Sub
 
-Sub processDirectivityData(sheet As Object, Columns As String)
-	ReportInformationToWindow "%%%Processing farfield data in the xlsx file......"
-	Dim i As Integer
-	Dim j As Integer
+Sub deleteCacheDirectory(subDirs() As String)
+	Dim fso As Object, i As Integer
+    Dim folderPath As String
 
-	sheet.Range("A35").value = "Polarization"
-	sheet.Range("B35").value = "AR"
-	sheet.Range("C35").value = "Frequency"
-	sheet.Range("D35").value = sheet.Range("D1").Value
-	sheet.Range("E35").value = "Port"
-	sheet.Range("F35").value = sheet.Range("F1").Value
-	sheet.Range("A36").value = "Phi\Theta"
-	For i = 0 To Len(Columns)-1
-		sheet.Range(Mid(Columns,i+1,1)+"36").value = i*15
-		sheet.Range("A"+Cstr(i+37)) = i*30
-	Next
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    For i=0 To UBound(subDirs)
+		folderPath = subDirs(i)
+		If fso.FolderExists(folderPath) Then
+        	On Error Resume Next
+        	fso.DeleteFolder(folderPath, True)
 
-	'hide lhcp directivity data
-	sheet.Rows("17:33").Hidden = True
-
-	'formatting cells
-
-	sheet.Columns("A").ColumnWidth = 14
-	sheet.Columns("C").ColumnWidth = 10
-	sheet.Rows("1").RowHeight = 25
-	sheet.Rows("35").RowHeight = 25
-	sheet.Range("A1:Z100").HorizontalAlignment =  -4108 	'Center
-	sheet.Range("P2:Q8").Borders.LineStyle = 1			 'Continous border
-
-	Dim Dvalue As Double, deltaDirectivity As Double, axialRatio As Double
-	For i  = 0 To 12
-		For j = 0 To 12
-
-			'=======================Axial ratio estimating and coloring============================
-			deltaDirectivity = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value - sheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).Value
-
-			axialRatio = Sgn(deltaDirectivity-0.0001)*20*CST_Log10((10^(deltaDirectivity/20)+1)/(Abs(10^(deltaDirectivity/20)-1)+0.0001))
-
-			sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).value = Round(axialRatio,2)
-
-			If axialRatio >= 0 And axialRatio < 3 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(0, 130, 0)
-			ElseIf axialRatio < 6 And axialRatio >= 3 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(0, 180, 0)
-			ElseIf axialRatio < 10 And axialRatio >= 6 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(145, 218, 0)
-			ElseIf axialRatio < 18 And axialRatio >= 10 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(216, 254, 154)
-			ElseIf axialRatio >= 18 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 255, 0)
-			ElseIf axialRatio < -14 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 200, 0)
-			ElseIf axialRatio < -6 And axialRatio >= -14 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 0, 0)
-			ElseIf axialRatio < 0 And axialRatio >= -6  Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(150, 0, 0)
-			End If
-			'color = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color
-			'========================Coloring rhcp directvity data===================================
-
-			Dvalue = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value
-
-			Select Case farfieldComponentValue
-		   	Case 0	'reference total efficiency -7dB when the directivity is selected as the farfield component
-				'Dvalue = Dvalue
-				Dvalue = Dvalue+TE
-			Case 1
-				Dvalue = Dvalue+TE-RE
-			Case 2
-				Dvalue = Dvalue
-		   	End Select
-
-			If Dvalue >= -6 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(0, 130, 0)
-			ElseIf Dvalue < -6 And Dvalue >= -8 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(0, 180, 0)
-			ElseIf Dvalue <-8 And Dvalue >= -10 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(145, 218, 0)
-			ElseIf Dvalue < -10 And Dvalue >= -12 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(216, 254, 154)
-			ElseIf Dvalue < -12 And Dvalue >= -14 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 255, 0)
-			ElseIf Dvalue < -14 And Dvalue >= -16 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 200, 0)
-			ElseIf Dvalue < -16 And Dvalue >= -20 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 0, 0)
-			ElseIf Dvalue < -20 Then
-				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(150, 0, 0)
-			End If
-
-		Next
-	Next
-	'======================================UH/Tot===============================
-	'sheet.Range("A51") = "UHPower ratio"
-	'sheet.Range("B51") = Round(10*CST_Log10(getUpperHemisphereRatio(sheet, columns)),2)
-	'sheet.Range("C51") = "dB"
-	writeAverageFarfieldComponentAndRating(sheet, Columns)
-	ReportInformationToWindow "%%%Processing is done......"
+        	' Check if deleting succesfully
+        	If Err.Number <> 0 Then
+           		MsgBox "Deletion failed: " & Err.Description, vbExclamation
+       	 	Else
+            	ReportInformationToWindow "Cache results delete successfully!"
+        	End If
+        	On Error GoTo 0
+    	Else
+        	MsgBox "Directory does not exist!", vbExclamation
+    	End If
+    Next
+    Set fso = Nothing ' release the object
 End Sub
+
+Function getCacheDirectory() As String()
+	Dim prjPath As String, cachePath As String
+	Dim subDir As String, subDirs() As String
+	Dim n As Integer, i As Integer, nDir As Integer
+	ReDim subDirs(1000)
+
+	prjPath = GetProjectPath("Result")
+	cachePath = prjPath & "Cache\"
+	subDir = Dir(cachePath, vbDirectory)
+	nDir=0 '
+	Do While subDir <> ""
+        ' exclude . and ..
+        If subDir <> "." And subDir <> ".." Then
+            ' determine whether it is a dir
+            If (GetAttr(cachePath & subDir) And vbDirectory) = vbDirectory Then
+                ' print the name of the subdir
+				subDirs(nDir) = cachePath & subDir
+                'Debug.Print cachePath & subDir
+                nDir = nDir+1
+            End If
+        End If
+        ' get a next subdir
+        subDir = Dir
+    Loop
+
+    If nDir >= 1 Then
+    	ReDim Preserve subDirs(nDir-1)
+    Else
+    	ReDim Preserve subDirs(0)
+	End If
+    getCacheDirectory = subDirs
+End Function
+
+Sub ExecuteVBACodeToPlot(ws As Object)
+    Dim vbaCode As String
+    Dim moduleObj As Object, wBook As Object
+    Dim sheetName As String
+
+    Set wBook = ws.Parent
+    sheetName = ws.Name
+
+    vbaCode = "Sub CreateChartFromCode()" & vbCrLf & _
+                "    Dim ws As Worksheet" & vbCrLf & _
+                "    Set ws = ThisWorkbook.Sheets(""" & sheetName & """)" & vbCrLf & _
+                "    ws.Columns(""A:D"").Select" & vbCrLf & _
+                "    ws.Shapes.AddChart.Select" & vbCrLf & _
+                "    ActiveChart.ChartType = xlXYScatterSmoothNoMarkers" & vbCrLf & _
+                "    ActiveChart.SetSourceData Source:=ws.Range(""A:D"")" & vbCrLf & _
+                "    ActiveSheet.Shapes(ActiveSheet.Shapes.Count).IncrementLeft -50" & vbCrLf & _
+                "    ActiveSheet.Shapes(ActiveSheet.Shapes.Count).IncrementTop -50" & vbCrLf & _
+                "    ActiveChart.Axes(xlCategory).Select" & vbCrLf & _
+     			"    Dim minVal As Double, maxVal As Double" & vbCrLf & _
+                "    minVal = WorksheetFunction.Min(ws.Range(""A:A""))" & vbCrLf & _
+                "    maxVal = WorksheetFunction.Max(ws.Range(""A:A""))" & vbCrLf & _
+                "    ActiveChart.Axes(xlCategory).MinimumScale = minVal" & vbCrLf & _
+                "    ActiveChart.Axes(xlCategory).MaximumScale = maxVal" & vbCrLf & _
+                "    ActiveSheet.Shapes(ActiveSheet.Shapes.Count).ScaleWidth 2.044791776, msoFalse, msoScaleFromTopLeft" & vbCrLf & _
+                "    ActiveSheet.Shapes(ActiveSheet.Shapes.Count).ScaleHeight 1.9982640712, msoFalse, msoScaleFromTopLeft" & vbCrLf & _
+    			"	 ws.Range(""A1"").Select" & vbCrLf & _
+                "End Sub"
+
+    On Error Resume Next
+    Set moduleObj = wBook.VBProject.VBComponents.Add(1)
+    If Err.Number <> 0 Then
+        MsgBox "Unable to insert code module: " & Err.Description, vbCritical
+        Exit Sub
+    End If
+    On Error GoTo 0
+
+    moduleObj.CodeModule.AddFromString vbaCode
+    Dim Application As Object
+    Set Application = ws.Application
+    On Error Resume Next
+    Application.Run "CreateChartFromCode"
+    If Err.Number <> 0 Then
+        MsgBox "Executing module failed!: " & Err.Description, vbCritical
+    End If
+    On Error GoTo 0
+    On Error Resume Next
+    wBook.VBProject.VBComponents.Remove moduleObj
+    On Error GoTo 0
+End Sub
+
+Sub process1DResults(sSheet As Object)
+
+	Dim fileName As String, nPoints As Integer, n As Integer
+	sSheet.Range("A1").Value = "Freq_" & portStr
+	sSheet.Range("B1").Value = "S11/dB"
+	sSheet.Range("C1").Value = "Rad_eff"
+	sSheet.Range("D1").Value = "Tot_eff"
+
+	'System efficiencies or efficiencies?
+	fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\System Rad. Efficiency [" & portStr & "]")
+	If fileName = "" Then
+		fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\Rad. Efficiency [" & portStr & "]")
+	End If
+	Dim realPart As Object
+	With Result1DComplex(fileName) 'load data
+		Set realPart = .real()
+		nPoints = .GetN 'get number of points
+
+		For n = 0 To nPoints-1
+
+		'read all points, index of first point is zero.
+
+			sSheet.Range("A" & CStr(n+2)).Value = .GetX(n)
+
+			sSheet.Range("C" & CStr(n+2)).Value = Round(10*CST_log10(realPart.GetY(n)),2)
+
+		Next n
+
+	End With
+
+	fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\System Tot. Efficiency [" & portStr & "]")
+	If fileName = "" Then
+		fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\Tot. Efficiency [" & portStr & "]")
+	End If
+	'Dim reaPart As Object
+	With Result1DComplex(fileName) 'load data
+		Set realPart = .real()
+		'nPoints = .GetN 'get number of points
+
+		For n = 0 To nPoints-1
+
+		'read all points, index of first point is zero.
+
+			'sSheet.Range("A" & CStr(n+2)).Value = .GetX(n)
+
+			sSheet.Range("D" & CStr(n+2)).Value = Round(10*CST_log10(realPart.GetY(n)),2)
+
+		Next n
+
+	End With
+
+	fileName = ResultTree.GetFileFromTreeItem("1D Results\S-Parameters\S" & portStr & ","& portStr)
+	If fileName = "" Then
+		GoTo Post
+	End If
+	Dim m As Integer, x As Double, y As Double
+	With Result1DComplex(fileName) 'load data
+		Set realPart = .real()
+		'nPoints = .GetN 'get number of points
+
+		For n = 0 To nPoints-1
+			m = realPart.GetClosestIndexFromX(sSheet.Range("A" & CStr(n+2)).Value)
+		'read all points, index of first point is zero.
+
+			'C.Value = .GetX(n)
+
+			'sSheet.Range("B" & CStr(n+2)).Value = 10*CST_log10(realPart.GetY(m))
+			'sSheet.Range("B" & CStr(n+2)).Value = realPart.GetY(m)
+			x = .GetYRe(m)
+			y = .GetYIm(m)
+			sSheet.Range("B" & CStr(n+2)).Value = Round(20*CST_Log10(Sqr((x^2+y^2))),2)
+
+		Next n
+
+	End With
+	Post:
+	With sSheet
+	    .Columns("A").ColumnWidth = 15
+	    .Range("A1:Z100").HorizontalAlignment = -4108
+	    .Range("A1").Interior.Color = RGB(221, 235, 247)
+	    .Range("B1").Interior.Color = RGB(0, 176, 240)
+	    .Range("C1:D1").Interior.Color = RGB(255, 217, 102)
+	    .Range("A1:D100").Font.Bold = True
+	    '.Range("Q3:Q8").Font.Color = RGB(255, 0, 0)
+	End With
+	ExecuteVBACodeToPlot(sSheet)
+End Sub
+
 Sub writeAverageFarfieldComponentAndRating(sheet As Object, Columns As String)
 
 	'Formatting cells
@@ -913,136 +994,104 @@ Sub writeAverageFarfieldComponentAndRating(sheet As Object, Columns As String)
    	End Select
 End Sub
 
-Sub process1DResults(sSheet As Object)
 
-	Dim fileName As String, nPoints As Integer, n As Integer
-	sSheet.Range("A1").Value = "Freq_" & portStr
-	sSheet.Range("B1").Value = "S11/dB"
-	sSheet.Range("C1").Value = "Rad_eff"
-	sSheet.Range("D1").Value = "Tot_eff"
+Sub processDirectivityData(sheet As Object, Columns As String)
+	ReportInformationToWindow "%%%Processing farfield data in the xlsx file......"
+	Dim i As Integer
+	Dim j As Integer
 
-	'System efficiencies or efficiencies?
-	fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\System Rad. Efficiency [" & portStr & "]")
-	If fileName = "" Then
-		fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\Rad. Efficiency [" & portStr & "]")
-	End If
-	Dim realPart As Object
-	With Result1DComplex(fileName) 'load data
-		Set realPart = .real()
-		nPoints = .GetN 'get number of points
+	sheet.Range("A35").value = "Polarization"
+	sheet.Range("B35").value = "AR"
+	sheet.Range("C35").value = "Frequency"
+	sheet.Range("D35").value = sheet.Range("D1").Value
+	sheet.Range("E35").value = "Port"
+	sheet.Range("F35").value = sheet.Range("F1").Value
+	sheet.Range("A36").value = "Phi\Theta"
+	For i = 0 To Len(Columns)-1
+		sheet.Range(Mid(Columns,i+1,1)+"36").value = i*15
+		sheet.Range("A"+Cstr(i+37)) = i*30
+	Next
 
-		For n = 0 To nPoints-1
+	'hide lhcp directivity data
+	sheet.Rows("17:33").Hidden = True
 
-		'read all points, index of first point is zero.
+	'formatting cells
 
-			sSheet.Range("A" & CStr(n+2)).Value = .GetX(n)
+	sheet.Columns("A").ColumnWidth = 16
+	sheet.Columns("C").ColumnWidth = 10
+	sheet.Rows("1").RowHeight = 25
+	sheet.Rows("35").RowHeight = 25
+	sheet.Range("A1:Z100").HorizontalAlignment =  -4108 	'Center
+	sheet.Range("P2:Q8").Borders.LineStyle = 1			 'Continous border
 
-			sSheet.Range("C" & CStr(n+2)).Value = Round(10*CST_log10(realPart.GetY(n)),2)
+	Dim Dvalue As Double, deltaDirectivity As Double, axialRatio As Double
+	For i  = 0 To 12
+		For j = 0 To 12
 
-		Next n
+			'=======================Axial ratio estimating and coloring============================
+			deltaDirectivity = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value - sheet.Range(Mid(Columns,j+1,1) + CStr(i+20)).Value
 
-	End With
+			axialRatio = Sgn(deltaDirectivity-0.0001)*20*CST_Log10((10^(deltaDirectivity/20)+1)/(Abs(10^(deltaDirectivity/20)-1)+0.0001))
 
-	fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\System Tot. Efficiency [" & portStr & "]")
-	If fileName = "" Then
-		fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\Tot. Efficiency [" & portStr & "]")
-	End If
-	'Dim reaPart As Object
-	With Result1DComplex(fileName) 'load data
-		Set realPart = .real()
-		'nPoints = .GetN 'get number of points
+			sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).value = Round(axialRatio,2)
 
-		For n = 0 To nPoints-1
+			If axialRatio >= 0 And axialRatio < 3 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(0, 130, 0)
+			ElseIf axialRatio < 6 And axialRatio >= 3 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(0, 180, 0)
+			ElseIf axialRatio < 10 And axialRatio >= 6 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(145, 218, 0)
+			ElseIf axialRatio < 18 And axialRatio >= 10 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(216, 254, 154)
+			ElseIf axialRatio >= 18 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 255, 0)
+			ElseIf axialRatio < -14 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 200, 0)
+			ElseIf axialRatio < -6 And axialRatio >= -14 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(255, 0, 0)
+			ElseIf axialRatio < 0 And axialRatio >= -6  Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+37)).Interior.Color = RGB(150, 0, 0)
+			End If
+			'color = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color
+			'========================Coloring rhcp directvity data===================================
 
-		'read all points, index of first point is zero.
+			Dvalue = sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Value
 
-			'sSheet.Range("A" & CStr(n+2)).Value = .GetX(n)
+			Select Case farfieldComponentValue
+		   	Case 0	'reference total efficiency -7dB when the directivity is selected as the farfield component
+				'Dvalue = Dvalue
+				Dvalue = Dvalue+TE
+			Case 1
+				Dvalue = Dvalue+TE-RE
+			Case 2
+				Dvalue = Dvalue
+		   	End Select
 
-			sSheet.Range("D" & CStr(n+2)).Value = Round(10*CST_log10(realPart.GetY(n)),2)
+			If Dvalue >= -6 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(0, 130, 0)
+			ElseIf Dvalue < -6 And Dvalue >= -8 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(0, 180, 0)
+			ElseIf Dvalue <-8 And Dvalue >= -10 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(145, 218, 0)
+			ElseIf Dvalue < -10 And Dvalue >= -12 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(216, 254, 154)
+			ElseIf Dvalue < -12 And Dvalue >= -14 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 255, 0)
+			ElseIf Dvalue < -14 And Dvalue >= -16 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 200, 0)
+			ElseIf Dvalue < -16 And Dvalue >= -20 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(255, 0, 0)
+			ElseIf Dvalue < -20 Then
+				sheet.Range(Mid(Columns,j+1,1) + CStr(i+3)).Interior.Color = RGB(150, 0, 0)
+			End If
 
-		Next n
-
-	End With
-
-	fileName = ResultTree.GetFileFromTreeItem("1D Results\S-Parameters\S" & portStr & ","& portStr)
-	Dim m As Integer, x As Double, y As Double
-	With Result1DComplex(fileName) 'load data
-		Set realPart = .real()
-		'nPoints = .GetN 'get number of points
-
-		For n = 0 To nPoints-1
-			m = realPart.GetClosestIndexFromX(sSheet.Range("A" & CStr(n+2)).Value)
-		'read all points, index of first point is zero.
-
-			'C.Value = .GetX(n)
-
-			'sSheet.Range("B" & CStr(n+2)).Value = 10*CST_log10(realPart.GetY(m))
-			'sSheet.Range("B" & CStr(n+2)).Value = realPart.GetY(m)
-			x = .GetYRe(m)
-			y = .GetYIm(m)
-			sSheet.Range("B" & CStr(n+2)).Value = Round(20*CST_Log10(Sqr((x^2+y^2))),2)
-
-		Next n
-
-	End With
-	With sSheet
-	    '.Columns("P").ColumnWidth = 15
-	    '.Columns("Q").ColumnWidth = 33
-	    .Range("A1").Interior.Color = RGB(221, 235, 247)
-	    .Range("B1").Interior.Color = RGB(0, 176, 240)
-	    .Range("C1:D1").Interior.Color = RGB(255, 217, 102)
-	    .Range("A1:D100").Font.Bold = True
-	    '.Range("Q3:Q8").Font.Color = RGB(255, 0, 0)
-	End With
-	ExecuteVBACodeToPlot(sSheet)
+		Next
+	Next
+	'======================================UH/Tot===============================
+	'sheet.Range("A51") = "UHPower ratio"
+	'sheet.Range("B51") = Round(10*CST_Log10(getUpperHemisphereRatio(sheet, columns)),2)
+	'sheet.Range("C51") = "dB"
+	writeAverageFarfieldComponentAndRating(sheet, Columns)
+	ReportInformationToWindow "%%%Processing is done......"
 End Sub
-Sub ExecuteVBACodeToPlot(ws As Object)
-    Dim vbaCode As String
-    Dim moduleObj As Object, wBook As Object
-    Dim sheetName As String
-
-    Set wBook = ws.Parent
-    sheetName = ws.Name
-
-    vbaCode = "Sub CreateChartFromCode()" & vbCrLf & _
-                "    Dim ws As Worksheet" & vbCrLf & _
-                "    Set ws = ThisWorkbook.Sheets(""" & sheetName & """)" & vbCrLf & _
-                "    ws.Columns(""A:D"").Select" & vbCrLf & _
-                "    ws.Shapes.AddChart.Select" & vbCrLf & _
-                "    ActiveChart.ChartType = xlXYScatterSmoothNoMarkers" & vbCrLf & _
-                "    ActiveChart.SetSourceData Source:=ws.Range(""A:D"")" & vbCrLf & _
-                "    ActiveSheet.Shapes(ActiveSheet.Shapes.Count).IncrementLeft -50" & vbCrLf & _
-                "    ActiveSheet.Shapes(ActiveSheet.Shapes.Count).IncrementTop -50" & vbCrLf & _
-                "    ActiveChart.Axes(xlCategory).Select" & vbCrLf & _
-     			"    Dim minVal As Double, maxVal As Double" & vbCrLf & _
-                "    minVal = WorksheetFunction.Min(ws.Range(""A:A""))" & vbCrLf & _
-                "    maxVal = WorksheetFunction.Max(ws.Range(""A:A""))" & vbCrLf & _
-                "    ActiveChart.Axes(xlCategory).MinimumScale = minVal" & vbCrLf & _
-                "    ActiveChart.Axes(xlCategory).MaximumScale = maxVal" & vbCrLf & _
-                "    ActiveSheet.Shapes(ActiveSheet.Shapes.Count).ScaleWidth 2.044791776, msoFalse, msoScaleFromTopLeft" & vbCrLf & _
-                "    ActiveSheet.Shapes(ActiveSheet.Shapes.Count).ScaleHeight 1.9982640712, msoFalse, msoScaleFromTopLeft" & vbCrLf & _
-                "End Sub"
-
-    On Error Resume Next
-    Set moduleObj = wBook.VBProject.VBComponents.Add(1)
-    If Err.Number <> 0 Then
-        MsgBox "Unable to insert code module: " & Err.Description, vbCritical
-        Exit Sub
-    End If
-    On Error GoTo 0
-
-    moduleObj.CodeModule.AddFromString vbaCode
-    Dim Application As Object
-    Set Application = ws.Application
-    On Error Resume Next
-    Application.Run "CreateChartFromCode"
-    If Err.Number <> 0 Then
-        MsgBox "Executing module failed!: " & Err.Description, vbCritical
-    End If
-    On Error GoTo 0
-    On Error Resume Next
-    wBook.VBProject.VBComponents.Remove moduleObj
-    On Error GoTo 0
-End Sub
-
 

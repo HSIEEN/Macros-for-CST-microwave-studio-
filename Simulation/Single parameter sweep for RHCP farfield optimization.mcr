@@ -831,6 +831,9 @@ Sub process1DResults(sSheet As Object)
 	End With
 
 	fileName = ResultTree.GetFileFromTreeItem("1D Results\S-Parameters\S" & portStr & ","& portStr)
+	If fileName = "" Then
+		GoTo Post
+	End If
 	Dim m As Integer, x As Double, y As Double
 	With Result1DComplex(fileName) 'load data
 		Set realPart = .real()
@@ -851,6 +854,7 @@ Sub process1DResults(sSheet As Object)
 		Next n
 
 	End With
+	Post:
 	With sSheet
 	    '.Columns("P").ColumnWidth = 15
 	    '.Columns("Q").ColumnWidth = 33
