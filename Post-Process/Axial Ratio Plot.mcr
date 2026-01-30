@@ -77,18 +77,20 @@ Sub Main ()
 
     Wend
 
-    Dim InformationStr As String
-    InformationStr = "Input values should be within "+CStr(FarfieldFreq(0))+"GHz to "+CStr(FarfieldFreq(m-1))+"GHz:"
-	Begin Dialog UserDialog 420,210,"Axial Raio_Frequency Plot",.DialogFunction ' %GRID:10,7,1,1
+    Dim InformationStr As String, freq_unit As String
+
+    freq_unit = Units.getUnit("Frequency")
+    InformationStr = "Input values should be within "+CStr(FarfieldFreq(0))+freq_unit+" to "+CStr(FarfieldFreq(m-1))+freq_unit+":"
+	Begin Dialog UserDialog 420,210,"Axial Ratio VS Frequency Plot",.DialogFunction ' %GRID:10,7,1,1
 
 		GroupBox 0,0,420,70,"Frequency settings:",.GroupBox1
 		Text 10,21,390,14,InformationStr,.Text1
 		Text 10,42,40,14,"From",.Text6
 		TextBox 50,42,30,14,.Fmin
-		Text 370,42,30,14,"GHz",.Text7
-		Text 90,42,50,14,"GHz  to",.Text8
+		Text 370,42,30,14,freq_unit,.Text7
+		Text 90,42,50,14,freq_unit+"  to",.Text8
 		TextBox 150,42,30,14,.Fmax
-		Text 190,42,120,14,"GHz with step of ",.Text9
+		Text 190,42,120,14,freq_unit+" with step of ",.Text9
 		TextBox 310,42,50,14,.Fstep
 
 
@@ -184,7 +186,9 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 		    'FarfieldPlot.Reset
 
 		    FarfieldPlot.SetScaleLinear(False)
-
+			FarfieldPlot.PlotType("polar")
+			FarfieldPlot.SetAxesType("currentwcs")
+			FarfieldPlot.SetAntennaType("unknown")
 		    Dim Nstep As Integer
 		    Dim PlotFreq() As Double
 		    ReDim PlotFreq(m-1) As Double
@@ -207,8 +211,13 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 				    		'MidValue = FarfieldFreq(i)
 
 				    		'FarfieldPlot.AddListEvaluationPoint(Theta, Phi, 0, "spherical", "frequency", FarfieldFreq(i))
+
+				    		'FarfieldPlot.SetAutomaticCoordinateSystem(False)
+				    		'FarfieldPlot.SetAxesType("currentwcs")
+				    		'FarfieldPlot.Plot
 				    		AxialRatio1(Nstep) = FarfieldPlot.CalculatePoint(Theta1,Phi1,"Spherical  circular axialratio",FarfieldName)
 				    		AxialRatio2(Nstep) = FarfieldPlot.CalculatePoint(Theta2,Phi2,"Spherical  circular axialratio",FarfieldName)
+
 				    		PlotFreq(Nstep) = FarfieldFreq(i)
 				    		Nstep = Nstep+1
 				    	Else

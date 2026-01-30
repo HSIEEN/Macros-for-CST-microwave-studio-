@@ -50,7 +50,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			Dim NoticeInformation As String
 			Dim SelectedItem As String
 		    Dim n As Integer
-		    Dim Frequency As Double, FrequencyStr As String
+		    Dim Frequency As Double', FrequencyStr As String
 		    Dim Columns As String
 
 			plotModes = Array("directivity", "gain", "realized gain")
@@ -120,7 +120,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 				Columns = "BCDEFGHIJKLMN"
 
 				'NoticeInformation = "The directivity data is under£¨"+projectPath+"\£©"
-				ReportInformationToWindow "Data export in progress............."
+				ReportInformationToWindow "Data exporting in progress............."
 				'RE = Round(FarfieldPlot.GetTotalEfficiency - FarfieldPlot.GetRadiationEfficiency,2)
 				If FarfieldPlot.GetSystemTotalEfficiency > -100 Then
 
@@ -169,7 +169,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 				    End If
 				Next
 				'process sheet data, axial ratio, coloring, scoring and so on
-				ReportInformationToWindow "Data estimation in progress............."
+				ReportInformationToWindow "Data estimating in progress............."
 				processDirectivityData(farfieldSheet, Columns)
 				process1DResults(sSheet)
 				wBook.Save
@@ -179,7 +179,7 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			   	NoticeInformation = "The "&plotModes(farfieldMode)&" data is under£¨"+projectPath+"\£©"
 			   	ReportInformationToWindow "Progress ends successfully."
 			   	ReportInformationToWindow(NoticeInformation)
-			   	MsgBox "Farfied data are exported successfully.",vbInformation,"Done"
+			   	MsgBox "Farfied data has been exported successfully.",vbInformation,"Done"
 
 			End If
 		End Select
@@ -303,7 +303,7 @@ Sub processDirectivityData(farfieldSheet As Object, Columns As String)
        .Columns("C").ColumnWidth = 10
        .Rows("1").RowHeight = 25
        .Rows("35").RowHeight = 25
-       .Range("A1:Z100").HorizontalAlignment = -4108
+       .Range("A1:Z200").HorizontalAlignment = -4108
        .Range("P2:Q8").Borders.LineStyle = 1
     End With
 
@@ -343,11 +343,11 @@ Sub processDirectivityData(farfieldSheet As Object, Columns As String)
 			Select Case farfieldMode
 		   	Case 0	'reference total efficiency -7dB when the directivity is selected as the farfield component
 				'Dvalue = Dvalue
-				Dvalue = Dvalue+TE
+				Dvalue = Dvalue+RE
 			Case 1
-				Dvalue = Dvalue+TE-RE
-			Case 2
 				Dvalue = Dvalue
+			Case 2
+				Dvalue = Dvalue-TE+RE
 		   	End Select
 
 
@@ -389,7 +389,7 @@ Sub writeAverageDirectivityAndRating(farfieldSheet As Object, Columns As String)
 	    .Range("P2,P8,Q2").Interior.Color = RGB(221, 235, 247)
 	    .Range("P3:P7").Interior.Color = RGB(0, 176, 240)
 	    .Range("Q3:Q8").Interior.Color = RGB(255, 217, 102)
-	    .Range("A1:Q100").Font.Bold = True
+	    .Range("A1:Q200").Font.Bold = True
 	    .Range("Q3:Q8").Font.Color = RGB(255, 0, 0)
 	End With
 
@@ -600,12 +600,12 @@ Sub process1DResults(sSheet As Object)
 	Post:
 	With sSheet
 	    .Columns("A").ColumnWidth = 18
-	    .Range("A1:Z100").HorizontalAlignment = -4108
+	    .Range("A1:Z200").HorizontalAlignment = -4108
 	    '.Columns("Q").ColumnWidth = 33
 	    .Range("A1").Interior.Color = RGB(221, 235, 247)
 	    .Range("B1").Interior.Color = RGB(0, 176, 240)
 	    .Range("C1:D1").Interior.Color = RGB(255, 217, 102)
-	    .Range("A1:D100").Font.Bold = True
+	    .Range("A1:D200").Font.Bold = True
 	    '.Range("Q3:Q8").Font.Color = RGB(255, 0, 0)
 	End With
 	ExecuteVBACodeToPlot(sSheet)

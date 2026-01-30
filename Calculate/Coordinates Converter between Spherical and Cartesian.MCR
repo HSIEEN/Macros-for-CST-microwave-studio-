@@ -43,16 +43,18 @@ Sub Main
 			yv = CDbl(dlg.yv)
 			zw = CDbl(dlg.zw)
 			rou = CDbl(dlg.rou)
-			theta = CDbl(dlg.theta)/180*3.1416
-			phi = CDbl(dlg.phi)/180*3.1416
+			theta = CDbl(dlg.theta)'/180*3.1416
+			phi = CDbl(dlg.phi)'/180*3.1416
 			'xu = CDbl(dlg.xu)
 			If dlg.Group1 = 1 Then
 				'Convert spherical coordinates to cartesian coordinates
-				dlg.xu = CStr(Round(rou*Sin(theta)*Cos(phi),2))
-				dlg.yv = CStr(Round(rou*Sin(theta)*Sin(phi),2))
-				dlg.zw = CStr(Round(rou*Cos(theta),2))
+				'Convert_Point_Spherical2Cartesian (rtf_lib() As Double, xyz_lib() As Double)
+				dlg.xu = CStr(Round(rou*SinD(theta)*CosD(phi),2))
+				dlg.yv = CStr(Round(rou*SinD(theta)*SinD(phi),2))
+				dlg.zw = CStr(Round(rou*CosD(theta),2))
 			ElseIf dlg.Group1 = 0 Then
 				'Convert cartesian coordinates to spherical coordinates
+				'Convert_Point_Cartesian2Spherical (xyz_lib() As Double, rtf_lib() As Double)
 				dlg.rou = CStr(Round(Sqr(xu^2+yv^2+zw^2),2))
 				If zw >= 0  Then
 					dlg.theta = CStr(Round(Atn(Sqr(xu^2+yv^2)/(zw+1e-5))/3.1416*180,2))
@@ -68,5 +70,7 @@ Sub Main
 					dlg.phi = CStr(Round(Atn(yv/(xu+1e-5))/3.1416*180+180,2))
 				End If
 			End If
+
 		Wend
+
 End Sub

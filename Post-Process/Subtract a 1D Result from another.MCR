@@ -1,6 +1,7 @@
 '#Language "WWB-COM"
 
 Option Explicit
+Public Const lib_rundef = -1.2345678e27
 
 Sub Main
 
@@ -8,8 +9,9 @@ Sub Main
 
 	Dim n As Integer, points_n As Integer
 	Dim selectedItem0 As String, file0 As String, o0 As Object, freqmin0 As Double, freqmax0 As Double
-	Dim SelectedItem1 As String, file1 As String, o1 As Object, freqmin1 As Double, freqmax1 As Double
+	Dim selectedItem1 As String, file1 As String, o1 As Object, freqmin1 As Double, freqmax1 As Double
 	Dim freqGlobalmin As Double, freqGlobalmax As Double
+
 
 	n = GetNumberOfSelectedTreeItems
 
@@ -23,22 +25,38 @@ Sub Main
 		Exit All
 	End If
 	selectedItem0 = GetSelectedTreeItem
-	SelectedItem1 = GetNextSelectedTreeItem
+	selectedItem1 = GetNextSelectedTreeItem
 
 	Dim tmpstr As String
 
-	If StrComp(selectedItem0, SelectedItem1) > 0 Then
+	If StrComp(selectedItem0, selectedItem1) > 0 Then
 		tmpstr = selectedItem0
-		selectedItem0 = SelectedItem1
-		SelectedItem1 = tmpstr
+		selectedItem0 = selectedItem1
+		selectedItem1 = tmpstr
 	End If
 
 	file0 = ResultTree.GetFileFromTreeItem(selectedItem0)
-	file1 = ResultTree.GetFileFromTreeItem(SelectedItem1)
+	file1 = ResultTree.GetFileFromTreeItem(selectedItem1)
 
-
+	On Error Resume Next
 	Set o0 = Result1D(file0)
+	If Err.Number = 0 Then
+		'Set o0 = Mag_Linear2dB(o0)
+	Else
+		Set o0 = Result1DComplex(file0)
+		Set o0 = Mag_Linear2dB(o0)
+		Err.Clear
+	End If
+
+	On Error Resume Next
 	Set o1 = Result1D(file1)
+	If Err.Number = 0 Then
+		'Set o1 = Mag_Linear2dB(o1)
+	Else
+		Set o1 = Result1DComplex(file1)
+		Set o1 = Mag_Linear2dB(o1)
+		Err.Clear
+	End If
 
 	With o0
 		points_n = .GetN
@@ -84,13 +102,40 @@ Sub Main
 	o2.Xlabel("Frequecy/GHz")
 	o2.Ylabel("dB")
 	o2.save(Right(selectedItem0, Len(selectedItem0)-InStrRev(selectedItem0 ,"\"))+ _
-	"_subtract_"+Right(SelectedItem1, Len(SelectedItem1)-InStrRev(SelectedItem1 ,"\"))+".sig")
+	"_subtract_"+Right(selectedItem1, Len(selectedItem1)-InStrRev(selectedItem1 ,"\"))+".sig")
 
 	Dim treeItem As String
 	treeItem = Left(selectedItem0, InStrRev(selectedItem0 ,"\"))+ _
 	Right(selectedItem0, Len(selectedItem0)-InStrRev(selectedItem0 ,"\"))+ _
-	" - "+Right(SelectedItem1, Len(SelectedItem1)-InStrRev(SelectedItem1 ,"\"))
+	" - "+Right(selectedItem1, Len(selectedItem1)-InStrRev(selectedItem1 ,"\"))
 
 	o2.AddToTree(treeItem)
 	SelectTreeItem(treeItem)
 End Sub
+Function Mag_Linear2dB(O As Object) As Object
+	Dim n As Integer, logFactor As Integer, i As Integer
+	With O
+		n = .getN
+		logFactor = .GetLogarithmicFactor
+	End With
+
+	Set O = O.magnitude
+
+	Dim ox As Object
+	Set ox = Result1D("")
+
+	For i=0 To n-1
+		ox.AppendXY(O.GetX(i), logFactor*CST_Log10(O.GetY(i)))
+	Next
+
+
+	Set Mag_Linear2dB = ox
+
+End Function
+Function CST_Log10(value As Double) As Double
+	If value <= 0 Then
+		CST_Log10 = lib_rundef
+	Else
+		CST_Log10 = Log(value)/Log(10)
+	End If
+End Function

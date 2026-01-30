@@ -77,19 +77,35 @@ Sub Main ()
 				Next
 			End With
 
-			nRes = spectrum.GetGlobalMinimum
-			i = 1
-				'While nRes <> -1
-			X = spectrum.GetX(nRes)
-			Y = spectrum.GetY(nRes)
-			calcQ = CalculateQ(nRes)
-			'nRes = spectrum.GetNextMinimum(0.5)
-			'i = i+1
-			'If calcQ > 5 Then
-			Print #1, "F"+CStr(i)+"=" + CStr(Round(X,2)) + vbNewLine + "Q"+CStr(i)+"=" + CStr(Round(calcQ,2))
+			nRes = spectrum.GetFirstMinimum(0.5)
+			i = 0
+			If nRes = -1 Then'there is no minum, return minima of Y at minimum X and maximum Y
+				If spectrum.GetY(spectrum.GetN-1) > spectrum.GetY(0) Then
+					nRes = 0
+				Else
+					nRes = spectrum.GetN-1
+				End If
+				X = spectrum.GetX(nRes)
+				Y = spectrum.GetY(nRes)
+				calcQ = CalculateQ(nRes)
+
+				Print #1,"F"+CStr(i)+"=" + CStr(Round(X,2)) + vbNewLine + "Q"+CStr(i)+"=" + CStr(Round(calcQ,2))
+				i = i+1
+
+			Else
+				While nRes <> -1
+					X = spectrum.GetX(nRes)
+					Y = spectrum.GetY(nRes)
+					calcQ = CalculateQ(nRes)
+					nRes = spectrum.GetNextMinimum(0.5)
+					i = i+1
+					'If calcQ > 5 Then
+					Print #1, "F"+CStr(i)+"=" + CStr(Round(X,2)) + vbNewLine + "Q"+CStr(i)+"=" + CStr(Round(calcQ,2))
 					'Else
 					'	i=i-1
 					'End If
+				Wend
+			End If
 
 		End If
 		currentItem = ResultTree.GetNextItemName(currentItem)

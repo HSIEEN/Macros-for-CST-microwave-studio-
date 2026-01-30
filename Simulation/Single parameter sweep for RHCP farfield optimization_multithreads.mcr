@@ -1,7 +1,6 @@
 'sweep single parameter to meet the target
 '2023-01-10 By Shawn
 '#include "vba_globals_all.lib"
-''#include "vba_coros_all.lib"
 Option Explicit
 Public startTime As String, parameter As String, portStr As String, componentNames() As String
 Public cutPlaneValue As Integer, farfieldComponentValue As Integer, cutAngle As Double
@@ -210,7 +209,12 @@ Sub Main ()
 			End If
 		Next
     Next i
-    ReDim Preserve freqFinalSamples(nn-1)
+    If nn>0 Then
+    	ReDim Preserve freqFinalSamples(nn-1)
+    Else
+    	MsgBox "No valid frequency sample point found!", vbCritical
+    	Exit All
+    End If
 
 
 	Dim n As Integer
@@ -249,12 +253,13 @@ Sub Main ()
 	n = 0
 	xSim = xMin
 
-	sequenceName = "Single_para_sweep " & parameter
+	sequenceName = "Single parameter sweep on " & parameter
 	'Solver.RemoteCalculation "True"
-	Solver.StoreTDResultsInCache  "True"
-	AddToHistory("Store results in cache", _
-	"Solver.StoreTDResultsInCache ""True""")
+	'Solver.StoreTDResultsInCache  "True"
+	'AddToHistory("Store results in cache", _
+	'"Solver.StoreTDResultsInCache ""True""")
 	'Setting parameter sweep--------------------------------------------
+	ParameterSweep.SetSimulationType ("Transient")
 	Dim delResults As Boolean
 	'delete all results after one turn simulation?
 	delResults = True
@@ -529,7 +534,7 @@ Sub savefarfieldComponent(mws As Object, xSim As Double,frequency As Double)
 	Next
 	'process sheet data, axial ratio, coloring, scoring and so on
 	processDirectivityData(farfieldSheet, Columns)
-	process1DResults(sSheet)
+	process1DResults(mws, sSheet)
 	Dim xlsxFileNewName As String, pos As Integer
 	pos = InStr(xlsxFile, "@")
 	xlsxFileNewName = Left(xlsxFile, pos-1) & "Sc=" & CStr(Round(farfieldSheet.Range("Q8").value)) & Right(xlsxFile, Len(xlsxFile)-pos+1)&".xlsx"
@@ -553,9 +558,10 @@ Sub deleteCacheDirectory(subDirs() As String)
 
         	' Check if deleting succesfully
         	If Err.Number <> 0 Then
-           		MsgBox "Deletion failed: " & Err.Description, vbExclamation
+           		MsgBox "Deletion failed: " & Err.Description & "! Process terminated!", vbExclamation
+           		Exit All
        	 	Else
-            	ReportInformationToWindow "Cache results delete successfully!"
+            	ReportInformationToWindow "Cache results deleted successfully!"
         	End If
         	On Error GoTo 0
     	Else
@@ -648,7 +654,7 @@ Sub ExecuteVBACodeToPlot(ws As Object)
     On Error GoTo 0
 End Sub
 
-Sub process1DResults(sSheet As Object)
+Sub process1DResults(mws As Object, sSheet As Object)
 
 	Dim fileName As String, nPoints As Integer, n As Integer
 	sSheet.Range("A1").Value = "Freq_" & portStr
@@ -657,12 +663,12 @@ Sub process1DResults(sSheet As Object)
 	sSheet.Range("D1").Value = "Tot_eff"
 
 	'System efficiencies or efficiencies?
-	fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\System Rad. Efficiency [" & portStr & "]")
+	fileName = mws.ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\System Rad. Efficiency [" & portStr & "]")
 	If fileName = "" Then
-		fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\Rad. Efficiency [" & portStr & "]")
+		fileName = mws.ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\Rad. Efficiency [" & portStr & "]")
 	End If
 	Dim realPart As Object
-	With Result1DComplex(fileName) 'load data
+	With mws.Result1DComplex(fileName) 'load data
 		Set realPart = .real()
 		nPoints = .GetN 'get number of points
 
@@ -672,18 +678,18 @@ Sub process1DResults(sSheet As Object)
 
 			sSheet.Range("A" & CStr(n+2)).Value = .GetX(n)
 
-			sSheet.Range("C" & CStr(n+2)).Value = Round(10*CST_log10(realPart.GetY(n)),2)
+			sSheet.Range("C" & CStr(n+2)).Value = Round(10*CST_Log10(realPart.GetY(n)),2)
 
 		Next n
 
 	End With
 
-	fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\System Tot. Efficiency [" & portStr & "]")
+	fileName = mws.ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\System Tot. Efficiency [" & portStr & "]")
 	If fileName = "" Then
-		fileName = ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\Tot. Efficiency [" & portStr & "]")
+		fileName = mws.ResultTree.GetFileFromTreeItem("1D Results\Efficiencies\Tot. Efficiency [" & portStr & "]")
 	End If
 	'Dim reaPart As Object
-	With Result1DComplex(fileName) 'load data
+	With mws.Result1DComplex(fileName) 'load data
 		Set realPart = .real()
 		'nPoints = .GetN 'get number of points
 
@@ -699,12 +705,12 @@ Sub process1DResults(sSheet As Object)
 
 	End With
 
-	fileName = ResultTree.GetFileFromTreeItem("1D Results\S-Parameters\S" & portStr & ","& portStr)
+	fileName = mws.ResultTree.GetFileFromTreeItem("1D Results\S-Parameters\S" & portStr & ","& portStr)
 	If fileName = "" Then
 		GoTo Post
 	End If
 	Dim m As Integer, x As Double, y As Double
-	With Result1DComplex(fileName) 'load data
+	With mws.Result1DComplex(fileName) 'load data
 		Set realPart = .real()
 		'nPoints = .GetN 'get number of points
 

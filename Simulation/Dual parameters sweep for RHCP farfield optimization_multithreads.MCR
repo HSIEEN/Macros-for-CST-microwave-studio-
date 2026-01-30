@@ -230,7 +230,13 @@ Sub Main ()
 			End If
 		Next
     Next i
-    ReDim Preserve freqFinalSamples(nn-1)
+
+    If nn>0 Then
+    	ReDim Preserve freqFinalSamples(nn-1)
+    Else
+    	MsgBox "No valid frequency sample point found!", vbCritical
+    	Exit All
+    End If
 
 
 	Dim n As Integer
@@ -298,6 +304,7 @@ Sub Main ()
 	'"Solver.StoreTDResultsInCache ""True""")
 	'Solver.RemoteCalculation "True"
 	'Setting parameter sweep--------------------------------------------
+	ParameterSweep.SetSimulationType ("Transient")
 	Dim delResults As Boolean
 	'delete all results after one turn simulation?
 	delResults = True
@@ -671,7 +678,7 @@ Sub deleteCacheDirectory(subDirs() As String)
         	If Err.Number <> 0 Then
            		MsgBox "Deletion failed: " & Err.Description, vbExclamation
        	 	Else
-            	ReportInformationToWindow "Cache results delete successfully!"
+            	ReportInformationToWindow "Cache results deleted successfully!"
         	End If
         	On Error GoTo 0
     	Else
