@@ -50,6 +50,7 @@ Sub Main
 		Exit All
 	End If
 	If dlg0.Group1=1 Then
+
 	'reconstruct an old antenna from the old log file
 	   	If Dir(logFile) <> "" Then
 			FileCopy logFile, Split(logFile,".")(0)&"_old.txt"
@@ -60,13 +61,19 @@ Sub Main
    		Dim antLength As String
    		Dim antRadEffi As String
    		Dim antTotEffi As String
-		antennaDesign_initialize(False)
+
 		ReportinformationTowindow "$Main: open file #"&CStr(fileNumber)&" for reconstructing"
 		Open Split(logFile,".")(0)&"_old.txt" For Input As #fileNumber
 		LineCount = 0
+		'Get antenna configurations
 		While Not EOF(fileNumber)
 			Line Input #fileNumber, LineRead
-			If InStr(LineRead, "Feed element")<>0 Then
+			If InStr(LineRead, "Antenna material")<>0 Then
+				ant_material = Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
+			ElseIf InStr(LineRead, "Substrate material")<>0 Then
+				sub_material = Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
+				antennaDesign_initialize(False)
+			ElseIf InStr(LineRead, "Feed element")<>0 Then
 				feedSolid = Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
 				Set feed = getElementFromSolid(antElem_arr, feedSolid)
 				If feed Is Nothing Then
@@ -75,62 +82,147 @@ Sub Main
 				End If
 				Set ant=New Antenna
 				ant.initialize(feed, ant_material, sub_material,availableElementsNum, availableElementsStr)
-			ElseIf InStr(LineRead, "Antenna Logics") Then
-				ant.conLogics = Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
-				ant.elementNumber = Int(Len(ant.conLogics)/2)+1
-				ant.reconstructor()
-				If Not EOF(fileNumber) Then
-					Line Input #fileNumber, LineRead
-					antLength = Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
-				End If
-				If Not EOF(fileNumber) Then
-					Line Input #fileNumber, LineRead
-					antRadEffi = Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
-				End If
-				If Not EOF(fileNumber) Then
-					Line Input #fileNumber, LineRead
-					antTotEffi = Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
-				End If
-				If MsgBox( "Antenna Length: " & antLength & vbCrLf &  _
-				"Antenna radiation efficiency: " & antRadEffi & vbCrLf &  _
-				"Antenna total efficiency: " & antTotEffi & vbCrLf &  _
-				"keep going ?",vbOkCancel, "Simulation results" )= vbOK Then
-					ant.destructor()
-				Else
-					MsgBox "Reconstructing progress teminated!",vbInformation,"Notice"
-					Exit All
-				End If
+				Exit While
+			End If
+			LineCount += 1
+		Wend
+		'Rank all patterns by radiation effiencies
+		Dim radEffArr() As String, tempRad As String
+		Dim totEffArr() As String, tempTot As String
+		Dim antLogicArr() As String, tempLogic As String
+		Dim antLengthArr() As String, tempLength As String
+		Dim patternCount As Integer
+		Dim ix As Integer
+
+		ReDim radEffArr(0) As String
+		ReDim totEffArr(0) As String
+		ReDim antLogicArr(0) As String
+		ReDim antLengthArr(0) As String
+		patternCount = 0
+
+		While Not EOF(fileNumber)
+			Line Input #fileNumber, LineRead
+			If InStr(LineRead, "Antenna Logics") Then
+				ReDim Preserve antLogicArr(0 To patternCount)
+				ReDim Preserve antLengthArr(0 To patternCount)
+				ReDim Preserve radEffArr(0 To patternCount)
+				ReDim Preserve totEffArr(0 To patternCount)
+
+				tempLogic=Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
+
+				Line Input #fileNumber, LineRead
+				tempLength=Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
+
+				Line Input #fileNumber, LineRead
+				tempRad = Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
+
+				Line Input #fileNumber, LineRead
+				tempTot = Right(LineRead, Len(LineRead)-InStr(LineRead, ":")-1)
+
+				ix = patternCount-1
+				Do While ix>=0
+					If Cdbl(Left(radEffArr(ix), Len(radEffArr(ix))-2))<Cdbl(Left(tempRad, Len(tempRad)-2)) Then
+						radEffArr(ix+1)=radEffArr(ix)
+						totEffArr(ix+1)=totEffArr(ix)
+						antLogicArr(ix+1)=antLogicArr(ix)
+						antLengthArr(ix+1)=antLengthArr(ix)
+						ix = ix - 1
+					Else
+						Exit Do
+					End If
+				Loop
+				radEffArr(ix+1)=tempRad
+				totEffArr(ix+1)=tempTot
+				antLogicArr(ix+1)=tempLogic
+				antLengthArr(ix+1)=tempLength
+
+				patternCount = patternCount+1
 
 			End If
 
-			LineCount += 1
 		Wend
 		Close # fileNumber
+
+		'Re-Construct the antenna pattern
+		For ix=0 To patternCount-1
+			'Line Input #fileNumber, LineRead
+			'If InStr(LineRead, "Antenna Logics") Then
+			ant.conLogics = antLogicArr(ix)
+			ant.elementNumber = Int(Len(ant.conLogics)/2)+1
+			ant.reconstructor()
+				'If Not EOF(fileNumber) Then
+					'Line Input #fileNumber, LineRead
+			antLength = antLengthArr(ix)
+				'End If
+				'If Not EOF(fileNumber) Then
+					'Line Input #fileNumber, LineRead
+			antRadEffi =radEffArr(ix)
+				'End If
+				'If Not EOF(fileNumber) Then
+					'Line Input #fileNumber, LineRead
+			antTotEffi = totEffArr(ix)
+				'End If
+			If MsgBox("Pattern Number: " & CStr(ix+1) & vbCrLf &  _
+			"Antenna Length: " & antLength & vbCrLf &  _
+			"Antenna radiation efficiency: " & antRadEffi & vbCrLf &  _
+			"Antenna total efficiency: " & antTotEffi & vbCrLf &  _
+			"keep going ?",vbOkCancel, "Simulation results" )= vbOK Then
+				ant.destructor()
+			Else
+				MsgBox "Reconstructing progress teminated!",vbInformation,"Notice"
+				Exit All
+			End If
+
+		'End If
+			'LineCount += 1
+		Next
+		'Close # fileNumber
+		MsgBox "Reconstructing Progress Done!",vbInformation,"Notice"
 		ReportinformationTowindow "$Main: close file #"&CStr(fileNumber)&" for reconstructing"
 		Exit All
 	End If
 	'Construct a new antenna
+	Begin Dialog UserDialog 510,182,"Very important" ' %GRID:10,7,1,1
+		OKButton 80,147,120,21
+		CancelButton 280,147,120,21
+		GroupBox 0,0,480,140,"Attention",.GroupBox1
+		Text 10,21,380,14,"1. Antenna solids must be contained in Group 1 Antenna",.Text1
+		Text 10,49,360,14,"2. Antenna solids must be non-zero in thickness",.Text2
+		Text 10,77,370,14,"3. The solid name uesed as the feed must be known",.Text3
+		Text 10,105,460,28,"4. Antenna solids and substrate materials must be determined",.Text4
+	End Dialog
+	Dim dlg1 As UserDialog
+	If Dialog(dlg1,-2) = 0 Then
+		Exit All
+	End If
+	If MsgBox("In order to accelerate the simulation, better delete all monitors except farfield monitors!",vbOkCancel,"Notice")<>vbOK Then
+		Exit All
+	End If
+	'Dim monitorIndex As Long
+	'For monitorIndex = 0 To
 	ReportinformationTowindow "$Main: open file #"&CStr(fileNumber)&" for constructing"
    	Open logFile For Output As #fileNumber
    	ReportInformationToWindow "**********Rebuilding the model at " + CStr(Now) +"************"
    	Print #fileNumber, "************Rebuilding the model at " + CStr(Now) +"****************"
-   	Rebuild
+
+   	'Rebuild
+   	save
 	ReportInformationToWindow "***********Initializing of antenna begins at " + CStr(Now) +"*************"
    	Print #fileNumber, "************Initializing of antenna begins at " + CStr(Now) +"****************"
 	antennaDesign_initialize(True)
 	ReportInformationToWindow "**********Initializing of antenna finishes at " + CStr(Now) +"************"
 	Print #fileNumber, "************Initializing of antenna finishes at " + CStr(Now) +"************"
 	'Select operating frequency and feed point
-	Begin Dialog UserDialog 370,182,"Frquency and feeding part settings" ' %GRID:10,7,1,1
-		GroupBox 0,0,360,49,"Frequency settings:",.GroupBox1
+	Begin Dialog UserDialog 400,182,"Frquency and feeding part settings" ' %GRID:10,7,1,1
+		GroupBox 0,0,390,49,"Frequency settings:",.GroupBox1
 		TextBox 180,21,50,14,.Freq
 		OKButton 100,154,90,21
 		CancelButton 220,154,90,21
 		Text 50,21,120,14,"Target frequency:",.Text6
-		GroupBox 0,98,360,49,"Feeding part selection:",.GroupBox2
-		DropListBox 30,119,300,14,aSolidArray_CST(),.feedingPart
+		GroupBox 0,98,390,49,"Feeding part selection:",.GroupBox2
+		DropListBox 30,119,350,14,aSolidArray_CST(),.feedingPart
 		Text 240,21,30,14,"GHz",.Text1
-		GroupBox 0,49,360,42,"Initial target length:",.GroupBox3
+		GroupBox 0,49,390,42,"Initial target length:",.GroupBox3
 		Text 110,70,60,14,"Lambda/",.Text2
 		TextBox 180,70,50,14,.length_factor
 	End Dialog
@@ -191,7 +283,7 @@ Sub Main
 	Do
 		x+=1
 		ReportInformationToWindow "############### Round#"+CStr(x)+" of antenna routing starts at " + CStr(Now) +" ################"
-		Print #fileNumber, "############## Round#"+CStr(x)+" of antenna routing starts at " + CStr(Now) +" ##############"
+		Print #fileNumber, vbCrLf & "############## Round#"+CStr(x)+" of antenna routing starts at " + CStr(Now) +" ##############"
 		ReportInformationToWindow "%% The target length is: "+CStr(Round(tgtLength,2))+"mm"
 		Print #fileNumber, "%% The target length is: "+CStr(Round(tgtLength,2))+"mm"
 		If x>1 Then
@@ -221,6 +313,7 @@ Sub Main
 			ReportInformationToWindow "%% Achieved antenna length: " + CStr(Round(ant.length,2))+"mm"
 			Print #fileNumber, "%% Achieved antenna length: " + CStr(Round(ant.length,2))+"mm"
 			ant.toHistoryList()
+
 			Solver.MeshAdaption(False)
 			Solver.SteadyStateLimit(-40)
 			Solver.Start
@@ -265,7 +358,7 @@ Sub Main
 				If False Then	'MsgBox("Go on?",vbOkCancel,"Notice")<>vbOK Then
 					Exit Do
 				Else
-					Q = getQ()(0)
+					'Q = getQ()(0)
 					totEffi = getEfficiencyAtFrequency(tgtFreq, True)
 					radEffi = getEfficiencyAtFrequency(tgtFreq, False)
 					ReportInformationToWindow "%% The resonance frequency has been met @"& CStr(Round(resFreq,2)) & "GHz"
@@ -304,7 +397,7 @@ Sub Main
 		End If
 		'Plot.Update
 		'Plot.ExportImage ("E:\image.bmp", 1024, 768)
-	Loop Until x>=100
+	Loop Until x>=50
 	ReportInformationToWindow "************Routing of antenna ends at " + CStr(Now) +"************"
 	Print #fileNumber, "************Routing of antenna ends at " + CStr(Now) +"***************"
 	Close #fileNumber
@@ -324,16 +417,18 @@ Sub antennaDesign_initialize(cOrR As Boolean)
 	Dim iMaterial_CST As Integer
 	'Dim sFullMaterialName As String
 	Dim x As Double, y As Double, z As Double
-	If MsgBox("Please assign materials for antenna and substrate.",vbYesNo,"Notice") <> vbYes Then
-    	Exit All
+	If cOrR=True Then
+		If MsgBox("Please assign materials for antenna and substrate.",vbYesNo,"Notice") <> vbYes Then
+    		Exit All
+    	End If
     End If
-	selectMaterial(ant_material,"Pick a material for antenna")
+	If cOrR=True Then selectMaterial(ant_material,"Pick a material for antenna")
 	ReportInformationToWindow "%% Antenna material: " + ant_material
 	If cOrR=True Then Print #fileNumber, "%% Antenna material: " + ant_material
-	selectMaterial(sub_material,"Pick a material for substrate")
+	If cOrR=True Then selectMaterial(sub_material,"Pick a material for substrate")
 	ReportInformationToWindow "%% Substrate material: " + sub_material
 	If cOrR=True Then Print #fileNumber, "%% Substrate material: " + sub_material
-	If MsgBox("Please select all solids contained in the antenna.",vbYesNo,"Notice") <> vbYes Then
+	If MsgBox("Please select all solids contained in group [1 Antenna].",vbYesNo,"Notice") <> vbYes Then
     	Exit All
     End If
 	SelectSolids_Antenna(aSolidArray_CST(), nSolids_CST)
@@ -436,12 +531,12 @@ Function selectMaterial(pickedMaterial As String, notice As String)
 		cst_Material_unselect_name(UBound(cst_Material_unselect_name)) = cst_Material
 		'End If
 	Next
-	Begin Dialog UserDialog 300,100,notice ',.SelectedMaterialsDialogFunc ' %GRID:10,7,1,1
+	Begin Dialog UserDialog 330,120,notice ',.SelectedMaterialsDialogFunc ' %GRID:10,7,1,1
 		OKButton 40,70,90,21
-		CancelButton 140,70,90,21
+		CancelButton 190,70,90,21
 		PushButton 240,189,1,1,"hiddenPB",.hiddenPB
-		GroupBox 0,7,300,56,"Pick a material:",.GroupBox1
-		DropListBox 30,28,240,21,cst_Material_unselect_name(),.pickedMaterialNumber
+		GroupBox 0,7,320,56,"Pick a material:",.GroupBox1
+		DropListBox 30,28,260,21,cst_Material_unselect_name(),.pickedMaterialNumber
 	End Dialog
 	Dim dlg_Material_CST As UserDialog
 	If Dialog(dlg_Material_CST,-2) = 0 Then
@@ -731,7 +826,7 @@ Function getEfficiencyAtFrequency(f As Double, totOrRad As Boolean) As Double
     currentItem = ResultTree.GetFirstChildName(effiPath)
     While currentItem <> ""
 		Dim EffiType As String, FileName As String
-		Dim nPoints As Long, n As Integer, dBValue As Double, X As Double, Y As Double
+		Dim nPoints As Long, n As Integer, dBValue As Double, x As Double, y As Double
 		Dim O As Object
 		EffiType = Mid(currentItem,Len(effiPath)+2,InStr(currentItem,"[")-Len(effiPath)-2)
 
@@ -748,12 +843,12 @@ Function getEfficiencyAtFrequency(f As Double, totOrRad As Boolean) As Double
 
     			For n = 0 To nPoints-2
     				If O.GetX(n)<= f And O.GetX(n+1)>=f Then
-    					Y = (O.GetYRe(n+1)-O.GetYRe(n))/(O.GetX(n+1)-O.GetX(n))*(f-O.GetX(n))+O.GetYRe(n)
+    					y = (O.GetYRe(n+1)-O.GetYRe(n))/(O.GetX(n+1)-O.GetX(n))*(f-O.GetX(n))+O.GetYRe(n)
     					Exit For
     				End If
     			Next
     			'Avg = Ysum/Num
-    			dBValue = Log(Y)/Log(10)*10
+    			dBValue = Log(y)/Log(10)*10
     			Return dBValue
         	End If
     	End If

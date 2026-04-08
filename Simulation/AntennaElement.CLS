@@ -1561,7 +1561,11 @@ n_validFaceNeighbors As Integer) As Boolean
 
 	nonMetalFaceNeighbors = Me.getNonMetalFaceNeighbors(n_nonMetalFaceNeighbors, nonMetalFaceNeighborsStr)
 	n_validFaceNeighbors = n_nonMetalFaceNeighbors
-	ReDim validFaceNeighborsArray(n_validFaceNeighbors-1)
+	If n_validFaceNeighbors>0 Then
+		ReDim validFaceNeighborsArray(n_validFaceNeighbors-1)
+	Else
+		Return False
+	End If
 	'Initialize the validity of nonMetalFaceNeighbors
 	For i=0 To n_nonMetalFaceNeighbors-1
 		validFaceNeighborsArray(i)=-1
