@@ -1,0 +1,265 @@
+' Library of Optenni Lab macros related to Microwave Studio only
+
+' 23-Aug-2024 JRA: Fixed a problem in getting the coordinates of a port
+' 02-Nov-2023 JRA: Modified the routines to support the case when ports are not consequtively numbered
+' 17-Oct-2022 JRA: Extracted the routines which can be used from Microwave Studio from OptenniLibrary.lib to optenniLibrary_MWS.lib
+
+Public Function GetOptenniEfficiencyCommand
+   Dim sstree As String, ssfile As String, ii As Long
+   Dim j1 As Long, j2 As Long, s_port As String
+
+   Dim r1dc As Object
+   Set r1dc = Result1DComplex("")
+
+   Dim OptenniDir As String
+   OptenniDir = GetProjectPath("Result") +"OptenniLab"
+   If Dir(OptenniDir,vbDirectory) = "" Then
+      MkDir OptenniDir
+   End If
+
+   Dim nport As Integer
+
+   nport =GetOptenniPorts()
+   Dim portIndexHasEffiData() As Boolean
+   Redim portIndexHasEffiData(nport)
+   Dim portNumbers() As Integer
+   Redim portNumbers(nport)
+   Port.StartPortNumberIteration
+   For ii = 0 To nport-1
+      portIndexHasEffiData(ii)=False
+      portNumbers(ii) = Port.GetNextPortNumber
+   Next ii
+   sstree = Resulttree.GetFirstChildName ("1D Results\Efficiencies")
+   If sstree = "" Then
+      GetOptenniEfficiencyCommand = ""
+      Exit Function
+
+   End If
+   Dim efficiencyInterface As String
+   efficiencyInterface = OptenniDir + "\efficiencyData.xml"
+   If Not IsWindows Then
+      efficiencyInterface = Replace$(efficiencyInterface, "\", "/")
+   End If
+   Open efficiencyInterface For Output As #21
+   Print #21, "<?xml version=""1.0"" encoding=""ISO-8859-1""?>"
+   Print #21, "<EfficiencyDataList>"
+
+   While sstree <> ""
+      If InStr(sstree,"Rad. Efficiency")<>0 Then
+         With r1dc
+            j1 = InStrRev(sstree,"[")
+            j2 = InStrRev(sstree,"]")
+
+            Dim numOK as Boolean
+            numOK=True
+            If (j1=0 Or j2=0) Then
+               numOK=False
+            Else
+               s_port = Mid(sstree, j1+1, j2-j1-1)
+            End If
+            Dim i_port As Integer
+            i_port = Val(s_port)
+            If (Trim(Str(i_port)) <> s_port) Then
+               numOK=False
+            End If
+            If (i_port < 1) Then
+               numOK=False
+            End If
+            Dim portIndex As Integer
+            portIndex = -1
+            If (numOK) Then
+               Dim pp As Integer
+               For pp = 0 to nport-1
+                    If portNumbers(pp) = i_port Then
+                        portIndex = pp
+                    End If
+               Next pp
+               If portIndex = -1 Then
+                  numOK = false
+               Else
+                    If (portIndexHasEffiData(portIndex)) Then
+                        numOK=false
+                    Else
+                        portIndexHasEffiData(portIndex)=True
+                    End If
+               End If
+            End If
+            If (numOK) Then
+               .Load(Resulttree.GetFileFromTreeItem(sstree))
+               ssfile = OptenniDir + "\RadEff-" +s_port  + ".txt"
+               If Not IsWindows Then
+                  ssfile = Replace$(ssfile, "\", "/")
+               End If
+               Open ssfile For Output As #23
+               Print #23, "# radiation efficiency linear"
+               Print #23, "# port = " + s_port
+               Print #23, "# Frq-Unit = " + Units.GetFrequencyUnit
+               For ii = 0 To .GetN-1
+                  Print #23, Cstr(.GetX(ii)) + " " + Cstr(.GetYRe(ii))
+               Next ii
+               Close #23
+               Print #21, "<EfficiencyData port="""+CStr(portIndex + 1)+ _
+                     """ type=""radeff"" headerlines=""3"" scale=""lin"" freqUnit=""" + Units.GetFrequencyUnit + """>"
+               Print #21, "  <filename><![CDATA["+ssfile+"]]></filename>"
+               Print #21, "</EfficiencyData>"
+            End If
+         End With
+      End If
+      sstree = Resulttree.GetNextItemName (sstree)
+   Wend
+   Print #21, "</EfficiencyDataList>"
+   Close #21
+   GetOptenniEfficiencyCommand = " -efficiency """  + efficiencyInterface+ """ "
+End Function
+
+Public Function GetOptenniRadiationPatternCommand(resolution As Double) As String
+   Dim OptenniDir As String
+   OptenniDir = GetProjectPath("Result") +"OptenniLab"
+   Dim nextName As String
+   With Resulttree
+      nextName=.GetFirstChildName("Farfields")
+   End With
+   If Len(nextName) = 0 Then
+      Exit Function
+   End If
+
+      With FarfieldPlot
+		.PlotType("3d")
+		.Step(resolution)
+		.Step2(resolution)
+		.Plot
+      End With
+	
+   Dim nport As Integer
+   Dim pnum As Integer
+   Dim radiationInterface As String
+   radiationInterface = OptenniDir + "\radiationData.xml"
+   If Not IsWindows Then
+      radiationInterface = Replace$(radiationInterface, "\", "/")
+   End If
+   Open radiationInterface For Output As #21
+   Print #21, "<?xml version=""1.0"" encoding=""ISO-8859-1""?>"
+   Print #21, "<RadiationPatternData format=""CST_FFS"">"
+      Dim ii As Integer
+      nport = Port.StartPortNumberIteration
+      For ii=1 To nport
+      pnum = Port.GetNextPortNumber
+      Print #21, "<RadiationPattern port=""" + CStr(ii)+""" inputpower=""0.5"">"
+      Print #21, "<filename><![CDATA["
+      Print #21, StoreOptenniRadPatternToFile(pnum)
+      Print #21, "]]></filename>"
+      Print #21, "</RadiationPattern>"
+   Next ii
+
+   Print #21, "</RadiationPatternData>"
+   Close #21
+   GetOptenniRadiationPatternCommand = " -radiationpattern """  + radiationInterface+ """ "
+
+   
+
+End Function
+
+Private Function StoreOptenniRadPatternToFile (portNumber As Integer) As String
+   Dim portFound As Boolean
+   Dim nextName As String
+   Dim portNumberString As String
+   Dim portString As String
+   Dim fileString As String
+   Dim OptenniDir As String
+   OptenniDir = GetProjectPath("Result") +"OptenniLab"
+
+   portNumberString = CStr(portNumber)
+   portString = "["+portNumberString+"]"
+   portFound = False
+   With Resulttree
+      nextName=.GetFirstChildName("Farfields")
+
+      While Len(nextName) > 0 And Not portFound
+         If InStr(nextName, portString) > 0 Then
+            portFound = True
+         Else
+            nextName = .GetNextItemName(nextName)
+         End If
+      Wend
+   End With
+
+   If (Not portFound) Then
+      MsgBox "Error in running the radiation pattern export macro. Port " _
+             + portNumberString + " not found in the radiation pattern data.", _
+             vbOkOnly, "script error"
+      Exit Function
+   Else
+      SelectTreeItem(nextName)
+      fileString = OptenniDir + "\CST_radiation_pattern_port"+ _
+                 portNumberString+".ffs"
+      With FarfieldPlot
+         .ASCIIExportAsBroadbandSource(fileString)
+      End With
+
+   End If
+   If Not IsWindows Then
+      fileString = Replace$(fileString, "\", "/")
+   End If
+   StoreOptenniRadPatternToFile = fileString
+   
+End Function
+
+Public Function StoreOptenniPortGeometryFile As String
+   Dim nport As Integer
+   Dim pnum As Integer
+   Dim x0 As Double
+   Dim y0 As Double
+   Dim z0 As Double
+   Dim ii As Integer
+   Dim siFactor As Double
+   siFactor = Units.GetGeometryUnitToSI
+   Dim OptenniDir As String
+   OptenniDir = GetProjectPath("Result") +"OptenniLab"
+   Dim geomFileName As String
+   geomFileName = OptenniDir + "\Geometryfile.txt"
+   If Not IsWindows Then
+      geomFileName = Replace$(geomFileName, "\", "/")
+   End If
+   Open geomFileName For Output As #1
+   Print #1, "#Geometry file written by CST. Project: "+ _
+         GetProjectPath("Project")
+   
+   Dim unit As Double
+   unit = Units.GetGeometryUnitToSI
+   With Port
+      nport = .StartPortNumberIteration
+      For ii=1 To nport
+         pnum = .GetNextPortNumber
+            .GetPortCenterCoordinates (pnum, x0, y0,  z0)
+         Print #1,CStr(x0*siFactor) + " " +  CStr(y0*siFactor) + _
+               " " + CStr(z0*siFactor)
+      Next ii
+   End With
+   Close #1
+   StoreOptenniPortGeometryFile = " -portgeometryfile """ + geomFileName + """"
+End Function
+
+Public Function GetOptenniPorts
+   On Error GoTo Problem
+   GetOptenniPorts=Solver.GetNumberOfPorts
+   Exit Function
+Problem:
+   Err.Clear
+   GetOptenniPorts = 0
+End Function
+
+Public Function ParseOptenniResolution(resolutionStr As String) As Double
+	On Error GoTo doubleError
+	ParseOptenniResolution = CDbl(resolutionStr)
+	If ParseOptenniResolution <= 0 Then
+		MsgBox ("The angular resolution must be a positive number", vbOkOnly, "Invalid angular resolution")
+		ParseOptenniResolution = -1	
+	End If
+	Exit Function
+	
+   doubleError:
+		Err.Clear
+		MsgBox ("Could not interprete the string """ + resolutionStr + """ as a double number", vbOkOnly, "Invalid angular resolution")
+		ParseOptenniResolution = -1	
+		Exit Function
+End Function

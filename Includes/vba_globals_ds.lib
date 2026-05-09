@@ -1,0 +1,224 @@
+' -------------------------------------------------------------------------------
+' Copyright 2009-2023 Dassault Systemes Deutschland GmbH
+' -------------------------------------------------------------------------------
+' History of Changes
+' ------------------
+' 20-Sep-2021 dde: Function FillTaskNameArrayOfType can now append tasks if required    
+' 07-Aug-2013 pth: added FillBlockNameArray for creating a list of all blocks
+' 25-Oct-2011 gba: added convenience functions for task, port, probe and block settings
+' 01-Nov-2010 gba: added FillTaskNameArrayOfType, made it usable with macros, too
+' 09-Aug-2010 ube: lib vba_globals_ds.lib newly created
+' -------------------------------------------------------------------------------
+
+' The following variables are declared public, because they would not be available to macros otherwise.
+Public PortNameArray() As String     ' Array containing the names of all available ports
+Public TaskNameArray() As String     ' Array containing the names of all available tasks
+Public BlockNameArray() As String    ' Array containing the names of all available blocks
+
+Sub FillPortNameArray()
+
+' -------------------------------------------------------------------------------------------------
+' FillPortNameArray: This function fills the global array of port names
+' -------------------------------------------------------------------------------------------------
+
+	Dim nPorts As Long, nIndex As Long, nCount As Long
+
+	' Determine the total number of ports first and reset the enumberation to the beginning of the
+	' ports list.
+
+	nPorts = ExternalPort.StartPortNameIteration()
+
+	' Make the port name array large enough to hold all port names
+
+	ReDim PortNameArray(nPorts)
+
+	' Now loop over all ports and add the ports to the port array
+
+	nCount = 0
+	Dim strPortName As String
+	For nIndex = 0 To nPorts-1
+
+		strPortName = ExternalPort.GetNextPortName()
+
+		PortNameArray(nCount) = strPortName
+		nCount = nCount + 1
+
+	Next nIndex
+
+	' Adjust the length of the port name array to the actual number
+
+	If (nCount < nPorts) Then
+		ReDim Preserve PortNameArray(nCount)
+	End If
+
+End Sub
+
+Sub FillBlockNameArray()
+
+' -------------------------------------------------------------------------------------------------
+' FillBlockNameArray: This function fills the global array of block names
+' -------------------------------------------------------------------------------------------------
+
+	Dim nBlocks As Long, nIndex As Long, nCount As Long
+
+	' Determine the total number of ports first and reset the enumberation to the beginning of the
+	' ports list.
+
+	nBlocks = Block.StartBlockNameIteration()
+
+	' Make the port name array large enough to hold all port names
+
+	ReDim BlockNameArray(nBlocks)
+
+	' Now loop over all ports and add the ports to the port array
+
+	nCount = 0
+	Dim strBlockName As String
+	For nIndex = 0 To nBlocks-1
+
+		strBlockName = Block.GetNextBlockName()
+
+		BlockNameArray(nCount) = strBlockName
+		nCount = nCount + 1
+
+	Next nIndex
+
+	' Adjust the length of the block name array to the actual number
+
+	If (nCount < nBlocks) Then
+		ReDim Preserve BlockNameArray(nCount)
+	End If
+
+End Sub
+
+
+Sub FillTaskNameArray()
+
+' -------------------------------------------------------------------------------------------------
+' FillTaskNameArray: This function fills the global array of task names
+' -------------------------------------------------------------------------------------------------
+
+	FillTaskNameArrayOfType("S-Parameters")
+
+End Sub
+
+Sub FillTaskNameArrayOfType(ByVal TaskType As String, Optional ByVal Append As Boolean = False)
+
+' -------------------------------------------------------------------------------------------------
+' FillTaskNameArrayOfType: This function fills the global array of task names with tasks
+'                          of type TaskType
+' -------------------------------------------------------------------------------------------------
+
+    Dim TasksToAdd() As String  
+	Dim nTasks As Long, nTask As Long, nCount As Long, nLength As Long
+    nTasks = SimulationTask.StartTaskNameIteration()
+    ReDim TasksToAdd(nTasks)      
+	
+    nCount = 0
+    Dim strTaskName As String
+ 
+    For nTask = 0 To nTasks-1
+        strTaskName = SimulationTask.GetNextTaskName()
+        If (SimulationTask.GetTypeForTask(strTaskName) = TaskType) Then 
+            TasksToAdd(nCount) = strTaskName
+            nCount = nCount + 1
+        End If
+    Next nTask
+
+    ReDim Preserve TasksToAdd(nCount)
+	
+    If(Append) Then
+       nLength = UBound(TaskNameArray)-LBound(TaskNameArray)+1
+	   ReDim Preserve TaskNameArray(nLength+nCount)
+	   For nTask = 0 To nCount-1
+           TaskNameArray(nLength+nTask)=TasksToAdd(nTask)     
+	   Next nTask
+	Else
+        TaskNameArray = TasksToAdd  
+    End If
+
+End Sub
+
+
+Sub FillAllTaskNameArray()
+
+' -------------------------------------------------------------------------------------------------
+' FillAllTaskNameArray: This function fills the global array of task names for all task types
+' -------------------------------------------------------------------------------------------------
+
+	Dim nTasks As Long, nIndex As Long
+
+	nTasks = SimulationTask.StartTaskNameIteration()
+	ReDim TaskNameArray(nTasks)
+
+	Dim strTaskName As String
+	For nIndex = 0 To nTasks-1
+		strTaskName = SimulationTask.GetNextTaskName()
+		TaskNameArray(nIndex) = strTaskName
+	Next nIndex
+
+End Sub
+
+Function GetBlockScriptSetting(name As String, defaultvalue As String) As String
+	Dim value As String
+	Dim index As Long
+	value = DS.GetTreeNameScriptSetting(name, "Blocks\" + defaultvalue)
+	index = InStr(value, "Blocks\")
+	if (index = 1) then
+		GetBlockScriptSetting = Mid$(value, 8)
+	else
+		GetBlockScriptSetting = value
+	end if
+End Function
+
+Sub StoreBlockScriptSetting(name As String, value As String)
+	DS.StoreTreeNameScriptSetting(name, "Blocks\" + value)
+End Sub
+
+Function GetExternalPortScriptSetting(name As String, defaultvalue As String) As String
+	Dim value As String
+	Dim index As Long
+	value = DS.GetTreeNameScriptSetting(name, "External Ports\" + defaultvalue)
+	index = InStr(value, "External Ports\")
+	if (index = 1) then
+		GetExternalPortScriptSetting = Mid$(value, 16)
+	else
+		GetExternalPortScriptSetting = value
+	end if
+End Function
+
+Sub StoreExternalPortScriptSetting(name As String, value As String)
+	DS.StoreTreeNameScriptSetting(name, "External Ports\" + value)
+End Sub
+
+Function GetTaskScriptSetting(name As String, defaultvalue As String) As String
+	Dim value As String
+	Dim index As Long
+	value = DS.GetTreeNameScriptSetting(name, "Tasks\" + defaultvalue)
+	index = InStr(value, "Tasks\")
+	if (index = 1) then
+		GetTaskScriptSetting = Mid$(value, 7)
+	else
+		GetTaskScriptSetting = value
+	end if
+End Function
+
+Sub StoreTaskScriptSetting(name As String, value As String)
+	DS.StoreTreeNameScriptSetting(name, "Tasks\" + value)
+End Sub
+
+Function GetProbeScriptSetting(name As String, defaultvalue As String) As String
+	Dim value As String
+	Dim index As Long
+	value = DS.GetTreeNameScriptSetting(name, "Probes\" + defaultvalue)
+	index = InStr(value, "Probes\")
+	if (index = 1) then
+		GetProbeScriptSetting = Mid$(value, 8)
+	else
+		GetProbeScriptSetting = value
+	end if
+End Function
+
+Sub StoreProbeScriptSetting(name As String, value As String)
+	DS.StoreTreeNameScriptSetting(name, "Probes\" + value)
+End Sub

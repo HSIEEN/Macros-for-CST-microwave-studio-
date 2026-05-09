@@ -1,0 +1,2301 @@
+'------------------------------------------------------------------------------------------------------------------------------------------------------
+' Useful VBA procedures and functions
+'------------------------------------------------------------------------------------------------------------------------------------------------------
+' Copyright 2007-2023 Dassault Systemes Deutschland GmbH
+'------------------------------------------------------------------------------------------------------------------------------------------------------
+' History of Changes
+'====================
+' 12-Jan-2021 tsz: Extended NoForbiddenFilenameCharacters to replace "<>" with "()"
+' 23-May-2020 ube: Made CST_MkDir more robust, now handling/removing blocks of multiple backslashes
+' 24-Oct-2019 mha: Slight changes to GetProjectPathMaster_LIB, now able to handle cases where the main project path contains "\SP\".
+' 22-May-2019 pgl: Fixed Append2Array in case of an empty ListArray
+' 14-Mar-2019 fsr: Generalized error handling if user has no access to certain files within UpdateFolderList_LIB
+' 16-Jan-2019 fsr: Added function bMPS to check if GetApplicationName = "MPS"
+' 28-Nov-2018 fsr: Moved global variable oSelectedSP to here from farfield.lib
+' 09-Nov-2018 fsr: Added an error message if CST_MkDir tries to create a folder with >240 chars. This is a bit below the actual limit, but copying files
+'					to a network drive can add characters to the path, so it is better to stay a bit below the actual limit to allow for that.
+'					Reduced "Wait" in CST_MkDir from 0.1 secs to 0.01 secs. 0.1 secs can add up quickly if many (nested) folders are to be created.
+' 28-Aug-2018 fsr: Added check in GetSimulationProjectByName_LIB if specified SP exists
+' 11-May-2017 fsr: Moved GetSimulationProjectByName_LIB here from farfield.lib
+' 11-Apr-2017 fsr: Added function EqualWithinTolerance_LIB to conveniently check for equality within numerical tolerance. Default: 10 sign. digits
+' 15-Feb-2017 ube: added Title, Xlabel and Ylabel to AddPlotToTree_LIB, DS-tree
+' 14-Feb-2017 ube: sTreePath is now distinguishing 2 cases: full path and sub path
+' 27-Dec-2016 ube: new optional parameter sSubType in AddFileToTree_LIB
+' 28-Nov-2016 fsr: Parameters in AppendHistoryLine_LIB are not evaluated anymore before writing to history
+' 10-Nov-2016 fsr: Small performance improvement to CST_Resample_if_non_equidistant
+' 10-Nov-2016 mwi: Some Linux portability: using xdg-open in Start_LIB()
+' 07-Nov-2016 fsr: New function AppendHistoryLine_LIB for easier history code generation
+' 10-Oct-2016 ube: new functions for getting current TemplateName of RTP-Evaluation: StoreTemplateTreeName_LIB, GetTemplateTreeName_LIB
+' 10-Oct-2016 ube: routines for adding to Tree (3D+DS): AddFileToTree_LIB, AddPlotToTree_LIB now supports DS-subfolders
+' 10-Oct-2016 ube: new functions for deleting in Tree (3D+DS): DeleteTreeEntry_LIB, DeleteWholeSubTree_LIB 
+' 06-Jan-2016 fsr: Let CST_Log10 return lib_rundef if argument is <= 0
+' 24-Oct-2015 ube: subroutine Start renamed to Start_LIB
+' 02-Oct-2015 fsr: lib_rundef, lib_deg2rad, lig_rad2deg are now public
+' 27-Aug-2015 ube: new functions added: GetExportPathMaster_LIB and GetProjectPathMaster_LIB
+' 18-Mar-2015 ube,fsr: new function added to convert separators (sConvertSeparators_LIB)
+' 18-Mar-2015 ube,fsr: new function added to check, whether 2 double values are equal (bEqualNumbers_LIB)
+' 17-Nov-2014 fsr: AddPlotToTree: option to select item in tree after adding it
+' 21-Oct-2014 ube,fsr: new function added to check, whether 2 files are identical (nCompareFiles_LIB)
+' 31-Mar-2014 fsr: Fixed a bug in GrepNextPattern that caused some extra vbCR characters to remain in pattern in some cases
+' 30-Jan-2014 fsr: folderContents_LIB is now public so it can be used from outside the lib
+' 10-Jan-2014 fsr: CST_Resample_if_non_equidistant now always checks against the theoretical equidistant step; optional new parameter for tolerance
+' 03-Jan-2014 fsr: Added new function to create a quick plot of an object of type (Result0D/1D/1DC) -> AddPlotToTree_LIB
+' 16-Jul-2013 fsr: Improved performance for GrepNextPattern even more, also improved performance for GrepAllPatterns
+' 24-Jun-2013 fsr: USFormat did not work properly for values >999 due to additional separator; fixed
+' 01-May-2013 fsr: Improved performance for GrepNextPattern in case of very large model.res files; added function TextFileToString_LIB
+' 30-Jan-2013 fsr: GrepNextPattern now also checks Chr(10) as line break to allow compatibility with Linux
+' 31-Jul-2012 fsr: new functions to store and restore dialog settings (StoreAllDialogSettings_LIB, ReStoreAllDialogSettings_LIB)
+' 23-Dec-2011 fsr: ReportError->MsgBox in Assert_LIB for compatibility reasons with PCBS
+' 22-Nov-2011 fsr: added subroutine Assert_LIB(bTest As Boolean) for debug purposes
+' 30-Sep-2011 fsr: CST_ReplaceString now works for variable names with more than 1 character
+' 02-Aug-2011 fsr: Removed complex arithmetic functions, seemingly never used and we now have complex.lib
+' 05-Jul-2011 fsr: Increased index type for Min/Max functions from "integer" to "long"
+' 19-Apr-2011 fsr: USFormat now also works as a query to return the format string of a numeric string argument
+' 25-Mar-2011 ube: added Function Timer_LIB to measure wall clock times
+' 10-Mar-2011 tsi: Max_LIB und Min_LIB changed (iteration of Variant Arrays caused problems under Linux)
+' 17-Feb-2011 ube: added Trim operation at the end of NoForbiddenFilenameCharacters
+' 27-Jan-2011 fsr: Implemented Min_LIB and Max_LIB to get min/max values from arbitrary arrays
+' 04-Jan-2011 fsr: new Function "Getfolder_LIB" (calling "UpdateFolder*") to browse directory structure
+' 11-Nov-2010 fsr: expanded FindListIndex to any kind of array (type "Variant" instead of "String")
+' 29-Oct-2010 ube,tst: relaxed equidistance check in CST_Resample_if_non_equidistant
+' 03-Aug-2010 ube,fsr: Added function USFormat
+' 18-Jun-2010 ube,fsr: Added function CST_Log10
+' 01-Apr-2010 fsr: Added option to read in all patterns in a file, only one open/close process
+' 30-Jul-2009 ube: Split replaced by CSTSplit, since otherwise compeating with standrad VBA-Split function
+' 29-Jul-2009 ube: subroutines RemoveFirstChars and RemoveLastChars now check, if string is long enough
+' 29-Jul-2009 ube: new routines GetLastStringParts and CST_RmDir_NotEmpty
+' 18-May-2009 ube,pgl: RemoveFileHeader Function adapted to new clipboard format (2010 only) - required for bwc of ResTempl "Farfield (single frq)"
+' 22-Apr-2009 ube: make sure, resampling is done with at least 2 sampling
+' 19-Dec-2008 ube: new subroutine CST_Resample_if_non_equidistant (required for FFT)
+' 02-Oct-2008 ube,fmo: changed bDS calculation for short and flexible DS detection
+' 08-Sep-2008 ube,fmo: do not allow semikolon, since copy paste from tables in this case does not work
+' 23-Jul-2007 ube: moved from vba_globals.lib
+'------------------------------------------------------------------------------------------------------------------------------------------------------
+Public Const lib_rundef = -1.2345678e27
+Public Const lib_deg2rad = Pi/180.0
+Public Const lib_rad2deg = 180.0/Pi
+'------------------------------------------------------------------------------------------------------------------------------------------------------
+' public variables for searching (=grepping) patterns in txt-file
+Dim lib_Grepfilename As String
+Dim lib_GrepPattern As String
+Dim lib_GrepPatternList() As String
+Dim lib_GrepIndex As Long
+Dim lib_GrepFileContents As String
+Dim lib_GrepLastPatternPos As Long
+'------------------------------------------------------------------------------------------------------------------------------------------------------
+' public variables for file-searching file-patterns
+Dim lib_FindFileRoot As String
+Dim lib_FindFilePattern As String
+Dim lib_FindFileRecursive As Boolean
+Dim lib_FindFileLast As String
+
+'-----------------------------------------------------------------------------------------------------
+Sub Start_LIB (lib_filename As String)
+
+    If IsLinux() Then
+        Shell "xdg-open " + Quote(lib_filename)
+    Else
+        On Error GoTo Win95
+        WINNT:
+                Shell "cmd /c " + Quote(lib_filename)
+                Exit Sub
+        Win95:
+                Shell "start " + Quote(lib_filename)
+                Exit Sub
+    End If
+End Sub
+'-----------------------------------------------------------------------------------------------------
+Function GrepFirstPattern (lib_filename As String, lib_pattern As String) As String
+	
+	' initialize public variables
+	
+	lib_Grepfilename = lib_filename
+	lib_GrepPattern = lib_pattern
+	lib_GrepIndex = 0
+	lib_GrepLastPatternPos = 0
+
+	GrepFirstPattern = GrepNextPattern
+
+End Function
+			
+Function GrepNextPattern As String
+	
+	Dim sLineBreakChar As String, nTmpPos As Long, nPreviousBreakPos As Long, nNextBreakPos As Long
+
+	' Only load file the first time, then store string in variable for faster access
+	If (lib_GrepIndex = 0) Then
+		lib_GrepFileContents = TextFileToString_LIB(lib_Grepfilename)
+	End If
+
+	' Determine line break char
+	If UBound(Split(lib_GrepFileContents, vbNewLine, 2))>=1 Then
+		sLineBreakChar = vbNewLine
+	Else ' Might be a linux machine, try Chr(10)=LF as separator
+		sLineBreakChar = Chr(10)
+	End If
+
+	' Check if pattern exists in remaining string
+	nTmpPos = InStr(lib_GrepLastPatternPos+1, lib_GrepFileContents, lib_GrepPattern)
+	If (nTmpPos > 0) Then
+		nPreviousBreakPos = InStrRev(lib_GrepFileContents, sLineBreakChar, nTmpPos)
+		nNextBreakPos = InStr(nTmpPos, lib_GrepFileContents, sLineBreakChar)
+		GrepNextPattern = Mid(lib_GrepFileContents, nPreviousBreakPos+Len(sLineBreakChar), nNextBreakPos-(nPreviousBreakPos+Len(sLineBreakChar)))
+		lib_GrepIndex = lib_GrepIndex + 1
+		lib_GrepLastPatternPos = nTmpPos
+		' trim remaining String FSR: Tried this, even for 1,000 result entries, code is faster without trimming
+		'lib_GrepFileContents = Mid(lib_dummy_full, InStr(lib_dummy_full, lib_GrepPattern)+1)
+	Else
+		GrepNextPattern = ""
+	End If
+
+End Function
+
+Function GrepAllPatterns (lib_Grepfilename As String, lib_GrepPattern As String) As Variant
+
+	Dim lib_dummy As String, lib_dummy_array() As String
+	Dim icount As Long, i As Long
+	Dim sLineBreakChar As String
+	Dim nTmpPos As Long, nPreviousBreakPos As Long, nNextBreakPos As Long
+
+	icount = 0
+	ReDim lib_GrepPatternList(0)
+
+	lib_GrepFileContents = TextFileToString_LIB(lib_Grepfilename)
+	' Determine line break char
+	If UBound(Split(lib_GrepFileContents, vbNewLine, 2))>=1 Then
+		sLineBreakChar = vbNewLine
+	Else ' Might be a linux machine, try Chr(10)=LF as separator
+		sLineBreakChar = Chr(10)
+	End If
+
+	lib_dummy_array = Split(lib_GrepFileContents, sLineBreakChar)
+	For i = 0 To UBound(lib_dummy_array)
+		If (InStr(lib_dummy_array(i), lib_GrepPattern)) Then
+			ReDim Preserve lib_GrepPatternList(icount)
+			lib_GrepPatternList(icount) = lib_dummy_array(i)
+			icount = icount + 1
+		End If
+	Next
+
+	If (icount>0) Then ReDim Preserve lib_GrepPatternList(icount-1)
+
+	GrepAllPatterns = lib_GrepPatternList
+
+End Function
+
+Function GetLastLine  (lib_filename As String) As String
+	
+	Dim lib_dummy As String
+	
+	lib_dummy = ""
+	Open lib_filename For Input As #44
+		While Not EOF(44)
+			Line Input #44, lib_dummy
+		Wend
+	Close #44
+		
+	GetLastLine = lib_dummy
+
+End Function
+
+Function FindFirstFile (lib_rootdir As String, lib_pattern As String, lib_recursive As Boolean) As String
+
+        If (Right$(lib_rootdir, 1) = "\") Then lib_rootdir = Left$(lib_rootdir, Len(lib_rootdir) - 1)
+        If (lib_pattern = "")             Then lib_pattern = "*.*"
+
+        CST_MkDir lib_rootdir
+
+		lib_FindFileRoot      = lib_rootdir
+        lib_FindFilePattern   = lib_pattern
+        lib_FindFileRecursive = lib_recursive
+        lib_FindFileLast      = Dir$(lib_rootdir + "\*.*", vbDirectory)
+
+        FindFirstFile     = FindNextFile()
+
+End Function
+'-----------------------------------------------------------------------------------------------------
+Function FindNextFile () As String
+
+        Dim lib_subdir As String, lib_currentdir, lib_dummy As String, lib_short As String, lib_filename As String
+        Dim lib_fileattribute As Integer, lib_tmp_curdir As String
+
+        lib_subdir = DirName(lib_FindFileLast)
+        lib_dummy  = Dir$()
+
+        While (Not LCase(lib_dummy) Like LCase(lib_FindFilePattern))
+
+'                If MsgBox(IIf(lib_subdir <> "", lib_subdir + "\" + lib_dummy, lib_dummy), vbQuestion + vbYesNo, "Continue") <> vbYes Then Exit All
+                lib_currentdir = lib_FindFileRoot + IIf(lib_subdir <> "", "\" + lib_subdir, "")
+
+                On Error Resume Next
+                    lib_fileattribute = 0
+                    '
+                    ' Bug in GetAttr-Function  for some directories 8208, 8209, 8240 is delivered
+                    ' lib_fileattribute = GetAttr(lib_currentdir + "\" + lib_dummy)
+                    '
+                    ' replaced by new check: try to enter file, if successful => folder, otherwise not
+                    '
+					lib_tmp_curdir = CurDir
+					On Error GoTo No_Directory
+						ChDir lib_currentdir + "\" + lib_dummy
+						lib_fileattribute = vbDirectory
+					No_Directory:
+						ChDir lib_tmp_curdir
+                On Error GoTo 0
+
+                If (lib_dummy = "") Then
+                        If (lib_subdir = "") Then Exit While
+                        lib_short      = ShortName(lib_subdir)
+                        lib_subdir     = DirName(lib_subdir)
+                        lib_currentdir = IIf(lib_subdir <> "", lib_FindFileRoot + "\" + lib_subdir, lib_FindFileRoot)
+                        lib_dummy      = Dir$(lib_currentdir + "\*.*", vbDirectory)
+                        While (lib_dummy <> lib_short)
+                                lib_dummy = Dir$()
+                        Wend
+                        lib_dummy = Dir$()
+                ElseIf (lib_dummy = ".") Or (lib_dummy = "..") Then
+                        lib_dummy = Dir$()
+                ElseIf (lib_fileattribute = vbDirectory) And lib_FindFileRecursive Then
+                        lib_subdir     = IIf(lib_subdir <> "", lib_subdir + "\" + lib_dummy, lib_dummy)
+                        lib_currentdir = IIf(lib_subdir <> "", lib_FindFileRoot + "\" + lib_subdir, lib_FindFileRoot)
+                        lib_dummy      = Dir$(lib_currentdir + "\*.*", vbDirectory)
+                Else
+                        lib_dummy = Dir$()
+                End If
+        Wend
+        lib_filename     = IIf(lib_dummy <> "", IIf(lib_subdir <> "", lib_subdir + "\", "") + lib_dummy, "")
+        lib_FindFileLast = lib_filename
+
+        FindNextFile     = lib_filename
+
+End Function
+'-----------------------------------------------------------------------------------------------------
+Function DriveName (lib_path As String) As String
+
+        DriveName  = Left$(lib_path, 1)
+
+End Function
+'-----------------------------------------------------------------------------------------------------
+Function DirName (lib_path As String) As String
+
+        Dim lib_dircount As Integer
+
+        lib_dircount = InStrRev(lib_path, "\")
+        DirName  = Left$(lib_path, IIf(lib_dircount > 1, lib_dircount - 1, 0))
+
+End Function
+'-----------------------------------------------------------------------------------------------------
+Function ShortName (lib_path As String) As String
+
+        Dim lib_dircount As Integer
+
+        lib_dircount  = InStrRev(lib_path, "\")
+        ShortName = Mid$(lib_path, lib_dircount+1, 999)
+
+End Function
+'-----------------------------------------------------------------------------------------------------
+Function BaseName (lib_path As String) As String
+
+        Dim lib_dircount As Integer, lib_extcount As Integer, lib_filename As String
+
+        lib_dircount = InStrRev(lib_path, "\")
+        lib_filename = Mid$(lib_path, lib_dircount+1)
+        lib_extcount = InStrRev(lib_filename, ".")
+        BaseName = Left$(lib_filename, IIf(lib_extcount > 0, lib_extcount-1, 999))
+
+End Function
+'-----------------------------------------------------------------------------------------------------
+Function ExtName (lib_filename As String) As String
+
+        Dim lib_extcount As Integer
+
+        lib_extcount = InStrRev(lib_filename, ".")
+        ExtName = IIf(lib_extcount > 0, Mid$(lib_filename, lib_extcount+1), "")
+
+End Function
+'-----------------------------------------------------------------------------------------------------
+Function FullPath(lib_filename As String, lib_directory As String) As String
+
+        FullPath = IIf(Mid$(lib_filename,2,1) = ":", lib_filename, lib_directory + "\" + lib_filename)
+
+End Function
+'-----------------------------------------------------------------------------------------------------
+Function ShortPath(lib_filename As String, lib_directory As String) As String
+
+        If (LCase$(DirName(lib_filename)) = LCase$(lib_directory)) Then
+                ShortPath = ShortName(lib_filename)
+        Else
+                ShortPath = lib_filename
+        End If
+
+End Function
+'-----------------------------------------------------------------------------------------------------
+Function Quote (lib_Text As String) As String
+
+        Quote = Chr$(34) + lib_Text + Chr$(34)
+
+End Function
+'-----------------------------------------------------------------------------------------------------
+Sub CheckApplication (lib_appname As String, lib_filename As String, lib_downloadsource As String)
+
+        Dim lib_newline As String, lib_appdir As String, lib_hotlink As String
+        lib_newline = Chr$(10) + Chr$(13)
+        lib_appdir  = DirName(lib_filename)
+        lib_hotlink = lib_appdir + lib_appname + ".url"
+
+       	Dim bLib_Missing As Boolean
+       	bLib_Missing = False
+        If (Dir$(DirName(lib_filename), vbDirectory) = "") Then
+        	bLib_Missing = True
+        Else
+	        If (Dir$(lib_filename, vbNormal) = "") Then
+	        	bLib_Missing = True
+	        End If
+        End If
+        
+        If (bLib_Missing) Then
+                If (MsgBox( _
+                                lib_appname + " must be installed in" + lib_newline + lib_newline + _
+                                lib_appdir                            + lib_newline + lib_newline + _
+                                "Download " + lib_appname + " from"   + lib_newline + lib_newline + _
+                                lib_downloadsource, _
+                                vbOkCancel + vbQuestion, _
+                                lib_appname + " is missing" _
+                        ) = vbOK) Then
+                        If (Dir$(lib_appdir, vbDirectory) = "") Then
+                                MkDir lib_appdir
+                        End If
+                        Open lib_hotlink For Output As #1
+                                Print #1, "[DEFAULT]"
+                                Print #1, "BASEURL=" + lib_downloadsource
+                                Print #1, "[InternetShortcut]"
+                                Print #1, "URL=" + lib_downloadsource
+                        Close #1
+                        Shell "explorer " + lib_downloadsource
+                End If
+                Exit All
+        End If
+
+End Sub
+'-----------------------------------------------------------------------------------------------------
+Sub ShowHelp (lib_name As String)
+
+        Dim lib_filename As String, lib_extension() As Variant, lib_index As Integer
+
+        lib_extension = Array("htm", "html", "txt", "rtf", "doc", "hlp", "pdf", "")
+
+        lib_index = 0
+        Do
+                    lib_filename = Dir$(GetMacroPath + "\*" + lib_name + "." + lib_extension(lib_index))
+                    lib_index = lib_index + 1
+        Loop Until (lib_filename <> "" Or lib_extension(lib_index) = "")
+	lib_filename = GetMacroPath + "\" + lib_filename 
+
+        Start_LIB lib_filename
+
+End Sub
+'-----------------------------------------------------------------------------------------------------------------------------
+
+Function GetString(lib_application As String, lib_section As String, lib_key As String, lib_default As String) As String
+
+        Dim lib_dummy As String
+
+        lib_dummy = GetSetting(lib_application, lib_section, lib_key)
+        GetString = IIf(lib_dummy <> "", lib_dummy, lib_default)
+
+End Function
+
+'-----------------------------------------------------------------------------------------------------------------------------
+
+Function GetRegDouble(lib_application As String, lib_section As String, lib_key As String, lib_default As Integer) As Double
+
+        Dim lib_dummy As String
+
+        lib_dummy  = GetSetting(lib_application, lib_section, lib_key)
+        GetRegDouble = IIf(lib_dummy <> "", RealVal(lib_dummy), lib_default)
+
+End Function
+
+'-----------------------------------------------------------------------------------------------------------------------------
+
+Sub SaveString(lib_application As String, lib_section As String, lib_key As String, lib_value As String)
+
+        SaveSetting lib_application, lib_section, lib_key, lib_value
+
+End Sub
+
+'-----------------------------------------------------------------------------------------------------------------------------
+
+Sub SaveInteger(lib_application As String, lib_section As String, lib_key As String, lib_value As Integer)
+
+        SaveSetting lib_application, lib_section, lib_key, CStr(lib_value)
+
+End Sub
+
+'-----------------------------------------------------------------------------------------------------------------------------
+Function Pretty(x As Variant) As String
+
+        Pretty = Replace(Left$(IIf(Left$(CStr(x), 1) = "-", "", " ") + CStr(x) + String$(16, 32), 24) + Chr$(9), ",", ".")
+
+End Function
+'--------------------------------------------------------------------------------------------
+Function Pretty2(x As Variant, length As Integer) As String
+
+	Select Case Left$(CStr(x), 1)
+		Case "0" To "9"
+	        Pretty2 = Left$(" " + CStr(x) + String$(length, 32), length)
+		Case Else		     
+	        Pretty2 = Left$(CStr(x) + String$(length, 32), length)
+	End Select
+				
+End Function
+Function CST_Print(variant_cst As Variant, ncharlen_cst As Integer) As String
+
+	' this function prints the variant with ncharlen characters, and tries to make this as flexible as possible
+	' there are short functions PP4, PP6, ...., PP30 (also PP15L, ) to have nice tabulated formats in txt-files
+
+	Dim stmp_cst1 As String, stmp_cst2 As String, islen_cst As Integer
+
+	stmp_cst1 = CStr(variant_cst)
+	islen_cst = Len(stmp_cst1)
+
+	If (islen_cst > ncharlen_cst-1) Then
+		If (IsNumeric(variant_cst)) Then
+			If (ncharlen_cst<9) Then
+				' number cannot be displayed completely
+				stmp_cst2 = " " + Left(stmp_cst1,ncharlen_cst-2) + "x"
+			Else
+				stmp_cst2 = " " + IIf(variant_cst < 0,""," ") + Replace(Format(variant_cst,"0.0"+Left("0000000000000000000",ncharlen_cst-9)+"E+00"),",",".")
+			End If
+		Else
+			stmp_cst2= " " + Left(stmp_cst1,ncharlen_cst-1)
+		End If
+	Else
+		stmp_cst2 = Left("                                     ", ncharlen_cst-islen_cst) + stmp_cst1
+	End If
+
+	CST_Print = stmp_cst2
+
+End Function
+Function PP4(variant_cst As Variant) As String
+	PP4 = CST_Print(variant_cst, 4)
+End Function
+
+Function PP5(variant_cst As Variant) As String
+	PP5 = CST_Print(variant_cst, 5)
+End Function
+
+Function PP6(variant_cst As Variant) As String
+	PP6 = CST_Print(variant_cst, 6)
+End Function
+
+Function PP8(variant_cst As Variant) As String
+	PP8 = CST_Print(variant_cst, 8)
+End Function
+
+Function PP10(variant_cst As Variant) As String
+	PP10 = CST_Print(variant_cst, 10)
+End Function
+
+Function PP12(variant_cst As Variant) As String
+	PP12 = CST_Print(variant_cst, 12)
+End Function
+
+Function PP15(variant_cst As Variant) As String
+	PP15 = CST_Print(variant_cst, 15)
+End Function
+
+Function PP20(variant_cst As Variant) As String
+	PP20 = CST_Print(variant_cst, 20)
+End Function
+
+Function PP25(variant_cst As Variant) As String
+	PP25 = CST_Print(variant_cst, 25)
+End Function
+
+Function PP30(variant_cst As Variant) As String
+	PP30 = CST_Print(variant_cst, 30)
+End Function
+
+Function PP15L(variant_cst As Variant) As String
+	PP15L = CST_Print(CStr(variant_cst)+"                      ", 15)
+End Function
+
+Function PP20L(variant_cst As Variant) As String
+	PP20L = CST_Print(CStr(variant_cst)+"                      ", 20)
+End Function
+
+Function PP25L(variant_cst As Variant) As String
+	PP25L = CST_Print(CStr(variant_cst)+"                               ", 25)
+End Function
+
+Function PP30L(variant_cst As Variant) As String
+	PP30L = CST_Print(CStr(variant_cst)+"                                        ", 30)
+End Function
+'--------------------------------------------------------------------------------------------
+Function GetSpiceDouble(value As String) As Double
+
+	' Spice has a special convention for exponential number (without E)
+	' e.g.  1.2345+007   instead of 1.2345E+007
+	' GetSpiceDouble = 12345000, 
+	' GetDouble (=Evaluate) would not work : 8.2345
+
+	'	MsgBox CStr(GetSpiceDouble("1.2345+007"))
+
+	Dim index As Long
+	index = InStrRev(value, "+")
+	If (index = 0) Then index = InStrRev(value, "-")
+	If (index > 1) Then
+		If (Mid(value, index-1, 1) <> "E" And Mid(value, index-1, 1) <> "e") Then
+			value = Left(value, index-1) + "E" + Mid(value, index)
+		End If
+	End If
+
+	Dim cst_separator    As String								'<<<<<<<<<<
+	cst_separator    = Mid$(CStr(0.5), 2, 1)					'<<<<<<<<<<<
+
+	' 06-aug-2004 ube/cwe: GetSpiceDouble: changed CVar to CDbl (now CVar had problems, see also 13-Nov-2003)
+	GetSpiceDouble   = CDbl(Replace(value, ".", cst_separator))	'<<<<<<<<<<<
+
+	'GetSpiceDouble = CVar(Replace(value, ".", ","))
+
+End Function
+'--------------------------------------------------------------------------------------------
+Function GetDouble(lib_Text As Variant) As Double
+
+	GetDouble = RealVal(lib_Text)
+
+End Function
+'-----------------------------------------------------------------------------------------------------
+Function RealVal(lib_Text As Variant) As Double
+
+  Dim sText As String
+  sText = CStr(lib_Text)
+  
+  If sText = "" Then
+    RealVal = 0
+  Else
+    RealVal = Evaluate(CStr(lib_Text))
+  End If
+
+' known problem does not work in France	
+'	If (CDbl("0.5") > 1) Then
+'		' komma needed instead of point 
+'		RealVal = CDbl(Replace(CStr(lib_Text), ".", ","))
+'	Else
+'                On Error Resume Next
+'                        RealVal = CDbl(CStr(lib_Text))
+'                On Error GoTo 0
+'	End If
+
+'does also not work in France	
+'	If (Val("0.5") > Val("1")) Then
+
+End Function
+'-----------------------------------------------------------------------------------------------------
+Function CSTSplit(lib_Text As String, lib_array() As String) As Integer
+
+	Dim lib_index As Integer, lib_position As Integer
+	
+	lib_Text  = Trim$(Replace(lib_Text, Chr$(9), " "))
+	lib_index = 0
+
+	While lib_Text <> ""
+		lib_position         = InStr(lib_Text + " ", " ")
+		lib_array(lib_index) = Trim$(Left$(lib_Text, lib_position))
+		lib_Text             = Trim$(Mid$(lib_Text, lib_position))
+		lib_index            = lib_index + 1
+	Wend
+
+	CSTSplit = lib_index
+				
+End Function
+'-----------------------------------------------------------------------------------------------------
+Sub CST_MkDir (lib_dir As String)
+
+	' creates directory, even if some directory levels are missing
+
+	If (Len(lib_dir) > 240) Then
+		ReportError(" Cannot create folder. The specified folder path is too long by an estimated " & CStr(Len(lib_dir) - 240) & " characters. Please shorten the folder path.")
+	End If
+
+	Const dir_max_level = 10
+
+	Dim lib_subdir(dir_max_level) As String, lib_Ftmp As String, lib_dir2 As String, lib_s3tmp as String
+	Dim lib_iii As Integer, lib_jjj As Integer
+
+	lib_dir2 = lib_dir
+
+	If Right$(lib_dir2,1) = "\" Then
+		' removes trailing "\"
+		lib_dir2 = DirName (lib_dir2)
+	End If
+	
+	If InStr(lib_dir2,"\\")>0 Then
+		' remove all multiple backslashes except at the very beginning of the string
+		lib_s3tmp=Mid(lib_dir2,2)   			' copy everything except first character
+		While InStr(lib_s3tmp,"\\")>0
+			lib_s3tmp = Replace(lib_s3tmp, "\\", "\")
+		Wend
+		lib_dir2 = Left(lib_dir2,1)+lib_s3tmp   ' merge first char again with the rest
+	End If
+
+	lib_Ftmp$ = ""
+	On Error Resume Next
+		lib_Ftmp$ = Dir$(lib_dir2,vbDirectory)
+	On Error GoTo 0
+
+	If lib_Ftmp$ <> "" Then
+		' directory already exists
+		Exit Sub
+	End If
+
+	lib_iii=0
+	Do
+		lib_subdir(lib_iii) = lib_dir2
+		lib_dir2 = DirName (lib_dir2)
+		lib_iii=lib_iii+1
+
+		lib_Ftmp$ = ""
+		On Error Resume Next
+			lib_Ftmp$ = Dir$(lib_dir2,vbDirectory)
+		On Error GoTo 0
+
+	Loop Until lib_Ftmp$ <> "" Or lib_iii = dir_max_level+1 Or Right$(lib_dir2,1)=":"
+
+	If lib_iii <= dir_max_level Then
+
+		For lib_jjj = lib_iii-1 To 0 STEP -1
+			MkDir lib_subdir(lib_jjj)
+			Wait 0.01
+		Next lib_jjj
+
+	Else
+
+		ReportWarning(" The maximum permissible nesting depth has been reached. Further subfolders will not be created.")
+
+	End If
+
+End Sub
+'-----------------------------------------------------------------------------------------------------
+Sub CST_RmDir (lib_dir As String)
+
+	' removes an empty directory
+	' If the directory is not empty, do not remove and proceed without a warning
+
+	On Error Resume Next
+		RmDir lib_dir
+	On Error GoTo 0
+
+End Sub
+
+'------------------------------------------------------------------------------------------------------
+Sub SendEmail(EmailSubject As String, AttachFile As String)
+	
+	On Error GoTo NoOutlook
+	
+	Dim myAttachments As Object
+
+    With CreateObject("Outlook.Application").CreateItem(0)
+        .Subject = EmailSubject
+        If Not (IsNull(AttachFile) Or IsEmpty(AttachFile)) Then
+        	Set myAttachments = .Attachments
+            myAttachments.Add AttachFile
+        End If
+        .Display
+    End With
+    
+NoOutlook:
+    
+End Sub
+'-----------------------------------------------------------------------------------------------------------------------------
+Function bMWS As Boolean
+	bMWS = (GetApplicationName="MWS")
+End Function
+'-----------------------------------------------------------------------------------------------------------------------------
+Function bPS As Boolean
+	bPS = (GetApplicationName="PS")
+End Function
+'-----------------------------------------------------------------------------------------------------------------------------
+Function bEMS As Boolean
+	bEMS = (GetApplicationName="EMS")
+End Function
+'-----------------------------------------------------------------------------------------------------------------------------
+Function bMPS As Boolean
+	bMPS = (GetApplicationName = "MPS")
+End Function
+'-----------------------------------------------------------------------------------------------------------------------------
+Function bDS As Boolean
+	bDS = (Left(GetApplicationName, 2) = "DS")
+End Function
+'-----------------------------------------------------------------------------------------------------------------------------
+Function bMWS51 As Boolean
+	bMWS51 = ( bMWS And (CDbl(Mid(GetApplicationVersion,9,3)) >= 5.1) ) Or _
+		     ( bEMS And (CDbl(Mid(GetApplicationVersion,9,3)) >= 2.1) ) Or _
+		       bPS
+End Function
+'-----------------------------------------------------------------------------------------------------------------------------
+'-----------------------------------------------------------------------------------------------------------------------------
+'-----------------------------------------------------------------------------------------------------------------------------
+' functions included for result templates
+'-----------------------------------------------------------------------------------------------------------------------------
+'---------------------------------------------------------------------------------------------------------------------------
+Function FindListIndex(sListArray As Variant, sItem As Variant) As Long
+
+' -------------------------------------------------------------------------------------------------
+' FindListIndex: This function determines the index of a given item in a given array.
+'				 The function returns -1 if the array does not contain the desired item.
+' -------------------------------------------------------------------------------------------------
+
+	On Error GoTo ErrorLabel
+
+	' Determine the dimension of the given array
+
+	Dim nBound As Long, nIndex As Long
+	nBound = UBound(sListArray)
+
+	' Loop over all elements of the array and check whether an element is identical to
+	' the searched item. If the item is found the function is exited and the
+	' return value is assigned to the index of the element.
+
+	For nIndex = 0 To nBound
+		If (sListArray(nIndex) = sItem) Then
+			FindListIndex = nIndex
+			Exit Function
+		End If
+	Next nIndex
+
+ErrorLabel:
+	' If the execution comes here, either the searched item could not be found or
+	' an error occured (e.g. the array is empty). In any case, the function returns
+	' -1 to indicate the failure of the search.
+
+	FindListIndex = -1
+End Function
+'---------------------------------------------------------------------------------------------------------------------------
+Sub FillArray (sListArray() As String, sourceArray As Variant)
+
+' -------------------------------------------------------------------------------------------------
+' FillArray : This function copies all elements of a given array(even constant) into the sListArray
+'             The function is useful in dialogues (especially for templates), which do not accept
+'             constant arrays
+' -------------------------------------------------------------------------------------------------
+
+	Dim nBound As Long, nIndex As Long
+	nBound = UBound(sourceArray)
+
+	ReDim sListArray(nBound)
+	
+	For nIndex = 0 To nBound
+		sListArray(nIndex)=sourceArray(nIndex)
+	Next nIndex
+	
+End Sub
+'---------------------------------------------------------------------------------------------------------------------------
+Sub Append2Array (sListArray() As String, sourceArray As Variant)
+
+' -------------------------------------------------------------------------------------------------
+' Append2Array : This function appends all elements of a given array(even constant) into the sListArray
+'             The function is useful in dialogues (especially for templates), which do not accept
+'             constant arrays
+' -------------------------------------------------------------------------------------------------
+
+	Dim nBound As Long, nIndex As Long
+	nBound = UBound(sourceArray)
+
+	Dim nBound2 As Long
+
+	On Error GoTo EmptyArray
+		nBound2 = UBound(sListArray)
+		On Error GoTo 0
+		GoTo ProceedRedim
+
+EmptyArray:
+	nBound2 = -1
+
+ProceedRedim:
+
+	ReDim Preserve sListArray(nBound2 + nBound + 1)
+
+	For nIndex = 0 To nBound
+		sListArray(nBound2 + nIndex + 1) = sourceArray(nIndex)
+	Next nIndex
+
+End Sub
+' -------------------------------------------------------------------------------------------------
+Function NoForbiddenFilenameCharacters(s1 As String) As String
+
+' -------------------------------------------------------------------------------------------------
+' NoForbiddenFilenameCharacters : This function eliminates all characters from a string, which
+'				are not allowed as filenames within CST Studios     ~^[]:,|*/\$"()
+'				All these characters are just removed from the string.
+'				The function is useful e.g. in ResultTemplates, whose name is identical to a filename.
+' -------------------------------------------------------------------------------------------------
+
+	Dim s2 As String
+
+	s2 = s1
+
+	s2 = Replace(s2,"~","")
+	s2 = Replace(s2,"^","")
+	' ============== begin of the brackets story []   ====================
+	'ube/imu 23-jun-04  allow []
+	'ube 22-dec-04  no, do not allow [], because of Make Archive cannot archive files with brackets  
+	s2 = Replace(s2,"]",")")
+	s2 = Replace(s2,"[","(")
+	'tsz4 12-01-21 do not allow <>, which are also used as brackets for some names
+	s2 = Replace(s2,">",")")
+	s2 = Replace(s2,"<","(")
+	' ============== end of the brackets story []   ====================
+	s2 = Replace(s2,":","")
+	'ube 27-may-04  allow komma      s2 = Replace(s2,",","")
+	s2 = Replace(s2,"|","")
+	s2 = Replace(s2,"*","")
+	s2 = Replace(s2,"/","")
+	s2 = Replace(s2,"\","")
+	s2 = Replace(s2,"$","")
+	s2 = Replace(s2,"""","")
+	'	s2 = Replace(s2,"(","")
+	'	s2 = Replace(s2,")","")
+
+	'ube/fmo 08-sep-08  do not allow semikolon, since copy paste from tables in this case does not work
+	s2 = Replace(s2,";",",")
+
+	NoForbiddenFilenameCharacters = Trim(s2)
+
+End Function
+
+' -------------------------------------------------------------------------------------------------
+Function dInterpolate_linear_x(lib_y As Double, lib_x0 As Double, lib_x1 As Double, lib_y0 As Double, lib_y1 As Double) As Double
+' -------------------------------------------------------------------------------------------------
+' dInterpolate_linear_x : calculates x at a given y-value from linear interpolation from neighboured points.
+'				This function gives more accurate values, especially for a coarse definition range.
+'
+' 		linear function y = y0 + m*(x-x0)     with m=(y1-y0)/(x1-x0)
+' -------------------------------------------------------------------------------------------------
+	Dim lib_m As Double
+	
+	If lib_x0=lib_x1 Then
+		dInterpolate_linear_x = lib_x0
+	Else
+		lib_m=(lib_y1-lib_y0)/(lib_x1-lib_x0)
+		dInterpolate_linear_x = (lib_y-lib_y0)/lib_m + lib_x0
+	End If
+End Function
+
+' -------------------------------------------------------------------------------------------------
+Function dInterpolate_linear_y(lib_x As Double, lib_x0 As Double, lib_x1 As Double, lib_y0 As Double, lib_y1 As Double) As Double
+' -------------------------------------------------------------------------------------------------
+' dInterpolate_linear_y : calculates y at a given x-value from linear interpolation from neighboured points.
+'				This function gives more accurate values, especially for a coarse definition range.
+'
+' 		linear function y = y0 + m*(x-x0)     with m=(y1-y0)/(x1-x0)
+' -------------------------------------------------------------------------------------------------
+	Dim lib_m As Double
+	
+	If lib_x0=lib_x1 Then
+		' take mean value between y0 and y1
+		dInterpolate_linear_y = 0.5*(lib_y0+lib_y1)
+	Else
+		lib_m=(lib_y1-lib_y0)/(lib_x1-lib_x0)
+		dInterpolate_linear_y = lib_y0 + lib_m*(lib_x-lib_x0)
+	End If
+End Function
+' -------------------------------------------------------------------------------------------------
+Function bMathChar (s1 As String) As Boolean
+
+	bMathChar = False
+
+	If Len(s1) = 1 Then
+		If ( s1="+" Or s1="-" Or s1="^" Or s1="*" Or s1="/" Or s1="\" Or s1="," Or _
+			 s1="<" Or s1=">" Or s1="=" Or s1="(" Or s1=")" Or s1="&" Or s1=" " Or _
+			 s1="'" Or s1="%" Or s1=":" Or s1="|") Then
+			bMathChar = True
+		End If
+	End If
+
+End Function
+Function IsDigit_1_9(s1 As String) As Boolean
+
+	IsDigit_1_9 = False
+
+	If Len(s1) = 1 Then
+		If ( s1="1" Or s1="2" Or s1="3" Or s1="4" Or s1="5" Or s1="6" Or _
+			 s1="7" Or s1="8" Or s1="9" ) Then
+			IsDigit_1_9 = True
+		End If
+	End If
+
+End Function
+' -------------------------------------------------------------------------------------------------
+Function CST_ReplaceString (s1 As String, s2 As String) As String
+
+	' this function is searching for all occurances of s2 within s1 and adds the string "_cst_tmp"
+	' to each s2-string, if s2 is surrounded by only math. characters
+
+	' This function is useful to avoid naming conflicts between A B C D x y ... in the Result Templates
+	' and identical variables. The result templates variables are replaced by  A ==> A_cst_tmp
+
+	' Thus even variable a can be used together with A.
+
+	Dim i0 As Integer, i1 As Integer, islength As Integer, ilast As Integer
+	Dim s3 As String
+	Dim bReplace As Boolean
+
+	i0=1
+	islength = Len(s1)
+	ilast = 0
+	s3 = ""
+	While True
+		i1=InStr(i0,s1,s2)
+		If (i1 = 0) Then Exit While
+
+		bReplace = True
+		If (i1 > 1) Then
+			bReplace = bReplace And bMathChar(Mid$(s1,i1-1,1))
+		End If
+		If (i1+Len(s2)-1 < islength) Then
+			bReplace = bReplace And bMathChar(Mid$(s1,i1+Len(s2),1))
+		End If
+		If (bReplace) Then
+			s3 = s3 + Mid$(s1,ilast+1,i1-ilast+Len(s2)-1) + "_cst_tmp"
+			ilast = i1+Len(s2)-1
+		End If
+		i0=i1+Len(s2)
+	Wend
+
+	If (ilast < islength) Then
+		s3 = s3 + Mid$(s1,ilast+1,islength-ilast)
+	End If
+
+	CST_ReplaceString = s3
+
+End Function
+' -------------------------------------------------------------------------------------------------
+Sub CST_AppendFile (sfile1 As String, sfile2 As String)
+
+	' this subroutine appends file2 to file1 (file1 is modified)
+
+	If Dir$(sfile1) = "" Or Dir$(sfile2) = "" Then
+
+		' Nothing done, one of the files does not exist
+
+	Else
+
+		Dim sline_cst1 As String
+
+		Open sfile1 For Append As #11
+		Open sfile2 For Input As #12
+
+			' now copy all lines of #12 to the end of #11
+
+			While Not EOF(12)
+				Line Input #12, sline_cst1
+				Print #11, sline_cst1
+			Wend
+
+		Close #12
+		Close #11
+
+	End If
+
+End Sub
+Sub RemoveFileHeader(sfile As String)
+
+	' this subroutine removes the header lines of sfile1 (file1 is modified)
+
+	If Dir$(sfile) = "" Then
+		' Nothing done, file does not exist
+	Else
+		Dim sline_cst1 As String
+		Dim sfile2 As String
+
+		Dim string_item(30) As String
+		Dim cst_nitems As Integer
+
+		sfile2 = sfile+"_tmp"
+
+		Open sfile2 For Output As #11
+		Open sfile For Input As #12
+
+		Line Input #12, sline_cst1	'discard first line
+
+		Dim bHeaderLine As Boolean
+		bHeaderLine = True
+
+		While (Not EOF(12) And bHeaderLine)
+			Line Input #12, sline_cst1
+			bHeaderLine = (Len(sline_cst1) <= 2) Or (InStr(sline_cst1,"="))
+		Wend
+
+		If Not bHeaderLine Then
+			cst_nitems = CSTSplit(sline_cst1, string_item)
+			If (cst_nitems>2) Then
+				' the new 2010 clipboard format might contain 3 colums, because of angle
+				Print #11, string_item(1) + "   " + string_item(2)
+			Else
+				Print #11, string_item(0) + "   " + string_item(1)
+			End If
+		End If
+
+		While Not EOF(12)
+			Line Input #12, sline_cst1
+			cst_nitems = CSTSplit(sline_cst1, string_item)
+			If (cst_nitems>2) Then
+				' the new 2010 clipboard format might contain 3 colums, because of angle
+				Print #11, string_item(1) + "   " + string_item(2)
+			Else
+				Print #11, string_item(0) + "   " + string_item(1)
+			End If
+		Wend
+
+		Close #12
+		Close #11
+
+		FileCopy sfile2, sfile
+
+		Kill sfile2
+
+	End If
+End Sub
+
+Function DRound (cst_calue As Double, nDigits As Integer) As Double
+
+	' DRound is rounding a double value to ndigits
+
+	Dim nFactor As Long
+	nFactor = 10^nDigits
+
+	If (cst_calue*nFactor <= 1e9) Then
+		DRound = CDbl(CLng(cst_calue*nFactor))/nFactor
+	Else
+		' too big for type "Long"
+		DRound = cst_calue
+	End If
+
+End Function
+
+Sub RemoveFirstChars(sfile As String, ichar As Integer)
+
+	Dim itotal As Integer
+	itotal = Len(sfile)
+
+	If itotal > ichar Then sfile = Right$(sfile,itotal-ichar)
+
+End Sub
+Sub RemoveLastChars(sfile As String, ichar As Integer)
+
+	Dim itotal As Integer
+	itotal = Len(sfile)
+
+	If itotal > ichar Then sfile = Left$(sfile,itotal-ichar)
+
+End Sub
+Sub CST_Resample_if_non_equidistant(tmpsig1 As Object, dfmax As Double, Optional dMaxEpsilon As Double)
+
+	'Check if equidistant time signal (required for FFT)
+    Dim cst_i As Long
+    Dim cst_n As Long
+    Dim cst_dt As Double
+    Dim cst_dtn As Double
+    Dim cst_dtotal As Double
+
+    Dim dXscale_f As Double
+    Dim dXscale_t As Double
+
+    Dim dXValues() As Double
+
+    If dMaxEpsilon <= 0 Then dMaxEpsilon = 0.01 ' default if parameter value is missing
+
+	dXscale_f = Units.GetFrequencyUnitToSI
+	dXscale_t = Units.GetTimeUnitToSI
+
+    Dim is_ed As Boolean
+    is_ed = True ' is equidistant true
+
+    cst_i = 0
+    cst_n = tmpsig1.GetN
+    If (cst_n <= 2) Then
+		' Nothing to do
+    	Exit Sub
+    Else
+    	dXValues = tmpsig1.GetArray("x")
+    	cst_dt=(dXValues(cst_n-1)-dXValues(0))/(cst_n-1) ' calculate perfect step width as interval length divided by (number of samples - 1)
+		cst_dtotal = dXValues(cst_n-1)-dXValues(0) 'total time..
+	   	For cst_i = 2 To cst_n-1
+		   	cst_dtn = dXValues(cst_i-1)-dXValues(cst_i)
+	    	If  ((cst_dtn/cst_dt < (1-dMaxEpsilon)) Or (cst_dtn/cst_dt > (1+dMaxEpsilon)))Then
+				is_ed = False
+				Exit For
+	    	End If
+	    Next cst_i
+
+	    ' Resample
+
+	    If (Not is_ed) Then
+			Dim nnsmpl As Long
+			nnsmpl=CLng(cst_dtotal*dXscale_t*20*dfmax*dXscale_f)
+			If nnsmpl<2 Then nnsmpl=2
+	        tmpsig1.ResampleTo (dXValues(0),dXValues(cst_n-1),nnsmpl)
+	    End If
+	End If
+
+End Sub
+'---------------------------------------------------------------------
+Function GetLastStringParts(s1 As String, separator As String, nrep As Integer) As String
+
+	' this function searches the string s1 from the end, until "nrep" times the "separator" string is found
+	' The function result is then the right part of the string s1
+
+	Dim s2 As String, i2 As Integer, icount As Integer
+
+	s2 = s1
+	icount = nrep
+	i2 = 0
+
+	While icount > 0
+		i2 = InStrRev(s2,separator)
+		If (i2>0) Then
+			s2 = Mid$(s2,1,i2-1)
+		End If
+		icount = icount-1
+	Wend
+
+	GetLastStringParts = Mid$(s1,i2+1,)
+
+End Function
+
+Sub CST_RmDir_NotEmpty (lib_dir As String)
+
+	' removes a directory which might be non-empty
+	' If the directory is not empty, it also removes all files and subdirectories without asking
+
+	On Error Resume Next
+		Shell ("cmd /c "+ "rmdir /s /q " + Quote(lib_dir))
+	On Error GoTo 0
+
+End Sub
+
+Function CST_Log10(value As Double) As Double
+	If value <= 0 Then
+		CST_Log10 = lib_rundef
+	Else
+		CST_Log10 = Log(value)/Log(10)
+	End If
+End Function
+
+Function USFormat(number As Variant, Optional formatS As String) As String
+	' This function servers two purposes:
+	' 1) With 1 argument (String), the function returns the numerical format of the input argument
+	' 2) With 2 arguments (Double, String), the function returns the String representation of the first argument,
+	'    formatted according to the second argument; always uses "." as decimal separator, indep. of locale.
+	' number is either a String or a double
+	' in case of a String, formatS should not be present
+	Dim iCurrentLocale As Long, sThousandSeparator As String, sDecimalSeparator As String
+	Dim i As Long
+
+	' Determine the two localized separators, use '1000' as test, it contains both
+	sThousandSeparator = Mid(Format(1000, "Standard"), 2, 1)
+	If sThousandSeparator = "0" Then sThousandSeparator = ""
+	If sThousandSeparator = "" Then
+		sDecimalSeparator = Mid(Format(1000, "Standard"), 5, 1)
+	Else
+		sDecimalSeparator = Mid(Format(1000, "Standard"), 6, 1)
+	End If
+
+	If formatS = "" Then ' no format is give -> Use as query, return format of "number"
+		USFormat = ""
+		For i = 1 To Len(number)
+			Select Case Mid(number,i,1)
+				Case "+","-"
+					USFormat = USFormat + "+"
+				Case sThousandSeparator
+					USFormat = USFormat + ","
+				Case sDecimalSeparator
+					USFormat = USFormat + "."
+				Case "e","E"
+					USFormat = USFormat + "E+"
+					If (Mid(number, i+1,1) = "+") Or (Mid(number, i+1,1) = "-") Then i = i+1
+				Case Else
+					USFormat = USFormat + "0"
+			End Select
+		Next
+	Else
+		' Switch to US locale temporaliy to format String, then switch back
+		iCurrentLocale = GetLocale
+		SetLocale(&H409) ' &H409 = US
+		USFormat = Format(number, formatS)
+		SetLocale(iCurrentLocale)
+		' Now remove all commas, they can conflict with VBA code
+		USFormat = Replace(USFormat, ",", "")
+	End If
+End Function
+
+'-------- GetFolder_Lib functions start here --------
+
+' the function "Getfolder_Lib" (calling "UpdateFolder*") is a directory browser
+'
+'   MsgBox(GetFolder_Lib("C:\temp\"))
+'
+
+Public folderContents_LIB() As String, defaultFolders_LIB() As String
+Const cstAllFilesAndFolders = vbNormal+vbReadOnly+vbHidden+vbSystem+vbDirectory
+
+Function GetFolder_Lib(StartFolder As String, Optional bShowFiles As Boolean, Optional bShowHidden As Boolean) As String
+
+	Dim i As Long
+
+	If (StartFolder<>"") Then
+		' Make sure that only last char is a backslash. Strip all "\" first, then add one
+		While(Mid(StartFolder,Len(StartFolder),1) = "\")
+			StartFolder = Mid(StartFolder, 1, Len(StartFolder)-1)
+		Wend
+		StartFolder = StartFolder + "\"
+
+		On Error GoTo InvalidDirectory
+		If((GetAttr(StartFolder) And vbDirectory) <> vbDirectory) Then
+			MsgBox("Please specify a valid start folder!")
+			GetFolder_Lib("")
+			Exit Function
+		End If
+	End If
+
+	ReDim defaultFolders_LIB(27)
+	defaultFolders_LIB(1) = Environ("USERPROFILE")+"\"
+	For i = 2 To 27
+		If(Dir(Chr(65+i)+":\",vbDirectory)<>"") Then defaultFolders_LIB(i) = Chr(65+i)+":\"
+	Next
+
+	Begin Dialog UserDialog 650,231,"Select Folder",.DialogFuncGetFolderPath_LIB ' %GRID:10,7,1,1
+		DropListBox 10,7,430,192,defaultFolders_LIB(),.CurrentFolderTvis,1
+		PushButton 450,7,90,21,"New Folder",.NewFolderPB
+		PushButton 550,7,90,21,"Delete",.DeleteFolderPB
+		ListBox 10,35,630,168,folderContents_LIB(),.FolderList
+		Text 230,210,210,21,StartFolder,.CurrentFolderTinvis
+		CheckBox 10,203,90,14,"Show files",.ShowFilesCB
+		CheckBox 110,203,210,14,"Show hidden files and folders",.ShowHiddenCB
+		OKButton 450,203,90,21
+		CancelButton 550,203,90,21
+	End Dialog
+	Dim dlg As UserDialog
+	dlg.ShowFilesCB = bShowFiles
+	dlg.ShowHiddenCB = bShowHidden
+	If (Dialog(dlg,-2) = 0) Then ' user pressed cancel
+		GetFolder_Lib = ""
+	Else ' user pressed ok
+		GetFolder_Lib = dlg.CurrentFolderTvis
+	End If
+	Exit Function
+
+	' Error handling
+	InvalidDirectory:
+		MsgBox("Could not open '"+StartFolder+"'",vbCritical)
+		GetFolder_Lib = GetFolder_Lib("")
+		Exit Function
+
+End Function
+
+Rem See DialogFunc help topic for more information.
+Private Function DialogFuncGetFolderPath_LIB(DlgItem$, Action%, SuppValue?) As Boolean
+	Select Case Action%
+	Case 1 ' Dialog box initialization
+		DlgVisible("CurrentFolderTinvis",False)
+		DlgEnable("FolderList", False)
+		DlgText("CurrentFolderTvis",DlgText("CurrentFolderTinvis"))
+		UpdateFolderListGUI_LIB
+		DlgEnable("FolderList", True)
+		DlgEnable ("DeleteFolderPB",Not((DlgText("CurrentFolderTvis") Like "?:\") Or (DlgText("CurrentFolderTvis") = "")))
+		DlgEnable("OK",Not(CBool(DlgValue("ShowFilesCB"))))
+	Case 2 ' Value changing or button pressed
+		'DlgEnable("OK",Not(CBool(DlgValue("ShowFilesCB"))))
+		Select Case DlgItem
+			Case "FolderList"
+				If (SuppValue <> -1) Then ' This happens when the user clicks on an empty line in FolderList
+					If(DlgText("FolderList") Like "?:\*") Then
+						DlgText("CurrentFolderTvis",DlgText("FolderList"))
+					ElseIf (Split(DlgText("FolderList"),"\")(1) = ".") Then
+						' Do nothing
+					ElseIf (Split(DlgText("FolderList"),"\")(1) = "..") Then
+						' go up one path if ".." is selected and displayed path does not match currently selected path
+						If (Len(DlgText("CurrentFolderTvis"))>=Len(DlgText("CurrentFolderTinvis"))) Then
+							DlgText("CurrentFolderTvis",Mid(DlgText("CurrentFolderTvis"),1,InStrRev(DlgText("CurrentFolderTvis"),"\",Len(DlgText("CurrentFolderTvis"))-1)))
+						End If
+					Else
+						DlgText("CurrentFolderTvis",Left(DlgText("CurrentFolderTvis"),InStrRev(DlgText("CurrentFolderTvis"),"\"))+Mid(DlgText("FolderList"),3))
+					End If
+				End If
+			Case "NewFolderPB"
+				Dim newFolderName As String
+				newFolderName = InputBox("New folder name:","New Folder")
+				If (newFolderName <> "") Then
+					ChDir(DlgText("CurrentFolderTvis"))
+					If (Dir(DlgText("CurrentFolderTvis")+"\"+newFolderName,vbDirectory)<>"") Then
+						MsgBox("A file or folder with this name already exists, please choose a different name.","Error")
+					Else
+						MkDir(newFolderName)
+					End If
+					UpdateFolderListGUI_LIB
+				End If
+				DialogFuncGetFolderPath_LIB = True
+			Case "DeleteFolderPB"
+				If (Not (DlgText("CurrentFolderTvis") Like "?:\")) Then ' do not allow deleting drives
+					If (MsgBox("Permanently delete folder '"+DlgText("CurrentFolderTvis")+ "'?", vbYesNo, "Delete Folder") = vbYes) Then
+						ChDir(Mid(DlgText("CurrentFolderTvis"),1,InStrRev(DlgText("CurrentFolderTvis"),"\",Len(DlgText("CurrentFolderTvis"))-1)))
+						If( Dir(DlgText("CurrentFolderTvis"))<>"") Then
+							MsgBox("Unable to delete folder. Folder is not empty.","Error")
+						Else
+							RmDir(DlgText("CurrentFolderTvis"))
+							DlgText("CurrentFolderTvis",Mid(DlgText("CurrentFolderTvis"),1,InStrRev(DlgText("CurrentFolderTvis"),"\",Len(DlgText("CurrentFolderTvis"))-1)))
+							UpdateFolderListGUI_LIB
+						End If
+					End If
+				End If
+				DialogFuncGetFolderPath_LIB = True
+			Case "ShowHiddenCB", "ShowFilesCB"
+				UpdateFolderListGUI_LIB
+		End Select
+		DlgEnable ("DeleteFolderPB",Not((DlgText("CurrentFolderTvis") Like "?:\") Or (DlgText("CurrentFolderTvis") = "")))
+	Case 3 ' TextBox or ComboBox text changed
+	Case 4 ' Focus changed
+	Case 5 ' Idle
+		Wait .1 : DialogFuncGetFolderPath_LIB = True ' Continue getting idle actions
+		If ((DlgText("CurrentFolderTvis")<>DlgText("CurrentFolderTinvis"))) Then
+			UpdateFolderListGUI_LIB
+			DlgText("CurrentFolderTinvis",DlgText("CurrentFolderTvis"))
+		End If
+	Case 6 ' Function key
+	End Select
+End Function
+
+Function UpdateFolderListGUI_LIB() As Integer
+
+	Dim newFolder As String
+
+	ReDim folderContents_LIB(0)
+	folderContents_LIB(0) = "Scanning..."
+	DlgListBoxArray("FolderList",folderContents_LIB())
+	DlgEnable("FolderList",False)
+	newFolder = UpdateFolderList_LIB(DlgText("CurrentFolderTvis"), DlgValue("ShowFilesCB"), DlgValue("ShowHiddenCB"))
+	If(Dir(DlgText("CurrentFolderTvis"),cstAllFilesAndFolders-vbDirectory) <> "") Then ' a path including file name has been selected->remove file name
+		DlgText("CurrentFolderTvis",newFolder)
+	End If
+	DlgListBoxArray("FolderList",folderContents_LIB())
+	DlgEnable("FolderList",True)
+	UpdateFolderListGUI_LIB = 1 ' all o.k.
+End Function
+
+Function UpdateFolderList_LIB(Folder As String, Optional bShowFiles As Boolean, Optional bShowHidden As Boolean) As String
+
+	On Error GoTo FoundError
+
+		Dim tmpString As String
+		Dim count As Long
+		Dim Pattern As String
+
+		Pattern = "*"
+
+		If (Folder = "") Then
+			folderContents_LIB = defaultFolders_LIB
+			UpdateFolderList_LIB = ""
+			Exit Function
+		End If
+
+		' Strip all "\" for some checks, add a single one again after the checks
+		While(Mid(Folder,Len(Folder),1) = "\")
+			Folder = Mid(Folder, 1, Len(Folder)-1)
+		Wend
+
+		' Now check if "Folder" is valid
+		If ((Dir(Folder,cstAllFilesAndFolders) = "") And (Dir(Folder+"\",cstAllFilesAndFolders) = "")) Then ' "Folder" is not a valid file/directory
+			Pattern = Right(Folder, Len(Folder)-InStrRev(Folder, "\", Len(Folder)-1))+"*"
+			Folder = Left(Folder, InStrRev(Folder, "\", Len(Folder)-1)-1)
+		ElseIf (Dir(Folder,cstAllFilesAndFolders-vbDirectory) <> "") Then ' "Folder" is a valid file but not a directory
+			Folder = Left(DlgText("CurrentFolderTvis"), InStrRev(DlgText("CurrentFolderTvis"), "\", Len(DlgText("CurrentFolderTvis"))-1)-1)
+		End If
+		' "Folder" is (now) a valid directory, re-add backslash
+		Folder = Folder + "\"
+
+		count = 1
+		ReDim Preserve folderContents_LIB(count)
+		folderContents_LIB(0) = ".\.\"
+		folderContents_LIB(1) = ".\..\"
+		count = count + 1
+
+		' finds all files and directories
+		tmpString = Dir(Folder+Pattern,cstAllFilesAndFolders)
+		While(tmpString<>"")
+			' bit-wise comparison to make sure tmpString is not a file, decide about hidden files
+			If (tmpString<>"." And tmpString<>"..") Then
+				' certain system files may not even allow to read out attributes, which would cause an error -> check first and skip if error
+				On Error GoTo EndOfAttributeCheck
+					GetAttr(Folder + tmpString)
+				On Error GoTo FoundError
+				If (((GetAttr(Folder+tmpString) And vbDirectory) = vbDirectory) _
+					And (bShowHidden Or ((GetAttr(Folder+tmpString) And vbHidden) <> vbHidden))) Then
+					ReDim Preserve folderContents_LIB(count)
+					folderContents_LIB(count) = ".\"+tmpString+"\"
+					count = count + 1
+				ElseIf (bShowFiles And ((GetAttr(Folder+tmpString) And vbDirectory) <> vbDirectory) _
+					And (bShowHidden Or ((GetAttr(Folder+tmpString) And vbHidden) <> vbHidden))) Then
+					ReDim Preserve folderContents_LIB(count)
+					folderContents_LIB(count) = ".\"+tmpString
+					count = count + 1
+				End If
+			End If
+			EndOfAttributeCheck:
+				tmpString = Dir()
+		Wend
+		UpdateFolderList_LIB = Folder
+		Exit Function
+
+	FoundError:
+		MsgBox("Error! Last entry:" + tmpString)
+
+End Function
+
+'-------- GetFolder_Lib functions end here ---------
+
+Function Min_LIB(dataArray As Variant) As Variant
+	' Returns the minimum value of an arbitrarily dimensioned array
+	' Use, e.g., "Array(3,5)" to get the smallest of two numbers
+	Dim testObject As Variant, testObjectMin As Variant, tmpArray As Variant
+	If Not IsArray(dataArray) Then
+		Min_LIB = dataArray
+		Exit Function
+	Else
+		tmpArray = dataArray
+		While(IsArray(tmpArray))
+			tmpArray = tmpArray(0)
+		Wend
+		Min_LIB = tmpArray
+		Dim i As Long, dataArrayLength As Long
+		dataArrayLength = UBound(dataArray)
+		For i = 0 To dataArrayLength
+		    testObject = dataArray(i)
+			testObjectMin = Min_LIB(testObject)
+			If testObjectMin < Min_LIB Then Min_LIB = testObjectMin
+		Next
+	End If
+End Function
+
+Function Max_LIB(dataArray As Variant) As Variant
+	' Returns the maximum value of an arbitrarily dimensioned array
+	' Use, e.g., "Array(3,5)" to get the largest of two numbers
+	Dim testObject As Variant, testObjectMin As Variant, tmpArray As Variant
+	If Not IsArray(dataArray) Then
+		Max_LIB = dataArray
+		Exit Function
+	Else
+		tmpArray = dataArray
+		While(IsArray(tmpArray))
+			tmpArray = tmpArray(0)
+		Wend
+		Max_LIB = tmpArray
+		Dim i As Long, dataArrayLength As Long
+		dataArrayLength = UBound(dataArray)
+		For i = 0 To dataArrayLength
+		    testObject = dataArray(i)
+			testObjectMin = Max_LIB(testObject)
+			If testObjectMin > Max_LIB Then Max_LIB = testObjectMin
+		Next
+	End If
+End Function
+
+Dim dRefTime_LIB As Double
+Function Timer_LIB(sAction As String, dSeconds As Double) As String
+	'----------------------------------------------------------
+	' This function can be used to measure exact run times for certain operations:
+	' Dim i As Long, d As Double, s As String
+	' s=Timer_LIB("reset",0.0)
+	'				For i=1 To 100000000
+	'					d=Sqr(i)*2
+	'				Next i
+	'MsgBox Timer_LIB("",d) + vbCrLf + Cstr(d)
+	'----------------------------------------------------------
+
+	If (sAction="reset") Then
+		dRefTime_LIB = Timer
+		dSeconds = 0.0
+	Else
+		dSeconds = Timer - dRefTime_LIB
+		If dSeconds < 0.0 Then dSeconds = dSeconds + 86400 ' new day
+	End If
+
+	Dim sTime As String
+
+	If dSeconds > 3600 Then
+		sTime = USFormat((dSeconds/3600),"0.0") + "h"
+	ElseIf dSeconds > 60 Then
+		sTime = USFormat((dSeconds/60),"0.0") + "m"
+	Else
+		sTime = USFormat(dSeconds,"0.0") + "s"
+	End If
+
+	Timer_LIB = sTime
+
+End Function
+
+Sub Assert_LIB(bTest As Boolean)
+	If Not bTest Then
+		MsgBox("Assertion failed: "+CallersLine)
+		Exit All
+	End If
+End Sub
+
+Function TextFileToString_LIB(sTextFilePath As String) As String
+
+	' This function reads in the contents of a text file and return them as a string
+	Dim nStreamID As Long
+
+	If (Dir(sTextFilePath) = "") Then
+		ReportError("Text file not found: " + sTextFilePath)
+	Else
+		nStreamID = FreeFile()
+		Open sTextFilePath For Input As #nStreamID
+			TextFileToString_LIB = Input(LOF(nStreamID), nStreamID)
+		Close #nStreamID
+	End If
+
+End Function
+
+
+' --- The following functions are used to store and restore dialog settings ---
+
+Function StoreAllDialogSettings_LIB(iniFileName As String, Optional sDenyList As String, Optional sAllowList As String, Optional sCommentHeader As String) As String
+
+	' Store values of each dialog item in a file
+	' iniFileName: Full path to the file
+	' sDenyList : comma separated list that can be used to exclude certain keys, use name of dialog item
+	' sAllowList : comma separated list that can be used to restore only certain keys, use name of dialog item
+	' sCommentHeader : a header that will we included to the top of the file, each line preceded by %
+
+	Dim i As Long
+	Dim iniFile As Long
+	Dim nDialogItems As Long
+	Dim sDlgItem As String
+	Dim sDenyListArray() As String, sAllowListArray() As String
+	Dim sMessage As String
+
+	sMessage = ""
+
+	If (Len(sDenyList)>0 And Len(sAllowList)>0) Then
+		sMessage = "Store dialog settings: sDenyList and sAllowList are both non-empty. Dialog settings were not stored."
+		ReportWarningToWindow(sMessage)
+		StoreAllDialogSettings_LIB = sMessage
+	End If
+
+	nDialogItems = DlgCount()
+	' Remove single spaces, just in case...
+	sDenyList = Replace(sDenyList, " ", "")
+
+	sAllowList = Replace(sAllowList, " ", "")
+	sDenyListArray = Split(sDenyList, ",")
+	sAllowListArray = Split(sAllowList, ",")
+
+	If Dir(iniFileName) > "" Then
+		Kill iniFileName
+	End If
+	iniFile = FreeFile
+	Open iniFileName For Append As #iniFile
+	Print #iniFile, "% "+ Replace(sCommentHeader, vbNewLine, vbNewLine + "% ")
+	Print #iniFile, ""
+	For i = 0 To nDialogItems-1
+		sDlgItem = DlgName(i)
+		' Store sDlgItem if sDenyList AND sAllowList are empty, or if sDlgItem is not in sDenyList, or if sDlgItem is in sAllowList
+		If ( (sDenyList = "") And (sAllowList = "") _
+			Or ((sAllowList = "") And (FindListIndex(sDenyListArray,sDlgItem)=-1)) _
+			Or ((sDenyList = "") And (FindListIndex(sAllowListArray,sDlgItem)>-1))) Then
+				Select Case DlgType(i)
+					Case "CheckBox", "ComboBox", "DropListBox", "ListBox", "MultiListBox", "OptionGroup"
+						Print #iniFile,DlgName(i)+"="+CStr(DlgValue(i))
+					Case "TextBox"
+						Print #iniFile,DlgName(i)+"="+DlgText(i)
+					Case "Text", "Picture", "GroupBox", "OKButton", "CancelButton", "PushButton", "OptionButton"
+						' Do nothing
+					Case Else
+						sMessage = sMessage + "Unknown DlgType: " + DlgType(i) + vbNewLine
+				End Select
+		End If
+	Next
+	Close #iniFile
+
+	StoreAllDialogSettings_LIB = sMessage
+
+End Function
+
+Function ReStoreAllDialogSettings_LIB(iniFileName As String, Optional sDenyList As String, Optional sAllowList As String) As String
+
+	' Restore values of each dialog item in a file, if it exists
+	' iniFileName: Full path to the file
+	' sDenyList : comma separated list that can be used to exclude certain keys, use name of dialog item
+	' sAllowList : comma separated list that can be used to restore only certain keys, use name of dialog item
+
+	Dim i As Long
+	Dim iniFile As Long
+	Dim lineRead As String
+	Dim sDlgItem As String, sValue As String
+	Dim sDenyListArray() As String, sAllowListArray() As String
+	Dim sToBeRestoredList As String ' list of dialog items to be restored
+	Dim sMessage As String
+
+	sMessage = ""
+
+	If (Len(sDenyList)>0 And Len(sAllowList)>0) Then
+		sMessage = "Store dialog settings: sDenyList and sAllowList are both non-empty. No settings were restored."
+		ReportWarning(sMessage)
+		ReStoreAllDialogSettings_LIB = sMessage
+		Exit Function
+	End If
+	sValue = ""
+	' Remove spaces, just in case...
+	sDenyList = Replace(sDenyList, " ", "")
+	sAllowList = Replace(sAllowList, " ", "")
+
+	sDenyListArray = Split(sDenyList, ",")
+	sAllowListArray = Split(sAllowList, ",")
+
+	If (sAllowList<>"") Then
+		' If allow list is used, this is the to-do list
+		sToBeRestoredList = sAllowList + ","
+	Else
+		sToBeRestoredList = ""
+		' If no allow list is used, to-do list consists of all storable entries, minus deny list
+		For i = 0 To DlgCount()-1
+			Select Case DlgName(i)
+				Case "CheckBox", "ComboBox", "DropListBox", "ListBox", "MultiListBox", "OptionGroup", "TextBox"
+					If (FindListIndex(sDenyListArray, DlgName(i))=-1) Then sToBeRestoredList = sToBeRestoredList + DlgName(i) + ","
+				Case "Text", "Picture", "GroupBox", "OKButton", "CancelButton", "PushButton", "OptionButton"
+					' Do nothing
+			End Select
+		Next
+	End If
+
+	iniFile = FreeFile
+	If (Dir(iniFileName) = "") Then
+		sMessage = "Could not find data file, no dialog settings restored."
+		ReStoreAllDialogSettings_LIB = sMessage
+		Exit Function
+	End If
+	' Else:
+	Open iniFileName For Input As #iniFile
+	While Not EOF(iniFile)
+			Do
+				Line Input #iniFile, lineRead
+			Loop Until ((lineRead<>"") And (Left(lineRead,1)<>"%")) ' skip empty lines and comment lines
+			sDlgItem = Split(lineRead, "=")(0)
+			sValue = Split(lineRead, "=")(1)
+			' Restore sDlgItem if sDenyList AND sAllowList are empty, or if sDlgItem is not in sDenyList, or if sDlgItem is in sAllowList
+			If ( (sDenyList = "") And (sAllowList = "") _
+				Or ((sAllowList = "") And (FindListIndex(sDenyListArray,sDlgItem)=-1)) _
+				Or ((sDenyList = "") And (FindListIndex(sAllowListArray,sDlgItem)>-1))) Then
+					On Error GoTo ReStoreError
+						Select Case DlgType(sDlgItem)
+							Case "CheckBox", "ComboBox", "DropListBox", "ListBox", "MultiListBox", "OptionGroup"
+								DlgValue(sDlgItem, CLng(sValue))
+								' Remove from to-do list
+								sToBeRestoredList = Replace(sToBeRestoredList, sDlgItem + ",", "")
+							Case "TextBox"
+								DlgText(sDlgItem, sValue)
+								' Remove from to-do list
+								sToBeRestoredList = Replace(sToBeRestoredList, sDlgItem + ",", "")
+							Case "Text", "Picture", "GroupBox", "OKButton", "CancelButton", "PushButton", "OptionButton"
+								' Do nothing
+							Case Else
+								sMessage = sMessage + "Unknown DlgType: " + DlgType(sDlgItem) + vbNewLine
+						End Select
+					On Error GoTo 0
+			End If
+		BottomOfLoop:
+	Wend
+	Close #iniFile
+
+	If (sToBeRestoredList<>"") Then
+		ReportInformationToWindow("The following items could not be restored, because they were undefined in either the data file or the current dialog: "+Left(sToBeRestoredList, Len(sToBeRestoredList)-1)+". This can happen if the data file was saved with a different macro version. Please double check all dialog settings.")
+	End If
+
+	ReStoreAllDialogSettings_LIB = sMessage
+
+	Exit Function
+
+	ReStoreError:
+		sToBeRestoredList = sToBeRestoredList + sDlgItem + ","
+		GoTo BottomOfLoop
+
+End Function
+
+' --- End store/restore functions ---
+
+Sub DeleteTreeEntry_LIB(sTreeName As String)
+
+	Dim sResultPath As String, sTreePath As String, sFile As String
+	Dim TreeObjectToCall As Object
+	
+	If (Left(GetApplicationName, 2)="DS") Then
+		Set TreeObjectToCall = DSResultTree
+		sResultPath = "Results\"
+		If Left(sTreeName,8) <> sResultPath Then
+			sTreePath = sResultPath+sTreeName
+		Else
+			sTreePath = sTreeName
+		End If
+		MakeSureDSTreeFolderExists_LIB(sTreePath)
+	Else
+		Set TreeObjectToCall = ResultTree
+		sResultPath = "1D Results\"
+		If Left(sTreeName,11) <> sResultPath Then
+			sTreePath = sResultPath+sTreeName
+		Else
+			sTreePath = sTreeName
+		End If
+	End If
+
+	If CallByName(TreeObjectToCall, "DoesTreeItemExist", vbMethod, sTreePath) Then
+		CallByName(TreeObjectToCall, "Reset", vbMethod)
+		CallByName(TreeObjectToCall, "Name", vbMethod, sTreePath)
+		CallByName(TreeObjectToCall, "Delete", vbMethod)
+	End If
+	
+	If (Left(GetApplicationName, 2)="DS") Then
+		DeleteDSTreeFolderIfEmpty_LIB(sTreePath)
+	End If
+
+End Sub
+
+Sub DeleteWholeSubTree_LIB(sTreeName As String)
+	Dim sResultPath As String, sTreePath As String
+	If (Left(GetApplicationName, 2)="DS") Then
+		sResultPath = "Results\"
+		If Left(sTreeName,8) <> sResultPath Then
+			sTreePath = sResultPath+sTreeName
+		Else
+			sTreePath = sTreeName
+		End If
+	Else
+		sResultPath = "1D Results\"
+		If Left(sTreeName,11) <> sResultPath Then
+			sTreePath = sResultPath+sTreeName
+		Else
+			sTreePath = sTreeName
+		End If
+	End If
+	DeleteAllTreeEntriesBelow_LIB(sTreePath)
+End Sub
+
+Sub DeleteAllTreeEntriesBelow_LIB(sFullTreePath As String)
+
+	Dim sChild As String, sNextChild As String
+	Dim ResultTreeObject As Object
+	
+	If (Left(GetApplicationName, 2)="DS") Then
+		Set ResultTreeObject = DSResultTree
+	Else
+		Set ResultTreeObject = ResultTree
+	End If
+
+	sChild = CallByName(ResultTreeObject, "GetFirstChildName", vbMethod, sFullTreePath)
+	While sChild <> ""
+		sNextChild = CallByName(ResultTreeObject, "GetNextItemName", vbMethod, sChild)
+		DeleteAllTreeEntriesBelow_LIB(sChild)
+		sChild = sNextChild 
+	Wend
+	' due to above recursive calling, now child-entries do not exist any more
+	CallByName(ResultTreeObject, "Reset", vbMethod)
+	CallByName(ResultTreeObject, "Name", vbMethod, sFullTreePath)
+	If CallByName(ResultTreeObject, "DoesTreeItemExist", vbMethod, sFullTreePath) Then
+	    CallByName(ResultTreeObject, "Delete", vbMethod)
+	End If
+	
+End Sub
+
+Sub AddFileToTree_LIB(sFileName As String, sTreeName As String, sType As String, Optional bSelectInTree As Boolean, Optional sSubType As String)
+
+	' adds file into navigation tree (eg txt-file, colormap, etc)  See OnlineHelp ResultTree-Object
+	' Example: AddFileToTree_LIB(stxtFile, "Eye\a\b\ctext", "Notefile")
+	' Example: AddFileToTree_LIB(sColormapFile, "Eye\a\bcolor\c", "colourmap", true)
+	' Example: AddFileToTree_LIB(sParaFile, "S11", "XYSignal", false, "complex")
+	' Example: AddFileToTree_LIB(sSignalFile, "ingoing signal", "XYSignal", false, "linear")
+
+	Dim sResultPath As String, sTreePath As String
+	Dim TreeObjectToCall As Object
+	
+	If (Left(GetApplicationName, 2)="DS") Then
+		Set TreeObjectToCall = DSResultTree
+		sResultPath = "Results\"
+		If Left(sTreeName,8) <> sResultPath Then
+			sTreePath = sResultPath+sTreeName
+		Else
+			sTreePath = sTreeName
+		End If
+		MakeSureDSTreeFolderExists_LIB(sTreePath)
+	Else
+		Set TreeObjectToCall = ResultTree
+		sResultPath = "1D Results\"
+		If Left(sTreeName,11) <> sResultPath Then
+			sTreePath = sResultPath+sTreeName
+		Else
+			sTreePath = sTreeName
+		End If
+	End If
+
+	CallByName(TreeObjectToCall, "Reset", vbMethod)
+	CallByName(TreeObjectToCall, "Name", vbMethod, sTreePath)
+	CallByName(TreeObjectToCall, "Type", vbMethod, sType)
+	If (sType="XYSignal") And Not IsMissing(sSubType) Then
+		CallByName(TreeObjectToCall, "Subtype", vbMethod, sSubType)
+	End If
+	CallByName(TreeObjectToCall, "File", vbMethod, sFileName)
+	CallByName(TreeObjectToCall, "Add", vbMethod)
+	
+	' Select in tree, if so requested
+	If bSelectInTree Then
+		If (Left(GetApplicationName, 2)="DS") Then
+			CallByName(DS, "SelectTreeItem", vbMethod, sTreePath)
+		Else
+			SelectTreeItem(sTreePath)
+		End If
+	End If
+
+End Sub
+Sub AddPlotToTree_LIB(oDataObject As Object, sTreeName As String, Optional bSelectInTree As Boolean)
+
+	' Adds an object to the tree under "1D Results\<sTreeName>" (Modeler)  and  "Results\<sTreeName>" (DS)
+	' Optionally, the user may have the object selected afterwards
+	
+	Dim sObjectType As String, sResultPath As String, sTreePath As String
+	sObjectType = oDataObject.GetResultObjectType
+
+	If (Left(GetApplicationName, 2)="DS") Then
+		sResultPath = "Results\"
+		If Left(sTreeName,8) <> sResultPath Then
+			sTreePath = sResultPath+sTreeName
+		Else
+			sTreePath = sTreeName
+		End If
+		MakeSureDSTreeFolderExists_LIB(sTreePath)
+		oDataObject.Save(GetProjectPath("ResultDSGeneric")+ NoForbiddenFilenameCharacters(sTreePath)+"_"+sObjectType)
+		CallByName(DSResultTree, "Reset", vbMethod)
+		CallByName(DSResultTree, "Name", vbMethod, sTreePath)
+		CallByName(DSResultTree, "Type", vbMethod, "XYSignal")
+		CallByName(DSResultTree, "Subtype", vbMethod, "real")
+		Dim sFileName As String
+		sFileName = GetProjectPath("ResultDSGeneric")+NoForbiddenFilenameCharacters(sTreePath)+"_"+sObjectType+".sig"
+		CallByName(DSResultTree, "File", vbMethod, sFileName)
+		CallByName(DSResultTree, "Add", vbMethod)
+	Else
+		sResultPath = "1D Results\"
+		If Left(sTreeName,11) <> sResultPath Then
+			sTreePath = sResultPath+sTreeName
+		Else
+			sTreePath = sTreeName
+		End If
+		oDataObject.Save(GetProjectPath("Result")+NoForbiddenFilenameCharacters(sTreePath)+"_"+sObjectType)
+		oDataObject.AddToTree(sTreePath)
+	End If
+
+	' Select in tree, if so requested
+	If bSelectInTree Then
+		If (Left(GetApplicationName, 2)="DS") Then
+			'DS.SelectTreeItem(sTreePath)
+			'
+			' DS.SelectTreeItem does not work in modeler context within the history. As this library is used for many other macros as well,
+			' some of them might be included in the history, we can not use the "DS." stuff within this library.
+			'
+			' however  CallByName(DS, "SelectTreeItem   is working
+			'
+			CallByName(DS, "SelectTreeItem", vbMethod, sTreePath)
+		Else
+			SelectTreeItem(sTreePath)
+		End If
+	End If
+End Sub
+
+Sub DeleteDSTreeFolderIfEmpty_LIB(sFullTreePath As String)
+
+	Dim substrings() As String, stmp As String
+	Dim i As Integer, j As Integer
+
+	substrings = Split(sFullTreePath,"\")
+
+	For i = 0 To UBound(substrings)
+		If substrings(i)<>Trim(substrings(i)) Then
+			MsgBox "Error: tree path subitems should neither start nor end with a space"
+			Exit Sub
+		End If
+	Next
+
+	If substrings(0) <> "Results" Then
+		MsgBox "Error: tree path does not start with Results\"
+		Exit Sub
+	End If
+
+	If UBound(substrings) <= 2 Then
+		' nothing todo, DS can handle this alone
+	Else
+		For i = UBound(substrings)-1 To 1 Step -1
+			stmp = substrings(0)
+			For j = 1 To i
+				stmp = stmp + "\" + substrings(j)
+			Next
+			CallByName(DSResultTree, "Reset", vbMethod)
+			CallByName(DSResultTree, "Name", vbMethod, stmp)
+			If CallByName(DSResultTree, "GetFirstChildName", vbMethod, stmp) = "" Then
+					CallByName(DSResultTree, "Delete", vbMethod)
+			End If
+		Next
+	End If
+End Sub
+
+Sub MakeSureDSTreeFolderExists_LIB(sFullTreePath As String)
+
+	Dim substrings() As String, stmp As String
+	Dim i As Integer
+
+	substrings = Split(sFullTreePath,"\")
+
+	For i = 0 To UBound(substrings)
+		If substrings(i)<>Trim(substrings(i)) Then
+			MsgBox "Error: tree path subitems should neither start nor end with a space"
+			Exit Sub
+		End If
+	Next
+
+	If substrings(0) <> "Results" Then
+		MsgBox "Error: tree path does not start with Results\"
+		Exit Sub
+	End If
+
+	stmp = substrings(0)
+	For i = 1 To UBound(substrings)-1
+		stmp = stmp + "\" + substrings(i)
+		If Not CallByName(DSResultTree, "DoesTreeItemExist", vbMethod, stmp) Then
+			CallByName(DSResultTree, "Reset", vbMethod)
+			CallByName(DSResultTree, "Name", vbMethod, stmp)
+			CallByName(DSResultTree, "Type", vbMethod, "folder")
+			CallByName(DSResultTree, "Add", vbMethod)
+		End If
+	Next
+End Sub
+
+Sub	StoreTemplateTreeName_LIB(templateType As String, sName As String)
+
+	' this subroutine prepares TreeNameScriptSetting("treename"), so that template name can be later accessed during Evaluate functions
+	' to be called from define function, see also GetTemplateTreeName_LIB
+
+	Dim sSubFolder As String  ' sSubFolder is the Table subfolder, where template results are stored from evaluate function
+
+	If InStr(templateType, "0D") > 0 Then
+		' 0D, M0D
+		sSubFolder = "0D"
+	Else
+		' 1D, 1DC, M1D, M1DC
+		sSubFolder = "1D"
+	End If
+	
+	Dim sTask As String
+	sTask = CallByName(DS, "GetActivePostprocessingTask", vbMethod)
+
+	If Left(templateType,1) = "M" Then
+		' for multiple templates store treepath in DS, nothing to do in MWS
+		If (Left(GetApplicationName, 2)="DS") Then
+			StoreTreeNameScriptSetting("treename", sTask + "\" + sSubFolder)
+		End If
+	Else
+		' for single templates store treepath including sName(!) in DS and MWS, in order to get renamed template-names back later
+		If (Left(GetApplicationName, 2)="DS") Then
+			StoreTreeNameScriptSetting("treename", sTask + "\" + sSubFolder + "\" + sName)
+		Else
+			StoreTreeNameScriptSetting("treename", "Tables\" + sSubFolder + " Results\" + sName)
+		End If
+	End If
+
+End Sub
+
+Function GetTemplateTreeName_LIB As String
+
+	' to be called from RTP-Evaluate functions, see also StoreTemplateTreeName_LIB
+	' this function reads TreeNameScriptSetting("treename") and translates it into current template name, to be used during evalulation
+	' if ScriptSetting("CheckLongDS_Name") is set to 1, a full (unique) DS template name is dynamically generated during template evaluation
+
+	Dim sTemplateName2 As String
+
+	If CInt(GetScriptSetting("CheckLongDS_Name", "0")) = 0 Then
+		sTemplateName2 = ShortName(GetTreeNameScriptSetting("treename", "default"))
+	Else
+		sTemplateName2 = GetTreeNameScriptSetting("treename", "default")
+		sTemplateName2 = Mid$(sTemplateName2, 7)  ' remove leading "Tasks\"
+		sTemplateName2 = Replace(sTemplateName2, "\", "-")
+	End If
+
+	GetTemplateTreeName_LIB = sTemplateName2
+End Function
+
+
+Public Function nCompareFiles_LIB(ByVal File1 As String, ByVal File2 As String, Optional vExcludeArray As Variant) As Integer
+	'*****************************************************************************************
+	'PURPOSE: Check to see if two files are identical
+	'File1 and File2 = FullPaths of files to compare
+	'vExcludeArray allows to exclude certain characters or strings; useful for example compare data only, ignoring tabs/line breaks, etc.
+	'Return codes:
+	'              0 - File contents identical
+	'              1 - File contents different
+	' Example for usage:
+	'    If nCompareFiles_LIB(s1,s2, Array(vbNewLine, vbCr, vbLf))=0 Then MsgBox "IDENTICAL"
+	'*****************************************************************************************
+
+	If Dir(File1) = "" Then
+		ReportError("File comparison: File '"+ File1 +"' does not exist.")
+		nCompareFiles_LIB = 1
+		Exit Function
+	End If
+	If Dir(File2) = "" Then
+		ReportError("File comparison: File '"+ File2 +"' does not exist.")
+		nCompareFiles_LIB = 1
+		Exit Function
+	End If
+
+	Dim iFileNum1 As Integer, iFileNum2 As Integer
+	Dim sFile1Contents As String, sFile2Contents As String
+	Dim sExcludeArray() As String, nExcludes As Long
+	Dim i As Long
+
+	' Copy values from vExcludeArray to sExcludeArray
+	If IsArray(vExcludeArray) Then
+		nExcludes = UBound(vExcludeArray)+1
+		ReDim sExcludeArray(nExcludes-1)
+		For i = 0 To nExcludes-1
+			sExcludeArray(i) = vExcludeArray(i)
+		Next
+	End If
+
+	iFileNum1 = FreeFile
+	Open File1 For Input As #iFileNum1
+	iFileNum2 = FreeFile
+	Open File2 For Input As #iFileNum2
+
+	sFile1Contents = Input(FileLen(File1), iFileNum1)
+	sFile2Contents = Input(FileLen(File2), iFileNum2)
+
+	' Remove excluded strings from contents
+	If (nExcludes >= 1) Then
+		For i = 0 To nExcludes-1
+			sFile1Contents = Replace(sFile1Contents, sExcludeArray(i), "")
+			sFile2Contents = Replace(sFile2Contents, sExcludeArray(i), "")
+		Next
+	End If
+
+    nCompareFiles_LIB = IIf(sFile1Contents = sFile2Contents, 0, 1)
+
+End Function
+Public Function bEqualNumbers_LIB(a As Double, b As Double, relacc As Double) As Boolean
+
+	If relacc <= 0.0 Then
+		ReportWarning "Relative Accuracy is negative or zero (should be positive): (relacc = " + Cstr(relacc) + ")"
+	End If
+
+	If a=0.0 Then
+		If b=0.0 Then
+			bEqualNumbers_LIB = True
+		Else
+			bEqualNumbers_LIB = (relacc > Abs(b))
+		End If
+	Else
+		If b=0.0 Then
+			bEqualNumbers_LIB = (relacc > Abs(a))
+		Else
+			Dim denominator As Double
+			denominator = 0.5*(Abs(a)+Abs(b))
+			bEqualNumbers_LIB = (relacc > Abs(a-b)/denominator)
+		End If
+	End If
+
+End Function
+Public Function sConvertSeparators_LIB(sline As String, Optional sListOfSeparators As String, Optional sNewSeparator As String) As String
+
+	Dim s2 As String, sep As String, sFullSep As String, i As Long
+
+	If (sNewSeparator = "") Then
+		sep = " "
+	Else
+		sep = sNewSeparator
+	End If
+	s2 = sline
+
+	If sListOfSeparators = "" Then
+		s2 = Replace(s2,";",sep)
+		s2 = Replace(s2,vbTab,sep)
+		sFullSep = sep & sep
+	Else
+		sFullSep = sep
+		For i = 1 To Len(sListOfSeparators)
+			s2 = Replace(s2, Mid(sListOfSeparators, i,1), sep)
+			sFullSep = sFullSep & sep
+		Next
+	End If
+
+	While ((Left(s2,1)=sep) And (Len(s2) > 1))
+		s2=Mid(s2,2)
+	Wend
+
+	While ((Right(s2,1)=sep) And (Len(s2) > 1))
+		s2=Left(s2,Len(s2)-1)
+	Wend
+
+	While ((InStr(s2, sFullSep) = 0) And (sFullSep <> sep & sep))
+		sFullSep = Replace(sFullSep, sep, "", 1, 1) ' remove sep one by one from sFullsep until only 2 seps left
+	Wend
+
+	While InStr(s2,sFullSep)<>0
+		s2 = Replace(s2,sep+sep,sep)
+		While ((InStr(s2, sFullSep) = 0) And (Len(sFullSep) > Len(sep & sep)))
+			sFullSep = Replace(sFullSep, sep, "", 1, 1) ' remove sep one by one from sFullsep until only 2 seps left
+		Wend
+	Wend
+
+	sConvertSeparators_LIB = s2
+
+End Function
+
+Function GetProjectPathMaster_LIB() As String
+	Dim i2 As Integer, s2 As String
+
+	s2 = GetProjectPath("Project")
+	i2 = InStrRev(s2, "\SP\")
+
+	If i2 = 0 Then
+		GetProjectPathMaster_LIB = s2
+	Else
+		' If i2 > 0 this might be because the call came from within a simulation project. In this case, take the main project folder
+		'
+		If Dir(Left(s2,i2-1)+".cst")<>"" Then
+			GetProjectPathMaster_LIB = Left(s2,i2-1)
+		Else
+			GetProjectPathMaster_LIB = s2
+		End If
+	End If
+End Function
+
+Function GetExportPathMaster_LIB() As String
+
+	GetExportPathMaster_LIB = GetProjectPathMaster_LIB() + "\Export\"
+
+	CST_MkDir GetExportPathMaster_LIB
+
+End Function
+
+Function AppendHistoryLine_LIB(sExistingLines As String, ParamArray vArgs()) As String
+
+	' Creates a code line properly formatted to go into the history.
+	' For example, CreateHistoryLine(".XRange", 0, 1) returns '.Xrange("0", "1")'
+
+	Dim i As Long
+
+	If (UBound(vArgs) < 0) Then
+		ReportError("AppendHistoryLine_LIB: This function requires at least one parameter.")
+	End If
+
+	AppendHistoryLine_LIB = sExistingLines & vArgs(0) & "("
+	For i = 1 To UBound(vArgs)
+		If (TypeName(vArgs(i)) = "Boolean") Then
+			AppendHistoryLine_LIB = AppendHistoryLine_LIB & Chr(34) & IIf(vArgs(i), "True", "False") & Chr(34) & ", "
+		ElseIf (TypeName(vArgs(i)) = "String") Then
+			AppendHistoryLine_LIB = AppendHistoryLine_LIB & Chr(34) & vArgs(i) & Chr(34) & ", "
+		Else
+			AppendHistoryLine_LIB = AppendHistoryLine_LIB & Chr(34) & CStr(vArgs(i)) & Chr(34) & ", "
+		End If
+	Next
+	' Remove last comma
+	If (Right(AppendHistoryLine_LIB, 2) = ", ") Then
+		AppendHistoryLine_LIB = Left(AppendHistoryLine_LIB, Len(AppendHistoryLine_LIB) - 2)
+	End If
+	AppendHistoryLine_LIB = AppendHistoryLine_LIB & ")"
+	' Remove empty parentheses at the end
+	If (Right(AppendHistoryLine_LIB, 2) = "()") Then
+		AppendHistoryLine_LIB = Left(AppendHistoryLine_LIB, Len(AppendHistoryLine_LIB) - 2)
+	End If
+	AppendHistoryLine_LIB = AppendHistoryLine_LIB & vbNewLine
+	sExistingLines = AppendHistoryLine_LIB
+
+End Function
+
+Function EqualWithinTolerance_LIB(dValue1 As Double, dValue2 As Double, Optional dTolerance As Double) As Boolean
+
+	' This function compares dValue1 and dValue2 and determines if they are equal within the specified tolerance
+	' dTolerance: values between 0 and 1 (e.g., 1e-3, 1e-6, ...) refer to absolute tolerance values.
+	' 				values larger than or equal to 1 should be integers and specify the number of significant digits. No more than 12, 10 is realistic.
+	'				If no tolerance is specified, 10 significant digits are assumed by default
+	' Returns true if values 1 and 2 are equal, false otherwise
+
+	Dim nDigits As Integer, nSignificantDigits As Integer
+	Dim dValue1Rounded As Double, dValue2Rounded As Double
+
+	EqualWithinTolerance_LIB = False
+
+	If dTolerance < 0 Then
+		ReportWarning("EqualWithinTolerance_LIB: Please specify a positive tolerance value. Set to 1e-9.")
+		dTolerance = 1e-9
+	ElseIf dTolerance = 0 Then
+		dTolerance = 10
+	ElseIf dTolerance >= 11.5 Then
+		ReportWarning("EqualWithinTolerance_LIB: Selected number of significant digits is too large. Set to 12.")
+	End If
+
+	If ((dTolerance < 1) And (Abs(dValue1 - dValue2) <= dTolerance)) Then
+		EqualWithinTolerance_LIB = True
+	ElseIf dTolerance >=1 Then
+		nSignificantDigits = Round(dTolerance, 0)
+		If (dValue1 = 0) Then
+			If (dValue2 = 0) Then
+				EqualWithinTolerance_LIB = True
+			End If
+		Else
+			nDigits = Fix(Log(Abs(dValue1))/Log(10)) + 1
+			dValue1Rounded = 10^nDigits * Round(dValue1 / 10^nDigits, nSignificantDigits)
+			dValue2Rounded = 10^nDigits * Round(dValue2 / 10^nDigits, nSignificantDigits)
+			If dValue1Rounded = dValue2Rounded Then EqualWithinTolerance_LIB = True
+		End If
+	End If
+
+End Function
+
+Public oSelectedSP As Object
+Function GetSimulationProjectByName_LIB(sSPName As String) As Object
+
+	' Get simulation project by name
+	If (Left(GetApplicationName, 2) = "DS") Then
+		If (sSPName <> "") And (sSPName <> "3D Tab") Then
+			If Not CallByName(SimulationProject, "DoesExist", vbMethod, sSPName) Then
+				ReportWarning("The specified simulation project '" & sSPName & "' does not exist. Please check your settings.") ' cannot be error or it might prevent FF GUI from opening
+			End If
+		End If
+		Set GetSimulationProjectByName_LIB = CallByName(DS, "GetSimulationProject", vbMethod, sSPName)
+		If GetSimulationProjectByName_LIB Is Nothing Then
+			Set GetSimulationProjectByName_LIB = GetOwnProject
+		End If
+	Else
+		Set GetSimulationProjectByName_LIB = GetOwnProject
+	End If
+
+End Function
+
+' for automated testing, i.e. of 5G PP Wizard
+Sub WritePid(vba_name As String)
+	Dim sFilePath As String
+	sFilePath = GetProjectPath("Project")+"\"+vba_name + ".pid"
+	ReportInformationToWindow(Str$(Now)+" Writing "+sFilePath)
+	Open sFilePath For Output As #1
+	Print #1, "generated by pid_file.lib"
+	Close #1
+End Sub
+
+Sub DeletePid(vba_name As String)
+	Dim sFilePath As String
+	sFilePath = GetProjectPath("Project")+"\"+vba_name + ".pid"
+	If Dir(sFilePath)<>"" Then
+		ReportInformationToWindow(Str$(Now)+" Delete "+sFilePath)
+		' First remove readonly attribute, if set
+		SetAttr sFilePath, vbNormal
+		' Then delete the file
+		Kill sFilePath
+	End If
+End Sub
+

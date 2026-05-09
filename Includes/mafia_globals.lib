@@ -1,0 +1,421 @@
+'----------------------------------------------------------------------------
+' Global functions and variables for CST STUDIO <-> MAFIA interface
+'----------------------------------------------------------------------------
+'
+' Copyright 2003-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================
+' History of Changes
+'====================
+' 30-Jul-2009 ube: Split replaced by CSTSplit, since otherwise compeating with standard VBA-Split function
+' 05-Oct-2006 ube: min memory for calling MAFIA is increased to 50MB
+' 13-Sep-2004 ube: compatible with Mafia 4.200  (read400=yes)
+' 29-Jun-2004 ube: MAFIA 4.2 changes (IA32_bin instead of bin)
+' 30-Sep-2003 ube: Tilde(~) replaced by Hat(^)
+' 14-May-2003 ube: mafia.lib created
+'----------------------------------------------------------------------------
+'
+' --- Define public variables
+'
+	Public sMafiaComFile As String
+	Public sMafiaPrnFile As String
+
+	Public sMafiaCom2File As String
+	Public sMafiaLokFile As String
+	Public sMafiaBatFile As String
+
+	Public sMafiaDrcDrdFile As String
+	Public sMafiaPrecision As String
+	Public sMafiaExe As String
+
+	Public sPRN As String
+	Public s0DR as String
+
+	Public sMafiaBatchDir As String
+
+'----------------------------------------------------------------------------
+Sub Init_MAFIA_FileNames
+
+	sMafiaBatchDir = GetProjectPath("Model3D")
+
+	sMafiaComFile 	= sMafiaBatchDir + "\cst.com"
+	sMafiaPrnFile 	= sMafiaBatchDir + "\cst.prn"
+
+	sMafiaCom2File 	= sMafiaBatchDir + "\cst_tmp.com"
+	sMafiaLokFile 	= sMafiaBatchDir + "\cst_MAFIA.lok"
+	sMafiaBatFile 	= sMafiaBatchDir + "\cst_MAFIA.bat"
+
+	sMafiaDrcDrdFile= sMafiaBatchDir + "\cst.drc"
+	sMafiaPrecision = "single"
+	sMafiaExe = "oo400"
+
+	If (RestoreGlobalDataValue("MAFIA\Precision") = "double") Then
+		sMafiaDrcDrdFile= sMafiaBatchDir + "\cst.drd"
+	    sMafiaPrecision = "double"
+	    sMafiaExe = "oo400d"
+	End If
+
+End Sub
+'----------------------------------------------------------------------------
+Sub Check_MAFIA_before_Batch
+
+	Dim stmp_cst As String, sline_cst1 As String, sline_cst2 As String
+
+	' check lok file
+
+	If ( Dir$(sMafiaLokFile) <> "" ) Then
+		MsgBox "lokfile exists: "+sMafiaLokFile + vbCrLf + "No additional MAFIA run possible."
+		Exit All
+	End If
+
+	' check command file
+
+	If ( Dir$(sMafiaComFile) = "" ) Then
+		MsgBox "Commandfile does not exist: "+sMafiaComFile + vbCrLf + vbCrLf + "No action.", vbCritical,"MAFIA"
+		Exit All
+	End If
+
+	sline_cst1 = GrepFirstPattern(stmp_cst, "#file")
+	sline_cst2 = GrepFirstPattern(stmp_cst, "mfile")
+	If (sline_cst1 <> "") Or (sline_cst2 <> "") Then
+		MsgBox "Commandfile contains file-handling (#file or mfile): "+sMafiaComFile + vbCrLf + vbCrLf + _
+			"All file handling is done automatically by this environment." + vbCrLf + vbCrLf + _
+			"No action. Exit all.", vbCritical,"MAFIA"
+		Exit All
+	End If
+
+	sline_cst1 = GrepFirstPattern(stmp_cst, "#model")
+	If (sline_cst1 = "") Then
+		MsgBox "Commandfile does not contain #om #model-section: "+sMafiaComFile + vbCrLf + vbCrLf + _
+			"MAFIA Solvers cannot run without remeshing in MAFIA." + vbCrLf + vbCrLf + _
+			"No action. Exit all.", vbCritical,"MAFIA"
+		Exit All
+	End If
+
+	If (RestoreGlobalDataValue("MAFIA\Coordinates") = "") Then
+		MsgBox "MAFIA Batch-Job has not been setup yet." + vbCrLf + _
+				"xyz-geometry will be taken as default." + vbCrLf + _
+				"Setup is done via macro ""MAFIA / 3 - Setup Batch Run and drc-Export""", vbInformation,"MAFIA"
+	End If
+
+End Sub
+'----------------------------------------------------------------------------
+Sub MAFIA_Export_drc
+
+	'
+	' --- switch on mesh mode to create meshing (otherwise drc-export might fail)
+	'
+	ScreenUpdating False
+	Mesh.ViewMeshMode  True
+	Mesh.ViewMeshMode  False
+	ScreenUpdating True
+
+	If (RestoreGlobalDataValue("MAFIA\Coordinates") = "rz") Then
+		With DRCRZ
+		    .Reset
+			.FileName sMafiaDrcDrdFile
+		    .Precision sMafiaPrecision
+		    .Platform "pc"
+		    .RAxis RestoreGlobalDataValue("MAFIA\RZ_RAxis")
+		    .ZAxis RestoreGlobalDataValue("MAFIA\RZ_ZAxis")
+		    .Write
+		End With
+	Else
+		With DRC
+		    .Reset
+			.FileName sMafiaDrcDrdFile
+		    .Precision sMafiaPrecision
+		    .Platform "pc"
+		    .IncludePBA "False"
+		    .Write
+		End With
+	End If
+
+End Sub
+
+Function Run_MAFIA_Batch As Boolean
+
+	Run_MAFIA_Batch = False
+
+	'
+	' --- make again sure, that the correct directory is active
+	'
+	ChDir sMafiaBatchDir
+	'
+	' --- first export drc
+	'
+	MAFIA_Export_drc
+	'
+	' --- create temporary com-file sMafiaCom2File  (with file-handling header)
+	'
+	Open sMafiaCom2File For Output As #11
+
+		Print #11, " "
+'
+' 13.sep.2004 ube: compatible with Mafia 4.200  (read400=yes)
+'
+'		Print #11, "mfile cst"
+		Print #11, "#file action=open type=mafia  read400=yes"
+		Print #11, "name=cst"
+		Print #11, "execute"
+'
+		Print #11, " "
+		Print #11, "set sproject='cst'"
+		Print #11, " "
+
+	Close #11
+
+	CST_AppendFile sMafiaCom2File, sMafiaComFile
+
+	'
+	' --- calculate size of batch job (20 MB per 100.000 meshnodes, should be sufficient)
+	'
+	Dim nMeshPoints As Long, ntmp1 As Long
+
+	nMeshPoints = Mesh.GetNx * Mesh.GetNy * Mesh.GetNz
+
+	If (RestoreGlobalDataValue("MAFIA\Coordinates") = "rz") Then
+		'
+		' take worst 2d case out of xy,xz,yz
+		'
+		nMeshPoints = Mesh.GetNx * Mesh.GetNy
+
+		ntmp1 = Mesh.GetNx * Mesh.GetNz
+		If (ntmp1 > nMeshPoints) Then nMeshPoints = ntmp1
+
+		ntmp1 = Mesh.GetNy * Mesh.GetNz
+		If (ntmp1 > nMeshPoints) Then nMeshPoints = ntmp1
+
+	End If
+
+	Dim iMegaByte As Long
+	iMegaByte = CLng (20 * nMeshPoints / 100000 )
+
+	If (sMafiaPrecision="double") Then iMegaByte = iMegaByte * 2
+
+	If iMegaByte < 50 Then  iMegaByte = 50
+
+	Dim sMegaByte As String   ' e.g. sMegaByte = " b50 < "
+	sMegaByte = " b" + CStr(iMegaByte) + " < "
+	'
+	' --- create batch file
+	'
+	Open sMafiaBatFile For Output As #11
+
+		Print #11, "@echo off"
+		Print #11, "If exist " + sMafiaPrnFile + " del " + sMafiaPrnFile
+
+		Print #11, "IF EXIST %MAFIA400%\bin\oogui.exe ("
+		Print #11, "  %MAFIA400%\bin\" + sMafiaExe + sMegaByte + sMafiaCom2File + " > " + sMafiaPrnFile
+		Print #11, ") ELSE ("
+		Print #11, "  %MAFIA400%\IA32_bin\" + sMafiaExe + sMegaByte + sMafiaCom2File + " > " + sMafiaPrnFile
+		Print #11, ")"
+
+		Print #11, "del " + sMafiaLokFile
+
+	Close #11
+
+	'
+	' delete previous MAFIA-results
+	'
+	DeleteMAFIAResults
+
+	sPRN = sMafiaBatchDir + "\MAFIA_prn.txt"
+	s0DR = sMafiaBatchDir + "\MAFIA_0D.txt"
+
+	On Error GoTo mach_trotzdem_weiter
+
+	Kill sPRN
+	Kill s0DR
+
+	mach_trotzdem_weiter:
+		On Error GoTo 0
+
+	ResultTree.UpdateTree
+
+	'
+	' create lokfile (will be deleted at the end of the batch process)
+	'
+	Open sMafiaLokFile For Output As #11
+	Close #11
+
+	'
+	' --- START BATCH (deletes lokfile, when finished) !!!
+	'
+	Shell sMafiaBatFile
+
+	'
+	' check lok file
+	'
+	While Dir$(sMafiaLokFile) <> ""
+		Wait 5
+	Wend
+
+	'
+	' --- MAFIA is finished, now collect results and read into STUDIO tree
+	'
+	Mesh.ViewMeshMode  False
+
+	ReadMafia0DResults (sMafiaPrnFile)
+
+	AddMafia0DResults2Tree
+	AddMafia1DResults2Tree
+
+	FileCopy sMafiaPrnFile, sPRN
+
+	ResultTree.UpdateTree
+
+	SelectTreeItem ResultTree.GetFirstChildName("1D Results\MAFIA")
+
+	Run_MAFIA_Batch = True
+
+End Function
+Sub ReadMafia0DResults (prnfile As String)
+
+	Dim cst_line As String
+	Dim string_item(10) As String
+	Dim cst_nitems As Integer
+
+	If Dir$(prnfile) <> "" Then
+		cst_line = GrepFirstPattern(prnfile, "MAFIA-0D-Result:")
+
+		While (cst_line <> "")
+			cst_nitems = CSTSplit (cst_line, string_item)
+			Open GetProjectBaseName + "^" + string_item(1)+".m0d" For Append As #12
+				Print #12, CStr(string_item(2))
+			Close #12
+
+			cst_line = GrepNextPattern
+		Wend
+	End If
+
+End Sub
+
+Sub AddMafia0DResults2Tree
+
+Dim myfilepath As String
+Dim myfilepattern As String
+Dim sm0dfile As String
+Dim sm0dfile_tmp As String
+Dim iLenProject As Integer
+Dim iLenM0dfile As Integer
+Dim mysigname As String
+Dim lib_dummy As String
+
+myfilepath    = DirName(GetProjectBaseName)
+myfilepattern = ShortName(GetProjectBaseName) + "^*.m0d"
+iLenProject = Len(GetProjectBaseName)
+
+sm0dfile_tmp = GetProjectBaseName + "^MAFIA OD Results.txt"
+Open sm0dfile_tmp For Output As #12
+Close #12
+
+' Search for first m0d file
+mysigname = FindFirstFile(myfilepath , myfilepattern, False)
+
+While (mysigname <> "")
+
+	sm0dfile = myfilepath + "\" + mysigname
+	iLenM0dfile = Len(sm0dfile)
+
+	Open sm0dfile_tmp For Append As #12
+
+	lib_dummy = ""
+	Open sm0dfile For Input As #44
+		Line Input #44, lib_dummy
+	Close #44
+
+	Print #12, Mid(sm0dfile,iLenProject+2,iLenM0dfile-iLenProject-5) + "  =  " + lib_dummy
+
+	Close #12
+
+	mysigname = FindNextFile
+Wend
+
+End Sub
+Sub AddMafia1DResults2Tree
+
+Dim myfilepath As String
+Dim myfilepattern As String
+Dim sm1dfile As String
+Dim sm1dfile_tmp As String
+Dim iLenProject As Integer
+Dim iLenM1dfile As Integer
+Dim mysigname As String
+Dim lib_dummy As String
+
+myfilepath    = DirName(GetProjectBaseName)
+myfilepattern = ShortName(GetProjectBaseName) + "^*.m1d"
+iLenProject = Len(GetProjectBaseName)
+
+sm1dfile_tmp = GetProjectBaseName + "^m1dtmp.tmp"
+Open sm1dfile_tmp For Output As #12
+Close #12
+
+' Search for first m1d file
+mysigname = FindFirstFile(myfilepath , myfilepattern, False)
+
+While (mysigname <> "")
+
+	sm1dfile = myfilepath + "\" + mysigname
+	iLenM1dfile = Len(sm1dfile)
+
+	Open sm1dfile_tmp For Output As #12
+
+	lib_dummy = ""
+	Open sm1dfile For Input As #44
+		While Not EOF(44)
+			Line Input #44, lib_dummy
+			If InStr(lib_dummy,"****")=0  And  InStr(lib_dummy,"----")=0 Then
+				Print #12, lib_dummy
+			End If
+		Wend
+	Close #44
+
+	Close #12
+
+	FileCopy sm1dfile_tmp, sm1dfile
+
+	With ResultTree
+			.Reset
+			.Type "XYSignal"
+			.Xlabel ""
+			.Name "1D Results\MAFIA\" + Mid(sm1dfile,iLenProject+2,iLenM1dfile-iLenProject-5)
+			.File sm1dfile
+			.Add
+	End With
+
+	mysigname = FindNextFile
+Wend
+
+Kill sm1dfile_tmp
+
+End Sub
+Sub DeleteMAFIAResults
+
+	Dim myfilepath As String
+	Dim myfilepattern As String
+	Dim sm1dfile As String
+	Dim mysigname As String
+
+	myfilepath    = DirName(GetProjectBaseName)
+	myfilepattern = ShortName(GetProjectBaseName) + "^*.m1d"
+
+	mysigname = FindFirstFile(myfilepath , myfilepattern, False)
+
+	While (mysigname <> "")
+		sm1dfile = myfilepath + "\" + mysigname
+		Kill mysigname
+		mysigname = FindNextFile
+	Wend
+
+	myfilepattern = ShortName(GetProjectBaseName) + "^*.m0d"
+
+	mysigname = FindFirstFile(myfilepath , myfilepattern, False)
+
+	While (mysigname <> "")
+		sm1dfile = myfilepath + "\" + mysigname
+		Kill mysigname
+		mysigname = FindNextFile
+	Wend
+
+End Sub

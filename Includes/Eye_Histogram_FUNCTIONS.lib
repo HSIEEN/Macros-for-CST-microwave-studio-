@@ -1,0 +1,666 @@
+
+' ================================================================================================
+' Copyright 2016-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================
+' History of Changes
+' ------------------------------------------------------------------------------------------------
+' 21-Nov-2017 imu: Changed parameters for vertical_histogram. Eliminated global constant isHistogram_CLASSIC.
+' 16-Nov-2017 imu: Replace -12 by -13 in the exe call. Added bin and exe path as parameters, added missing variable declarations.
+' 14-Nov-2017 imu: Added an exe version of vertical_histogram, to speed up the calculation of eye parameters for many samples on the x-axis
+' 13-Sep-2017 imu: warning if histogram_mean = 0 only if in debug mode
+' 15-Feb-2017 ube: use AddPlotToTree_LIB to work in DS subfolders
+' 24-May-2016 imu: added limits in histogram_width
+' 21-May-2016 imu: Changed tmp and tmptot to doubles in the "cumulate" functions
+' 19-May-2016 imu: Adapted for use as global function: eliminate part of the histogram title, added mybds
+
+
+Function histogram_mean(hist() As Double) As Double
+	Dim nn As Long, mm As Long
+	Dim iii As Long, tmpd As Double, tmp1 As Double
+	' Calculated as  Sum(f_i x_i) / Sum(f_i)
+
+	mm = LBound (hist)
+	nn = UBound(hist)
+
+	tmpd = 0
+	tmp1 = 0
+
+	For iii = mm To nn
+		tmpd = tmpd + hist(iii)*iii
+		tmp1 = tmp1 + hist(iii)
+	Next
+
+	If tmp1 = 0 Then
+		If bAdditionalOutput = True Then ReportInformationToWindow ("Error: Division by zero in the calculation of the mean")
+'		Exit All
+		histogram_mean = 0
+		Exit Function
+	End If
+	tmpd = tmpd/tmp1	'(nn-mm+1)
+	histogram_mean = tmpd
+End Function
+
+Function histogram_stdDev(hist() As Double) As Double
+	Dim nn As Long, mm As Long
+	Dim iii As Long, tmpd As Double, tmp1 As Double
+	Dim hmean As Double
+
+	hmean = histogram_mean(hist)
+
+	mm = LBound (hist)
+	nn = UBound(hist)
+
+	tmpd = 0
+
+	For iii = mm To nn
+		tmpd = tmpd + hist(iii) *(iii-hmean)^2 	' ???
+		tmp1 = tmp1 + hist(iii)
+	Next
+
+	If tmp1 = 0 Then
+		ReportInformationToWindow ("Error: Division by zero in the calculation of the std deviation.")
+'		Exit All
+		histogram_stdDev = 0
+		Exit Function
+	End If
+
+	tmpd = tmpd/tmp1	'(nn-mm+1)
+	histogram_stdDev = Sqr(tmpd)
+End Function
+
+Function histogram_width(hist() As Double, Optional ByRef limmin As Double, Optional ByRef limmax As Double) As Double
+	Dim nn As Long, mm As Long
+	Dim iii As Long, tmpd As Double, tmp1 As Double
+	' Calculated as  Sum(f_i x_i) / Sum(f_i)
+
+	mm = LBound (hist)
+	nn = UBound(hist)
+
+	' imu: I think it is like this, but I am not sure
+	tmpd = 0
+	For iii = mm To nn
+		If hist(iii) <> 0 Then tmpd = tmpd+1
+	Next
+	histogram_width = tmpd
+
+	' New version with limits
+	limmin = mm-1
+	limmax = nn+1
+
+	iii = mm
+	While hist(iii)=0
+		iii = iii+1
+		If iii > nn Then Exit While
+	Wend
+	limmin = iii
+	If limmin > nn Then limmin = nn
+	If limmin < mm Then limmin = mm
+
+	iii = nn
+	While hist(iii) = 0
+		iii = iii-1
+		If iii < mm Then Exit While
+	Wend
+	limmax= iii
+	If limmax > nn Then limmax = nn
+	If limmax < mm Then limmax = mm
+
+	tmpd = limmax-limmin+1
+	If limmax < limmin Then
+		limmax = 0
+		limmin = 0
+		tmpd = 0
+	End If
+
+	histogram_width = tmpd
+
+End Function
+
+Sub cumulate_horizontal_histogram_norm(bin_mat() As Double, tmin As Long, tmax As Long, amin As Long, amax As Long, horiz_t_hist() As Double)
+	' Normalized horizontal histogram
+	' Construct horizontal histogram (add up the number of traces for all time steps)
+	Dim iii As Long, jjj As Long, tmp As Double, tmptot As Double
+	Dim mystep As Integer
+	Dim factor As Double
+
+	'factor = 1.0
+	factor = 2.0	' Divide by 2 to take into account the equal probability of 1s and 0s
+
+	If tmin < tmax Then
+		mystep = 1
+	Else
+		mystep = -1
+	End If
+
+	For iii = 1 To UBound(horiz_t_hist)
+		horiz_t_hist(iii) = 0
+	Next
+
+	tmptot = 0
+	For iii = tmin To tmax STEP mystep
+		tmp = 0: horiz_t_hist(iii) = 0
+		For jjj = amin To amax
+			tmp = tmp + bin_mat(jjj, iii)
+		Next
+		horiz_t_hist(iii) = tmp
+		tmptot = tmptot + tmp
+	Next
+
+	' Now normalize the histogram
+	For iii = tmin To tmax STEP mystep
+		horiz_t_hist(iii) = horiz_t_hist(iii)/tmptot/factor
+	Next
+
+	' Now cumulate
+	For iii = tmin+1*mystep To tmax STEP mystep
+		horiz_t_hist(iii) = horiz_t_hist(iii)+horiz_t_hist(iii-1*mystep)
+	Next
+Exit Sub
+	For iii = tmin To tmax STEP mystep
+		horiz_t_hist(iii) = 1/factor- horiz_t_hist(iii)
+	Next
+End Sub
+
+Sub cumulate_horizontal_histogram_norm_tot(bin_mat() As Double, tmin As Long, tmax As Long, amin As Long, amax As Long, horiz_t_hist() As Double)
+	' Normalized horizontal histogram
+	' Construct horizontal histogram (add up the number of traces for all time steps)
+	Dim iii As Long, jjj As Long, tmp As Double, tmptot As Double
+	Dim mystep As Integer
+	Dim factor As Double
+	Dim tmid As Long
+
+	tmid = tmin + (tmax-tmin)/2
+
+	'factor = 1.0
+	factor = 2.0	' Divide by 2 to take into account the equal probability of 1s and 0s
+
+	For iii = 1 To UBound(horiz_t_hist)
+		horiz_t_hist(iii) = 0
+	Next
+
+	tmptot = 0
+	mystep = -1
+	For iii = tmid To tmin STEP mystep
+		tmp = 0: horiz_t_hist(iii) = 0
+		For jjj = amin To amax
+			tmp = tmp + bin_mat(jjj, iii)
+		Next
+		horiz_t_hist(iii) = tmp
+		tmptot = tmptot + tmp
+	Next
+	' Now normalize the histogram
+	For iii = tmid To tmin STEP mystep
+		horiz_t_hist(iii) = horiz_t_hist(iii)/tmptot/factor
+	Next
+
+	tmptot = 0
+	mystep = 1
+	For iii = tmid To tmax STEP mystep
+		tmp = 0: horiz_t_hist(iii) = 0
+		For jjj = amin To amax
+			tmp = tmp + bin_mat(jjj, iii)
+		Next
+		horiz_t_hist(iii) = tmp
+		tmptot = tmptot + tmp
+	Next
+If tmptot = 0 Then tmptot = 1
+	' Now normalize the histogram
+	For iii = tmid To tmax STEP mystep
+		horiz_t_hist(iii) = horiz_t_hist(iii)/tmptot/factor
+	Next
+
+	' Now cumulate
+	mystep = -1
+	For iii = tmid+1*mystep To tmin STEP mystep
+		horiz_t_hist(iii) = horiz_t_hist(iii)+horiz_t_hist(iii-1*mystep)
+	Next
+	mystep = 1
+	For iii = tmid+1*mystep To tmax STEP mystep
+		horiz_t_hist(iii) = horiz_t_hist(iii)+horiz_t_hist(iii-1*mystep)
+	Next
+Exit Sub
+	For iii = tmin To tmax STEP mystep
+		horiz_t_hist(iii) = 1/factor- horiz_t_hist(iii)
+	Next
+End Sub
+
+Sub cumulate_horizontal_histogram_norm_tot_dir(bin_mat() As Double, tmin As Long, tmax As Long, amin As Long, amax As Long, is_upwards As Boolean, horiz_t_hist() As Double)
+	' Normalized horizontal histogram
+	' Construct horizontal histogram (add up the number of traces for all time steps)
+	Dim iii As Long, jjj As Long, tmp As Double, tmptot As Double
+	Dim mystep As Integer
+	Dim factor As Double
+	Dim tmid As Long
+
+	Dim na_div As Long
+	na_div = UBound(bin_mat, 1)
+
+	tmid = tmin + (tmax-tmin)/2
+
+	'factor = 1.0
+	factor = 2.0	' Divide by 2 to take into account the equal probability of 1s and 0s
+
+	For iii = 1 To UBound(horiz_t_hist)
+		horiz_t_hist(iii) = 0
+	Next
+
+	tmptot = 0
+	mystep = 1
+	For iii = tmin To tmax STEP mystep
+		tmp = 0: horiz_t_hist(iii) = 0
+		' First determine the total number of traces
+		tmptot = 0
+		For jjj = 1 To na_div
+			tmptot = tmptot + bin_mat(jjj, iii)
+		Next
+		mystep = 1
+
+		' Now calculate the pdf
+		For jjj = amin To amax
+			tmp = tmp + bin_mat(jjj, iii)
+		Next
+		horiz_t_hist(iii) = tmp/tmptot/factor
+	Next
+	' Now normalize the histogram
+	For iii = tmin To tmax
+'		horiz_t_hist(iii) = horiz_t_hist(iii)/tmptot/factor
+	Next
+
+	' Now cumulate
+	If is_upwards = False Then
+		mystep = 1
+		For iii = tmin+1 To tmax
+			horiz_t_hist(iii) = horiz_t_hist(iii)+horiz_t_hist(iii-1*mystep)
+		Next
+	Else
+		mystep = -1
+		For iii = tmax-1 To tmin STEP -1
+			horiz_t_hist(iii) = horiz_t_hist(iii)+horiz_t_hist(iii-1*mystep)
+		Next
+	End If
+Exit Sub
+	For iii = tmin To tmax STEP mystep
+		horiz_t_hist(iii) = 1/factor- horiz_t_hist(iii)
+	Next
+End Sub
+
+Sub vertical_histogram(bin_mat() As Double, tmin As Long, tmax As Long, amin As Long, amax As Long, vert_a_hist() As Double, Optional path_BIN As Variant, Optional path_EXE As Variant)
+	' Construct vertical histogram (add up the number of points accross time axis for every amplitude point)
+	Dim iii As Long, jjj As Long, tmp As Double
+	Dim m As Long, n As Long
+	Dim progn As String, xx As Boolean
+	Dim isHistogram_CLASSIC As Boolean
+
+	If IsMissing(path_BIN) Then
+		isHistogram_CLASSIC = True
+	Else
+		isHistogram_CLASSIC = False
+	End If
+
+If isHistogram_CLASSIC = True Then
+	For iii = 1 To UBound(vert_a_hist)
+		vert_a_hist(iii) = 0
+	Next
+
+	For iii = amin To amax
+		tmp = 0
+		For jjj = tmin To tmax
+			tmp = tmp + bin_mat(iii, jjj)
+		Next
+		vert_a_hist(iii) = tmp
+	Next
+
+Else
+	Dim mypath As String, mypathprog As String, filen_in As String, filen_out As String
+	mypath = path_BIN		' This is the directory in which the results will be written in binary form
+	mypathprog = path_EXE	' This is the directory in which the .exe files are located
+	filen_in = 			mypath+"shiftbinmat_in.bin"
+	filen_out = 		mypath+"shiftbinmat_out.bin"
+	Delete1 filen_in: Delete1 filen_out
+
+	m = UBound(bin_mat,1)	' Rows, na_div
+	n = UBound(bin_mat,2)	' Columns, nt_div
+
+	Open filen_in For Binary Access Write As #99
+	Put #99, , m
+	Put #99, , n
+	Put #99, , bin_mat
+	Put #99, , tmin
+	Put #99, , tmax
+	Put #99, , amin
+	Put #99, , amax
+	Put #99, , m
+	Close #99
+
+	progn = """" + mypathprog+"""" + " " + """"+ filen_in + """" + " "+  """" + filen_out + """" + " vertical_histogram " + """"+"-13" + """"
+	xx = ShellandWait1(progn, , vbMinimizedNoFocus)
+	On Error GoTo AFTERERROR
+
+	AFTERERROR:
+	On Error GoTo 0
+
+	Open filen_out For Binary Access Read As #99
+	Get #99, , vert_a_hist
+	Close #99
+	Delete1 filen_in: Delete1 filen_out
+End If
+
+
+End Sub
+
+Sub vertical_histogram_norm(bin_mat() As Double, tmin As Long, tmax As Long, amin As Long, amax As Long, vert_a_hist() As Double)
+	' Construct vertical histogram (add up the number of points accross time axis for every amplitude point)
+	Dim iii As Long, jjj As Long, tmp As Double, tmptot As Double
+
+	For iii = 1 To UBound(vert_a_hist)
+		vert_a_hist(iii) = 0
+	Next
+
+	tmptot = 0
+	For iii = amin To amax
+		tmp = 0
+		For jjj = tmin To tmax
+			tmp = tmp + bin_mat(iii, jjj)
+		Next
+		vert_a_hist(iii) = tmp
+		tmptot = tmptot + tmp
+	Next
+
+	If tmptot = 0 Then
+		ReportInformationToWindow ("Error: Division by zero in the normalization of the vertical histogram.")
+'		Exit All
+		'histogram_mean = 0
+		Exit Sub
+	End If
+
+	'Norm
+	For iii = amin To amax
+		vert_a_hist(iii) = vert_a_hist(iii)/tmptot
+	Next
+End Sub
+
+Sub cumulate_vertical_histogram_norm(bin_mat() As Double, tmin As Long, tmax As Long, amin As Long, amax As Long, vert_a_hist() As Double)
+	' Construct vertical histogram (add up the number of points accross time axis for every amplitude point)
+	Dim iii As Long, jjj As Long, tmp As Double, tmptot As Double
+	Dim factor As Double
+
+	'factor = 1.0
+	factor = 2.0	' Divide by 2 to take into account the equal probability of 1s and 0s
+
+	For iii = 1 To UBound(vert_a_hist)
+		vert_a_hist(iii) = 0
+	Next
+
+	tmptot = 0
+	For iii = amin To amax
+		tmp = 0
+		For jjj = tmin To tmax
+			tmp = tmp + bin_mat(iii, jjj)
+		Next
+		vert_a_hist(iii) = tmp
+		tmptot = tmptot + tmp
+	Next
+
+	If tmptot = 0 Then
+		ReportInformationToWindow ("Error: Division by zero in the normalization of the cumulated vertical histogram.")
+		Exit Sub
+	End If
+
+	'Norm
+	For iii = amin To amax
+		vert_a_hist(iii) = vert_a_hist(iii)/tmptot/factor	' Divide by 2 to take into account the equal probability of 1s and 0s
+	Next
+
+	' Now cumulate
+	For iii = amin+1 To amax
+		vert_a_hist(iii) = vert_a_hist(iii)+vert_a_hist(iii-1)
+	Next
+	For iii = amin To amax
+		vert_a_hist(iii) = 1/factor- vert_a_hist(iii)
+	Next
+End Sub
+
+Sub horizontal_histogram(bin_mat() As Double, tmin As Long, tmax As Long, amin As Long, amax As Long, horiz_t_hist() As Double)
+	' Construct horizontal histogram (add up the number of traces for all time steps)
+	Dim iii As Long, jjj As Long, tmp As Double
+
+	For iii = 1 To UBound(horiz_t_hist)
+		horiz_t_hist(iii) = 0
+	Next
+
+	For iii = tmin To tmax
+		tmp = 0: horiz_t_hist(iii) = 0
+		For jjj = amin To amax
+			tmp = tmp + bin_mat(jjj, iii)
+		Next
+		horiz_t_hist(iii) = tmp
+	Next
+End Sub
+
+Sub horizontal_histogram_norm(bin_mat() As Double, tmin As Long, tmax As Long, amin As Long, amax As Long, horiz_t_hist() As Double)
+	' Normalized horizontal histogram
+	' Construct horizontal histogram (add up the number of traces for all time steps)
+	Dim iii As Long, jjj As Long, tmp As Double, tmptot As Double
+
+	For iii = 1 To UBound(horiz_t_hist)
+		horiz_t_hist(iii) = 0
+	Next
+
+	tmptot = 0
+	For iii = tmin To tmax
+		tmp = 0: horiz_t_hist(iii) = 0
+		For jjj = amin To amax
+			tmp = tmp + bin_mat(jjj, iii)
+		Next
+		horiz_t_hist(iii) = tmp
+		tmptot = tmptot + tmp
+	Next
+
+	If tmptot = 0 Then
+		ReportInformationToWindow ("Error: Division by zero in the normalization of the horizontal histogram.")
+'		Exit All
+		'histogram_mean = 0
+		Exit Sub
+	End If
+
+	' Now normalize the histogram
+	For iii = tmin To tmax
+		horiz_t_hist(iii) = horiz_t_hist(iii)/tmptot/2
+	Next
+End Sub
+
+
+
+
+
+Sub	PlotHistogram_Lines(typ As String, hist() As Double, tfactor As Double, afactor As Double, tmin As Double, amin As Double, filename As String, treename As String, title As String, bDS As Boolean, sR1D As String, ParentTreeName As String)
+	Dim i2 As Object, iii As Long
+	Dim modfile As String
+
+	Set i2 = Result1D("")
+	i2.initialize ((UBound(hist) - LBound(hist) +1)*6)
+
+	For iii = LBound(hist) To UBound(hist)
+		If typ = "Hor" Then
+'			i2.SetXYDouble(iii-LBound(hist), iii * tfactor, hist(iii) * afactor)
+			i2.SetXYDouble((iii-LBound(hist))*4+0, tmin+(iii-1) * tfactor, 0 )
+			i2.SetXYDouble((iii-LBound(hist))*4+1, tmin+(iii-1) * tfactor, hist(iii) )
+			i2.SetXYDouble((iii-LBound(hist))*4+2, tmin+(iii-1) * tfactor, hist(iii) )
+			i2.SetXYDouble((iii-LBound(hist))*4+3, tmin+(iii-1) * tfactor, 0)
+		ElseIf typ = "Vert" Then
+'			i2.SetXYDouble(iii-LBound(hist), hist(iii) * afactor, iii * tfactor)	' Would be nice, but doesn't work!
+'			i2.SetXYDouble(iii-LBound(hist), iii * afactor, hist(iii) * yfactor )	' Line plot
+			' Histogram plot
+			If 1 = 0 Then	' Plot the histogram on the y axis
+			i2.SetXYDouble((iii-LBound(hist))*4+0, amin+(iii-1) * afactor, 0 )
+			i2.SetXYDouble((iii-LBound(hist))*4+1, amin+(iii-1) * afactor, hist(iii) )
+			i2.SetXYDouble((iii-LBound(hist))*4+2, amin+(iii-1) * afactor, hist(iii) )
+			i2.SetXYDouble((iii-LBound(hist))*4+3, amin+(iii-1) * afactor, 0 )
+			End If
+
+			' Really vertical histogram; would be nice, but problems with plotting
+			If 1 = 1 Then
+			i2.SetXYDouble((iii-LBound(hist))*4+0,  0,         amin+(iii-1) * afactor )
+			i2.SetXYDouble((iii-LBound(hist))*4+1,  hist(iii), amin+(iii-1) * afactor )
+			i2.SetXYDouble((iii-LBound(hist))*4+2,  hist(iii), amin+(iii-1) * afactor )
+			i2.SetXYDouble((iii-LBound(hist))*4+3,  0,         amin+(iii-1) * afactor )
+			End If
+		End If
+	Next
+	
+	i2.save "^" + filename + ".sig"  ' WORKS like in 2006
+	i2.title title	'+"  trise = " + CStr(raise_t) + " " + Units.GetUnit("Time") + "; tfall = " + CStr(fall_t) + " " + Units.GetTimeUnit	' Commented out on 19.05.2016 for use as global function
+
+	' Use this if the vertical histograms are really plotted vertically
+	If 1 = 1 Then
+	i2.ylabel IIf (StrComp(typ, "Hor") = 0, "Count", "Amplitude units")
+	i2.xlabel IIf (StrComp(typ,"Vert")=0, "Count", "Time units")
+	End If
+
+	If 1 = 0 Then 	' Plot vertical histogram on the y axis
+	i2.ylabel IIf (StrComp(typ, "Hor") = 0, "Count", "Count")
+	i2.xlabel IIf (StrComp(typ,"Vert")=0, "Amplitude units", "Time units")
+	End If
+	
+Dim s3tmphist As String
+
+If bDS Then	'Or mybDS Then	' Changed on 19.05.2016
+	i2.save "^" + filename + ".sig"  ' mybDS:  TO CHECK IF THIS AND THE NEXT LINE ARE APPROPRIATE FOR DS
+
+	modfile = GetProjectPath("Result")+"DS\"
+
+	Dim histname As String
+
+	histname = modfile + "^" + filename + Replace(sR1D,",","")+".sig"
+	i2.save histname
+
+	' the following lines are required, otherwise o1new will not be added to DS tree
+	Dim oooo As Object
+	Set oooo = DS.Result1D("")
+	oooo.Loadplainfile histname
+	oooo.title title
+'	oooo.AddToTree "Results\Eye - Time signals\Response"
+
+	s3tmphist = sTreeRoot + treename
+	AddPlotToTree_LIB(oooo,s3tmphist)
+
+	'ube 15-feb-17
+	'oooo.AddToTree       ParentTreeName + "\Eye diagram " + treename '+" " + CStr(outport) + "(" + CStr(outmode) + ")"+ CStr(inport) + "(" + CStr(inmode) + ")
+'	Dim ssTree As String
+'	ssTree = GetProjectPath("Project")
+'	ssTree = "Projects\" + Mid(ssTree, 1+InStrRev(ssTree,"\")) + "\"
+'	DS.SelectTreeItem ssTree + "Results\Eye diagram\Eye"
+
+	'ResultTree.RefreshView
+Else
+	s3tmphist = sTreeRoot + treename
+	AddPlotToTree_LIB(i2,s3tmphist)
+	
+	'ube 15-feb-17
+	'i2.AddToTree ParentTreeName + "\" + treename '+" " + CStr(outport) + "(" + CStr(outmode) + ")"+ CStr(inport) + "(" + CStr(inmode) + ")	' Commented out on 19.05.2016
+End If
+
+End Sub
+
+Sub	PlotHistogram(typ As String, hist() As Double, tfactor As Double, afactor As Double, tmin As Double, amin As Double, filename As String, treename As String, title As String, bDS As Boolean, sR1D As String, ParentTreeName As String)
+'	PlotHistogram_Rectangles(typ, hist, tfactor, afactor, tmin, amin, filename, treename, title)
+	PlotHistogram_Lines(typ, hist, tfactor, afactor, tmin, amin, filename, treename, title, bDS, sR1D, ParentTreeName)
+End Sub
+
+Sub	PlotHistogram_Rectangles(typ As String, hist() As Double, tfactor As Double, afactor As Double, tmin As Double, amin As Double, filename As String, treename As String, title As String, bDS As Boolean, sR1D As String, ParentTreeName As String)
+	Dim i2 As Object, iii As Long
+	Dim modfile As String
+
+	Set i2 = Result1D("")
+	i2.initialize ((UBound(hist) - LBound(hist) +1)*6)
+
+	For iii = LBound(hist) To UBound(hist)
+		If typ = "Hor" Then
+'			i2.SetXYDouble(iii-LBound(hist), iii * tfactor, hist(iii) * afactor)
+			i2.SetXYDouble((iii-LBound(hist))*4+0, tmin+(iii-3/2) * tfactor, 0 )
+			i2.SetXYDouble((iii-LBound(hist))*4+1, tmin+(iii-3/2) * tfactor, hist(iii) )
+			i2.SetXYDouble((iii-LBound(hist))*4+2, tmin+(iii-3/2) * tfactor+tfactor, hist(iii) )
+			i2.SetXYDouble((iii-LBound(hist))*4+3, tmin+(iii-3/2) * tfactor+tfactor, 0)
+		ElseIf typ = "Vert" Then
+'			i2.SetXYDouble(iii-LBound(hist), hist(iii) * afactor, iii * tfactor)	' Would be nice, but doesn't work!
+'			i2.SetXYDouble(iii-LBound(hist), iii * afactor, hist(iii) * yfactor )	' Line plot
+			' Histogram plot
+'			i2.SetXYDouble((iii-LBound(hist))*4+0, amin+(iii-3/2) * afactor, 0 )
+'			i2.SetXYDouble((iii-LBound(hist))*4+1, amin+(iii-3/2) * afactor, hist(iii) )
+'			i2.SetXYDouble((iii-LBound(hist))*4+2, amin+(iii-3/2) * afactor+afactor, hist(iii) )
+'			i2.SetXYDouble((iii-LBound(hist))*4+3, amin+(iii-3/2) * afactor+afactor, 0 )
+
+			' Really vertical histogram; would be nice, but problems with plotting
+			i2.SetXYDouble((iii-LBound(hist))*4+0,  0,         amin + (iii-3/2) * afactor )
+			i2.SetXYDouble((iii-LBound(hist))*4+1,  hist(iii), amin + (iii-3/2) * afactor )
+			i2.SetXYDouble((iii-LBound(hist))*4+2,  hist(iii), amin + (iii-3/2) * afactor+afactor )
+			i2.SetXYDouble((iii-LBound(hist))*4+3,  0,         amin + (iii-3/2) * afactor+afactor )
+		End If
+	Next
+	
+	Msgbox "using PlotHistogram_Rectangles"
+
+	i2.save "^" + filename + ".sig"  ' WORKS like in 2006
+	i2.title title	'+"  trise = " + CStr(raise_t) + " " + Units.GetUnit("Time") + "; tfall = " + CStr(fall_t) + " " + Units.GetTimeUnit	' Commented out on 19.05.2016
+
+	' Use this if the vertical histograms are really plotted vertically
+	If 1 = 1 Then
+	i2.ylabel IIf (StrComp(typ, "Hor") = 0, "Count", "Amplitude units")
+	i2.xlabel IIf (StrComp(typ,"Vert")=0, "Count", "Time units")
+	End If
+
+	If 1 = 0 Then	' Plot the vertical histogram on the y axis
+	i2.ylabel IIf (StrComp(typ, "Hor") = 0, "Count", "Count")
+	i2.xlabel IIf (StrComp(typ,"Vert")=0, "Amplitude units", "Time units")
+	End If
+
+If bDS Then	'Or mybDS Then	' Commented out on 19.05.2016
+	i2.save "^" + filename + ".sig"  ' mybDS:  TO CHECK IF THIS AND THE NEXT LINE ARE APPROPRIATE FOR DS
+
+	modfile = GetProjectPath("Result")+"DS\"
+
+	Dim histname As String
+
+	histname = modfile + "^" + filename + Replace(sR1D,",","")+".sig"
+	i2.save histname
+
+	' the following lines are required, otherwise o1new will not be added to DS tree
+	Dim oooo As Object
+	Set oooo = DS.Result1D("")
+	oooo.Loadplainfile histname
+	oooo.title title
+'	oooo.AddToTree "Results\Eye - Time signals\Response"
+
+	oooo.AddToTree       ParentTreeName + "\Eye diagram " + treename '+" " + CStr(outport) + "(" + CStr(outmode) + ")"+ CStr(inport) + "(" + CStr(inmode) + ")
+'	Dim ssTree As String
+'	ssTree = GetProjectPath("Project")
+'	ssTree = "Projects\" + Mid(ssTree, 1+InStrRev(ssTree,"\")) + "\"
+'	DS.SelectTreeItem ssTree + "Results\Eye diagram\Eye"
+
+	'ResultTree.RefreshView
+Else
+	i2.AddToTree ParentTreeName + "\" + treename ' +" " + CStr(outport) + "(" + CStr(outmode) + ")"+ CStr(inport) + "(" + CStr(inmode) + ")	' Commented out on 19.05.2016
+End If
+
+End Sub
+
+
+Function ShellandWait1(ExeFullPath As String, _
+Optional TimeOutValue As Long = 0, Optional windowtype As Integer = vbMinimizedNoFocus) As Boolean
+	If TimeOutValue > 0 Then
+		ShellandWait1 = (RunExecutable(ExeFullPath, "window=minimized_no_activate|timeout = " + CStr(TimeOutValue)) = "0")
+	Else
+    	ShellandWait1 = (RunExecutable(ExeFullPath, "window=minimized_no_activate") = "0")
+    End If
+
+End Function
+
+Public Sub Delete1(filename As String)
+	' Delete the file, without error if it does not exist
+	On Error GoTo AFTERKILL
+	Kill filename
+	AFTERKILL:
+	On Error GoTo 0
+
+End Sub
+

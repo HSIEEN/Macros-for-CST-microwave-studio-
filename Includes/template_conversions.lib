@@ -1,0 +1,1525 @@
+'
+' This library provides function in particular for the result template "Template Type Conversions"
+' However, some other functions towards the end of this lib (Expand0DTo1D etc.) are also designed to be used with other templates
+'
+' Copyright 2010-2023 Dassault Systemes Deutschland GmbH
+' -------------------------------------------------------------------------------------------------------------------------------------------------------------
+' History of Changes
+' ------------------------------------------------------------------------------------------------
+' 12-Mar-2021 fsr: Implemented special handling of LastResultID for "Table Values of Parameter" in Convert0D; enabled access to parametric results in block
+' 14-Mar-2019 fsr: Replaced obsolete code with error message.
+' 27-Jul-2018 fsr: GetResultByRunID_LIB now returns "Nothing" if result tree entry exist, but no results for the specified RunID
+' 30-Apr-2018 fsr: Simplified GetLastResult_LIB; GetLastResult_LIB and GetResultByRunID_LIB can now determine sResultType automatically for tree entries
+' 26-Apr-2018 fsr: Added special handling in GetResultByRunID_LIB for cases where "Tasks\Blocks\..." exists
+' 24-Apr-2018 fsr: GetResultByRunID_LIB now accepts DS results paths starting with "Blocks\".
+' 10-May-2017 fsr: GetLastResult_LIB now uses 'GetLastResultFromTreeItem(name, GetLastResultID())'
+' 11-Apr-2017 fsr: Fixed numerical accuracy problem with '0D table->1D' conversion
+' 23-Jun-2016 fsr: Added option to merge M0D data into 1D plot
+' 21-Jun-2016 fsr: Improved performance of GetTableIndexForRunID; Get ResultByRunID now loads tables directly from tree by their run ID
+' 17-Jun-2016 fsr: GetTableIndexForRunID is now working in DS
+' 29-Apr-2016 pgl,fsr: Fixed some conversion formulas
+' 21-Apr-2016 fsr: Minor bugfixes
+' 19-Apr-2016 fsr: Added real0D support for "0D table values -> 1D"
+' 28-Mar-2016 fsr: Convert0D now supports result type 'real0D'
+' 02-Mar-2016 fsr: Added mapping from global parameter index to table parameter index
+' 17-Dec-2015 fsr: GetSupportedMethods now returns a proper "none" if there are no supported methods
+' 11-Dec-2015 fsr: Improved GetTreePathFromResultName
+' 09-Nov-2015 fsr: Implemented "RunID" option for 0DDS->1D conversion (DS 0Ds were always 1DC before)
+' 03-Sep-2015 fsr: Adjusted convert template type to changes in infrastructure, some updates/repairs to Convert1D and Convert1DC
+' 06-Jul-2015 fsr: Replaced obsolete Table.GetTypeOfDataItem with Table.GetResultTypeOfDataItem
+' 24-Jun-2015 vgu,fsr: Extracted GetTreeResultType from GetNextTreeResult into a separate function
+' 23-Jun-2015 fsr: Added 'subfolder only' option to GetNextTreeResult_LIB
+' 22-Jun-2015 ube,fsr: Added conversion from "TABLE1d complex" to 0D
+' 08-Jun-2015 mbr: Fixed a problem with 0D table->1D curve conversion; fixed access to 0D tables in blocks
+' 06-Feb-2015 fsr: Fixed a problem with GetMagnitude (dB 20Log10)
+' 03-Dec-2014 fsr: Fixed a problem with Convert1DC; general performance improvements; added option to plot 0D table values over RunID (sample number, really)
+' 29-Oct-2014 fsr: Added '1D plot from 0d table' capability to DS (TABLE1d complex)
+' 23-Jan-2014 fsr: Infrastructure improvements for reading parametric and table results from tree
+' 10-Jan-2014 fsr: Where possible, changed R1DC.AppendXY to R1DC.AppendXYDouble for better performance
+' 12-Dec-2013 fsr: Introduced 'any parameter' setting for 0D table->1D conversion; bugfixes
+' 21-Nov-2013 fsr: M0D templates treated like 0D templates; allowed selection of start folder for tree result iterator
+' 01-Nov-2013 fsr: Minor changes to handling of primary 0D(C) results; added support for parametric results (GetResultByRunID)
+' 19-Sep-2013 fsr: Made sure calls to GetLastResultLib use ByVal, instead of ByRef; added capability to read primary 0D results
+' 28-Jan-2013 fsr: Small bugfix to make regular 1D results visible in MWS again
+' 11-Jan-2013 fsr: Added capability to read table (template) results from simulation projects (SAM) directly
+' 07-Jan-2013 fsr: GetTreePathFromResultName is compatible with DS again; Convert0D is compatible with DS
+' 13-Dec-2012 fsr: Made "Table values in para dep" default for 0D->1D conversions; fixed a bug with "real"->"real" conversion
+' 11-Sep-2012 fsr: Added iterator for non-template results
+' 04-Sep-2012 fsr: Made sure that fromName and fromName2 are compatible in Convert1D; Added new 0D->1D(C) options "Single Data Point (Real/Imag)"
+' 30-Jul-2012 fsr: GetLastResult_LIB can now read tree entries directly (type "real" or "complex")
+' 27-Jun-2012 fsr: GetLastMultiple* VBA functions no longer needed, replaced with C equivalents
+' 14-Mar-2012 fsr: New options for 1DC->1D: Phase in rad, unwrapped phase in deg or rad
+' 01-Mar-2012 fsr: New "Get Magnitude in dB" options for 1DC->1D
+' 19-Jan-2012 fsr: New options for 1D->1DC conversion: dBMag/Phi, "Magnitude over Phase" in one plot->1DC to allow polar plots from Cartesian plots
+' 18-Nov-2011 fsr: Added option "runtime value" for '0D->1D table values over parameter' conversion, removed some empty "ReportInformation" calls
+' 21-Sep-2011 fsr: Added function Combine1DTo1DC_LIB_LIB to combine to Result1D objects into one Result1DComplex object
+' 15-Jun-2011 fsr: M1D(C) templates are now properly loaded in Convert1D(C) when using DS
+' 10-Jun-2011 fsr: fixed a bug/typo in GetLastMultiple0DResult_LIB
+' 04-Jan-2011 fsr: a second template is only loaded if the template name is not an empty string
+' 22-Dec-2010 fha,fsr: buxfixes
+' 01-Dec-2010 ube: moved GetLastResult-routines into lib and added extension _LIB to avoid any bwc-issues
+' 25-Oct-2010 fsr: adjusted for DS - changed all "Report*ToWindow" calls into "Report*"
+' 12-Oct-2010 fsr: bugfixes
+' 11-Oct-2010 fsr: small modifications to allow parameters to be flagged as "dependent" upon the varying parameter
+' 06-Oct-2010 fsr: initial version
+' -------------------------------------------------------------------------------------------------------------------------------------------------------------
+'
+' Please note: Newly added functions should always end with "_LIB" to indicate they are located in a library
+
+Public TemplateList() As String, TemplateTypeList() As String, SupportedToTypes() As String, SupportedMethods() As String
+Public TableParameterList() As String, TableParameterValues() As String ' a bit of a misnomer, as these lists are following the global parameter sorting, not table. Cannot be changed for bwc reasons.
+
+Public Const varyParameterID = "vary this parameter"
+Public Const depParameterID = "dependent parameter"
+Public Const runtimeParameterID = "runtime value"
+Public Const anyParameterID = "any value"
+
+Public Const sErrUnknownMethod = "'Convert template type' error: Unknown conversion method '"
+
+Public Const TemplateTypes = Array("0D Result (0D)", _
+									"1D Result (1D)", _
+									"Complex 0D Result (0DC)", _
+									"Complex 1D Result (1DC)", _
+									"Multiple 0D Results (M0D)", _
+									"Multiple 1D Results (M1D)", _
+									"Multiple Complex 0D Results (M0DC)", _
+									"Multiple Complex 1D Results (M1DC)")
+
+' Conversion into which type is supported by a given type?
+Public Const InvalidFromType = Array(":none")
+Public Const SupportedConversions0D = Array("1D:Table Values in Dependence on Parameter|Single Data Point|Constant Line", _
+											"1DC:Single Data Point (Real)|Single Data Point (Imag)|Constant Line (Real)|Constant Line (Imag)")
+Public Const SupportedConversions1D = Array("0D:Please use template '0D Value from 1D Result'", _
+											"1DC:Expand to Complex|'Magnitude (linear) over Phase (deg)' to Complex|'Magnitude (dB) over Phase (deg)' to Complex|Combine (Re/Im)|Combine (Mag/Ph)|Combine (dBMag/Ph)")
+Public Const SupportedConversions0DC = Array("0D:currently none", _
+											"1D:currently none")
+Public Const SupportedConversions1DC = Array("0D:Please use template '0D Value from 1D Result'", _
+											"1D:Get Real Part|Get Imaginary Part|Get Magnitude|Get Magnitude (dB 10Log10)|Get Magnitude (dB 20Log10)|Get Phase (deg)|Get Phase (rad)|Get Unwrapped Phase (deg)|Get Unwrapped Phase (rad)|Table Values in Dependence on Parameter")
+Public Const SupportedConversionsM0D = Array("1D:Merge data to 1D curve")
+Public Const SupportedConversionsM1D = SupportedConversions1D
+Public Const SupportedConversionsM0DC = Array("0D:currently none", _
+											"1D:currently none")
+Public Const SupportedConversionsM1DC = SupportedConversions1DC
+
+Function Assign0DOrObjectResult_LIB(AssignItem As Variant, AssignTo As Variant, ToType As String) As Integer
+	' Uses "=" or "Set =" depending upon ToType - this saves a lot of code lines
+	If (ToType="0D") Then
+		AssignTo = AssignItem
+	Else
+		Set AssignTo = AssignItem
+	End If
+End Function
+
+Function ConvertTemplate(FromName As String, _
+							FromType As String, _
+							ToType As String, _
+							SelectedMethod As String, _
+							Optional bKeepTypeInfo As Boolean, _
+							Optional FromName2 As String, _
+							Optional FromType2 As String, _
+							Optional ParameterArray As Variant) As Variant
+	' Wrapper for bwc, all lib functions should end with _LIB
+	Assign0DOrObjectResult_LIB(ConvertTemplate_LIB(FromName, FromType, ToType, SelectedMethod, bKeepTypeInfo, FromName2, FromType2, ParameterArray), _
+					ConvertTemplate, ToType)
+End Function
+Function ConvertTemplate_LIB(FromName As String, _
+								FromType As String, _
+								ToType As String, _
+								SelectedMethod As String, _
+								Optional bKeepTypeInfo As Boolean, _
+								Optional FromName2 As String, _
+								Optional FromType2 As String, _
+								Optional ParameterArray As Variant) As Variant
+
+	' ReportInformationToWindow("Converting '" + FromName + "' of type " + FromType + " to " + ToType + " via " + SelectedMethod)
+	Select Case FromType
+		Case "0D", "TABLE0d", "TABLE0d real", "real0D"
+			Assign0DOrObjectResult_LIB(Convert0D(FromName, FromType, ToType, SelectedMethod, bKeepTypeInfo, FromName2, FromType2, ParameterArray), ConvertTemplate_LIB, ToType)
+		Case "1D", "TABLE1d", "real"
+			Assign0DOrObjectResult_LIB(Convert1D(FromName, FromType, ToType, SelectedMethod, bKeepTypeInfo, FromName2, FromType2, ParameterArray), ConvertTemplate_LIB, ToType)
+		Case "0DC", "TABLE0d complex", "complex0D"
+			Assign0DOrObjectResult_LIB(Convert0DC(FromName, FromType, ToType, SelectedMethod, bKeepTypeInfo, FromName2, FromType2, ParameterArray), ConvertTemplate_LIB, ToType)
+		Case "1DC", "TABLE1d complex", "complex"
+			Assign0DOrObjectResult_LIB(Convert1DC(FromName, FromType, ToType, SelectedMethod, bKeepTypeInfo, FromName2, FromType2, ParameterArray), ConvertTemplate_LIB, ToType)
+		Case "M0D"
+			Assign0DOrObjectResult_LIB(ConvertM0D(FromName, FromType, ToType, SelectedMethod, bKeepTypeInfo, FromName2, FromType2, ParameterArray), ConvertTemplate_LIB, ToType)
+		Case "M1D"
+			Assign0DOrObjectResult_LIB(ConvertM1D(FromName, FromType, ToType, SelectedMethod, bKeepTypeInfo, FromName2, FromType2, ParameterArray), ConvertTemplate_LIB, ToType)
+		Case "M0DC"
+			Assign0DOrObjectResult_LIB(ConvertM0DC(FromName, FromType, ToType, SelectedMethod, bKeepTypeInfo, FromName2, FromType2, ParameterArray), ConvertTemplate_LIB, ToType)
+		Case "M1DC"
+			Assign0DOrObjectResult_LIB(ConvertM1DC(FromName, FromType, ToType, SelectedMethod, bKeepTypeInfo, FromName2, FromType2, ParameterArray), ConvertTemplate_LIB, ToType)
+		Case Else
+			ReportError("Convert template type: FromType '" & FromType & "' is currently not supported. Please contact your local support team.")
+			If (ToType = "0D") Then
+				ConvertTemplate_LIB = lib_rundef
+			Else
+				Set ConvertTemplate_LIB = Nothing
+			End If
+	End Select
+
+End Function
+
+Function Convert0D(FromName As String, _
+						FromType As String, _
+						ToType As String, _
+						Method As String, _
+						Optional bKeepTypeInfo As Boolean, _
+						Optional FromName2 As String, _
+						Optional FromType2 As String, _
+						Optional ParameterArray As Variant) As Variant
+
+	Dim nParameters As Long
+	Dim sTablePath As String, sTableType As String
+	Dim IndexOfVaryingParameter As Long
+	Dim FromObject As Object, dFromObjectValue As Double
+	Dim i As Long, j As Long, tempPos As Long, nTableItems As Long
+	Dim sTreeItemFile As String, TreeObjectToCall As Object
+	Dim dXValue As Double
+	Dim nMapGlobalParametersToTable() As Long, nMapTableParametersToGlobal() As Long
+	Dim sListOfRunIDs() As String, vParameterCombinationNames As Variant, vParameterCombinationValues As Variant
+	Dim sTypeFromItemNameMethodToCall As String
+	Dim dTempDataItemParameterValue As Double, dTempParameterValue As Double
+	Dim sLastResultID As String
+
+	' ReportInformationToWindow(FromName)
+
+	nParameters = GetNumberOfParameters
+
+	' Determine tree object to be used for calls further down
+	If (Left(GetApplicationName(),2) = "DS") Then
+		Set TreeObjectToCall = DSResultTree
+		sTypeFromItemNameMethodToCall = "GetResultTypeFromItemName"
+		sLastResultID = DS.GetLastResultID()
+	Else
+		Set TreeObjectToCall = Resulttree
+		sTypeFromItemNameMethodToCall = "GetTypeFromItemName"
+		sLastResultID = GetLastResultID()
+	End If
+
+	Select Case ToType
+		Case "1D"
+			Set Convert0D = Result1D("")
+			Select Case Method
+				Case "Single Data Point"
+					' y value given by "FromName", x value by "FromName2"
+					Convert0D.AppendXY(GetLastResult_LIB(FromName2, FromType2, "0D"), GetLastResult_LIB(FromName, FromType, "0D"))
+				Case "Constant Line"
+					Set Convert0D = Expand0DTo1D(GetLastResult_LIB(FromName, FromType, "0D"))
+				Case "Table Values in Dependence on Parameter","Table Values in dependence on Parameter" ' second spelling for bwc
+					IndexOfVaryingParameter = -1
+					If (nParameters = 0) Then
+						ReportWarning("No parameters defined, 0D to 1D conversion failed.")
+						Exit Function
+					ElseIf (GetScriptSetting("NumberOfTableParameters","0") = "0") Then
+						ReportInformationToWindow("Parameter list has not been set up, varying first parameter in list")
+					ElseIf (Evaluate(GetScriptSetting("NumberOfTableParameters","0")) <> nParameters) Then
+						ReportInformationToWindow("Number of parameters has changed since template setup, using current values for additional parameters that were not set up in the template." + _
+													"If the varying parameter has been removed, the first parameter in the parameter list will be varied.")
+					End If
+					' Number of parameters in tables should always be identical to global number of parameters, plus 1 for run ID; however, they might be sorted differently!
+					ReDim TableParameterList(nParameters)
+					ReDim TableParameterValues(nParameters)
+					' Go through parameter list and read in names. If a values has been stored for this name, load it - else use current value
+					IndexOfVaryingParameter = UBound(TableParameterList) ' last entry is Run ID, use as default
+					For i = 0 To nParameters-1 ' load only true parameters here; then handle other cases (RunID, ...)
+						TableParameterList(i) = GetParameterName(i)
+						TableParameterValues(i) = GetScriptSetting("Parameter_"+TableParameterList(i),GetParameterSValue(i))
+						If(TableParameterValues(i)) = varyParameterID Then
+							IndexOfVaryingParameter = i ' based on global parameter sorting
+						End If
+					Next
+					TableParameterList(nParameters) = "Run ID"
+					TableParameterValues(nParameters) = GetScriptSetting("Parameter_"+TableParameterList(i),GetParameterSValue(i))
+
+					sTablePath = GetTreePathFromResultName(FromName)
+					'ReportInformationToWindow("Table path: " + sTablePath)
+					If (sTablePath = "") Then
+						ReportWarning("Invalid table name. Please select a template that has been evaluated already.")
+						Exit Function
+					End If
+
+					sTreeItemFile = CallByName(TreeObjectToCall, "GetFileFromTreeItem", vbMethod, sTablePath)
+					'ReportInformationToWindow("File name from tree item: " + sTreeItemFile)
+					sTableType = CallByName(TreeObjectToCall, sTypeFromItemNameMethodToCall, vbMethod, sTablePath)
+
+					If (InStr(LCase(sTableType), "table") > 0) Then ' Result type is a true table, treat accordingly
+						If ((Left(GetApplicationName, 2) = "DS") And (InStr(sTablePath, "3D Model Results\Tables") = 0)) Then ' tables in 3D blocks should not be loaded as DS tables
+							Set FromObject = DS.Table(sTreeItemFile)
+						Else
+							Set FromObject = Table(sTreeItemFile)
+						End If
+
+						' Global parameters might be sorted differently than table parameters. Create a map. Generally, reference should be the global index
+						ReDim nMapGlobalParametersToTable(nParameters - 1)
+						ReDim nMapTableParametersToGlobal(nParameters - 1)
+						For i = 0 To nParameters - 1
+							For j = 0 To nParameters - 1
+								If GetParameterName(i) = FromObject.GetParameterNameFromIndex(j) Then
+									nMapGlobalParametersToTable(i) = j
+									nMapTableParametersToGlobal(j) = i
+									Exit For
+								End If
+							Next
+						Next
+
+						' Parse through all data items in table FromObject
+						nTableItems = FromObject.GetNumberOfDataItems()
+						' ReportInformationToWindow("Convert0D: nTableItems="+CStr(nTableItems))
+						For i = 0 To nTableItems-1
+							' For a given data item, go through all parameter values
+							' Exit this "For j" loop if a parameter value for the data item does not match the parameter value set selected during the template setup
+							For j = 0 To nParameters-1 ' j is following global sorting in this loop
+								dTempDataItemParameterValue = FromObject.GetParameterValueOfDataItem(i,nMapGlobalParametersToTable(j))
+								' Ignore dependent parameters and include all values of varying parameter=abcissa
+								If (j=IndexOfVaryingParameter Or TableParameterValues(j) = depParameterID) Then
+									'Do Nothing
+								ElseIf (TableParameterValues(j) = anyParameterID) Then
+									' Do nothing, accept any value
+								ElseIf (TableParameterValues(j) = runtimeParameterID) Then
+									If EqualWithinTolerance_LIB(dTempDataItemParameterValue, GetParameterNValue(j)) Then
+										' Also do nothing if "runtime value" was selected and parameter value in table matches current parameter value
+									Else
+										Exit For
+									End If
+								ElseIf Not EqualWithinTolerance_LIB(dTempDataItemParameterValue, Evaluate(TableParameterValues(j))) Then ' No match
+									' ReportInformationToWindow("Table at index " & CStr(nMapGlobalParametersToTable(j)) & ": " & FromObject.GetParameterNameFromIndex (nMapGlobalParametersToTable(j)) & " = " & FromObject.GetParameterValueOfDataItem(i,nMapGlobalParametersToTable(j)))
+									' ReportInformationToWindow("Global at index " & CStr(j) & ": " & GetParameterName(j) & " = " & GetParameterNValue(j))
+									' ReportInformationToWindow(CStr(TableParameterValues(j)))
+									Exit For
+								End If
+							Next j
+							If j = nParameters Then ' For loop was not exited, parameter value set matches setup -> append to plot, insert at right x position
+								If (TableParameterList(IndexOfVaryingParameter) = "Run ID") Then
+									dXValue = i+1 ' could be different from actual run ID
+								Else
+									dXValue = FromObject.GetParameterValueOfDataItem(i,nMapGlobalParametersToTable(IndexOfVaryingParameter))
+								End If
+								' table type can differ (MWS vs DS vs MWS block in DS, ...)
+								Select Case FromObject.GetResultTypeOfDataItem(i)
+									Case "0d real"
+										dFromObjectValue = FromObject.Get0DDataItem(i)
+									Case "1d complex" ' FSR 7/6/15: This branch should not be reached anymore. Old DS tables were always '1d complex'
+										dFromObjectValue = FromObject.Get1DComplexDataItem(i).GetYRe(0)
+								End Select
+
+								' NEW: just add and sort later
+								'ReportInformationToWindow(dFromObjectValue)
+								Convert0D.AppendXY(dXValue,dFromObjectValue)
+								' END FSR
+							End If
+
+						Next i
+					ElseIf ((Left(GetApplicationName, 7) = "DS for ") And _
+							(InStr(sTablePath, "Block") > 0) And _
+							(InStr(sTablePath, "3D Model Results\1D Results\") > 0)) Then ' parametric results within a block, execute within 3D block
+						SetApplicationName(Replace(GetApplicationName, "DS for ", ""))
+						On Error GoTo BackToDS ' make sure we properly restore DS environment, even in case of error
+							Convert0D = Convert0D(Mid(FromName, InStr(FromName, "3D Model Results\1D Results\") + 28), FromType, ToType, Method, bKeepTypeInfo, FromName2, FromType2, ParameterArray)
+
+						BackToDS:
+							SetApplicationName("DS for " & GetApplicationName)
+
+						On Error GoTo 0
+					Else ' parametric results section starts here
+						' parametric data is accessed through run IDs
+						sListOfRunIDs = CallByName(TreeObjectToCall, "GetResultIDsFromTreeItem", vbMethod, sTablePath)
+						nTableItems = UBound(sListOfRunIDs) + 1
+						' ReportInformationToWindow("Convert0D: Number of parametric data values="+CStr(nTableItems))
+
+						' Global parameters might be sorted differently than table parameters. Create a map. Generally, reference should be the global index
+						' Assume that the sorting is the same for all run IDs, so this is done only once for performance reasons. Quadratic algorithm,
+						' can be very slow if people have 100s of parameters and run IDs
+						' Go through all RunIDs until one is found that has a parameter combination. Use that combination to map parameters.
+						For i = 0 To nTableItems - 1
+							If GetParameterCombination(sListOfRunIDs(i), vParameterCombinationNames, vParameterCombinationValues) Then
+								ReDim nMapGlobalParametersToTable(nParameters - 1)
+								ReDim nMapTableParametersToGlobal(nParameters - 1)
+								For i = 0 To nParameters - 1
+									For j = 0 To nParameters - 1
+										If GetParameterName(i) = CStr(vParameterCombinationNames(j)) Then
+											nMapGlobalParametersToTable(i) = j
+											nMapTableParametersToGlobal(j) = i
+											Exit For
+										End If
+									Next
+								Next
+								Exit For
+							End If
+							' If the only result is the current result, no map will have been created
+						Next
+
+						For i = 0 To nTableItems-1
+							' Current/last RunID does not have parameter combination assigned
+							If (sListOfRunIDs(i) <> sLastResultID) Then
+								If Not GetParameterCombination(sListOfRunIDs(i), vParameterCombinationNames, vParameterCombinationValues) Then ReportError("Cannot find parameter combination for given RunID '" & sListOfRunIDs(i) & "'.")
+							End If
+							' For a given data item, go through all parameter values
+							' Exit this "For j" loop if a parameter value for the data item does not match the parameter value set selected during the template setup
+							For j = 0 To nParameters-1 ' j is following global sorting in this loop
+								If (sListOfRunIDs(i) <> sLastResultID) Then
+									dTempDataItemParameterValue = CDbl(vParameterCombinationValues(nMapGlobalParametersToTable(j)))
+								Else
+									dTempDataItemParameterValue = GetParameterNValue(j)
+								End If
+								' Ignore dependent parameters and include all values of varying parameter=abcissa
+								If (j=IndexOfVaryingParameter Or TableParameterValues(j) = depParameterID) Then
+									'Do Nothing
+								ElseIf (TableParameterValues(j) = anyParameterID) Then
+									' Do nothing, accept any value
+								ElseIf (TableParameterValues(j) = runtimeParameterID) Then
+									If EqualWithinTolerance_LIB(dTempDataItemParameterValue, GetParameterNValue(j)) Then
+										' Also do nothing if "runtime value" was selected and parameter value in table matches current parameter value
+									Else
+										Exit For
+									End If
+								ElseIf Not EqualWithinTolerance_LIB(dTempDataItemParameterValue, Evaluate(TableParameterValues(j))) Then ' No match
+									' ReportInformationToWindow("Table at index " & CStr(nMapGlobalParametersToTable(j)) & ": " & FromObject.GetParameterNameFromIndex (nMapGlobalParametersToTable(j)) & " = " & FromObject.GetParameterValueOfDataItem(i,nMapGlobalParametersToTable(j)))
+									' ReportInformationToWindow("Global at index " & CStr(j) & ": " & GetParameterName(j) & " = " & GetParameterNValue(j))
+									' ReportInformationToWindow(CStr(TableParameterValues(j)))
+									Exit For
+								End If
+							Next j
+							If j = nParameters Then ' For loop was not exited, parameter value set matches setup -> append to plot, insert at right x position
+								If (TableParameterList(IndexOfVaryingParameter) = "Run ID") Then
+									dXValue = i+1 ' could be different from actual run ID
+								Else
+									If (sListOfRunIDs(i) <> sLastResultID) Then
+										dXValue = CDbl(vParameterCombinationValues(nMapGlobalParametersToTable(IndexOfVaryingParameter)))
+									Else
+										dXValue = GetParameterNValue(IndexOfVaryingParameter)
+									End If
+								End If
+								' table type can differ (MWS vs DS vs MWS block in DS, ...)
+								dFromObjectValue = GetResultByRunID_LIB(sListOfRunIDs(i), FromName, FromType, "0D")
+
+								' NEW: just add and sort later
+								'ReportInformationToWindow(dFromObjectValue)
+								Convert0D.AppendXY(dXValue,dFromObjectValue)
+								' END FSR
+							End If
+						Next i
+					End If
+					If Convert0D.GetN() = 0 Then
+						ReportWarning("'Convert template type' error: Result contains no data. Please check parameter settings.")
+						Convert0D.AppendXY(0,lib_rundef)
+					Else
+						Convert0D.SortByX()
+					End If
+					Convert0D.XLabel(TableParameterList(IndexOfVaryingParameter))
+				Case Else
+					ReportWarning(sErrUnknownMethod+Method+"'")
+			End Select
+		Case "1DC"
+			Set Convert0D = Result1DComplex("")
+			Select Case Method
+				Case "Single Data Point (Real)"
+					' y value given by "FromName2", x value by "FromName"
+					Convert0D.AppendXYDouble(GetLastResult_LIB(FromName2, FromType2, "0D"), GetLastResult_LIB(FromName, FromType, "0D"), 0)
+				Case "Single Data Point (Imag)"
+					' y value given by "FromName2", x value by "FromName"
+					Convert0D.AppendXYDouble(GetLastResult_LIB(FromName2, FromType2, "0D"), 0, GetLastResult_LIB(FromName, FromType, "0D"))
+				Case "Constant Line (Real)"
+					Set Convert0D = Expand0DCTo1DC(GetLastResult_LIB(FromName, FromType, "0D"),"0")
+				Case "Constant Line (Imag)"
+					Set Convert0D = Expand0DCTo1DC("0",GetLastResult_LIB(FromName, FromType, "0D"))
+			End Select
+	End Select
+
+End Function
+
+Function Convert1D(FromName As String, _
+						FromType As String, _
+						ToType As String, _
+						Method As String, _
+						Optional bKeepTypeInfo As Boolean, _
+						Optional FromName2 As String, _
+						Optional FromType2 As String, _
+						Optional ParameterArray As Variant) As Variant
+
+	'Dim FileName1 As String, FileName2 As String
+	Dim fromNameObject As Object, fromNameObject2 As Object
+	Dim sTemplateItem(3) As String ' for iterator: resultname, type, templatename, folder
+	Dim i As Long
+	Dim dXValues() As Double, dYReValues() As Double, dYImValues() As Double, dYReValues1() As Double, dYImValues1() As Double
+
+	' Since ConvertM1D forwards to this function, FromName could refer to a 1D or an M1D template
+
+	Set fromNameObject = GetLastResult_LIB(FromName,FromType,"1D")
+
+	dXValues = fromNameObject.GetArray("x")
+	dYReValues = fromNameObject.GetArray("y")
+
+	' Only load second object if there is one
+	If (FromName2 <> "") Then
+
+		If FromType2 = "" Then 'fix for old templates with new lib. type must not be empty.
+			FromType2 = FromType
+		End If
+		Set fromNameObject2 = GetLastResult_LIB(FromName2, FromType2, "1D")
+		fromNameObject2.MakeCompatibleTo(fromNameObject)
+
+		dYReValues1 = fromNameObject2.GetArray("y")
+	End If
+
+	Select Case ToType
+		Case "0D"
+			Convert1D = lib_rundef ' this conversion should be done via '0D Value from 1D Result'
+		Case "1DC"
+			Set Convert1D = Result1DComplex("")
+			'Convert1D.Initialize(fromNameObject.GetN())
+			Select Case Method
+				Case "Expand to Complex"
+					Set Convert1D = Expand1DTo1DC(fromNameObject)
+				'Case "Combine (Auto)" possible?
+				Case "'Magnitude (linear) over Phase (deg)' to Complex"
+					ReDim dYImValues(UBound(dYReValues))
+					For i = 0 To fromNameObject.GetN()-1
+						dYImValues(i) = dYReValues(i)*SinD(dXValues(i))
+						dYReValues(i) = dYReValues(i)*CosD(dXValues(i))
+					Next
+					Convert1D.Initialize(fromNameObject.GetN())
+					Convert1D.SetArray(dXValues, "x")
+					Convert1D.SetArray(dYReValues, "yre")
+					Convert1D.SetArray(dYImValues, "yim")
+				Case "'Magnitude (dB) over Phase (deg)' to Complex"
+					ReDim dYImValues(UBound(dYReValues))
+					For i = 0 To fromNameObject.GetN()-1
+						dYImValues(i) = 10^(dYReValues(i)/20)*SinD(dXValues(i))
+						dYReValues(i) = 10^(dYReValues(i)/20)*CosD(dXValues(i))
+					Next
+					Convert1D.Initialize(fromNameObject.GetN())
+					Convert1D.SetArray(dXValues, "x")
+					Convert1D.SetArray(dYReValues, "yre")
+					Convert1D.SetArray(dYImValues, "yim")
+				Case "Combine (Re/Im)"
+					Convert1D.Initialize(fromNameObject.GetN())
+					Convert1D.SetArray(dXValues, "x")
+					Convert1D.SetArray(dYReValues, "yre")
+					Convert1D.SetArray(dYReValues1, "yim")
+				Case "Combine (Mag/Ph)"
+					ReDim dYImValues(UBound(dYReValues))
+					For i = 0 To fromNameObject.GetN()-1
+						dYImValues(i) = dYReValues(i)*SinD(dYReValues1(i))
+						dYReValues(i) = dYReValues(i)*CosD(dYReValues1(i))
+					Next
+					Convert1D.Initialize(fromNameObject.GetN())
+					Convert1D.SetArray(dXValues, "x")
+					Convert1D.SetArray(dYReValues, "yre")
+					Convert1D.SetArray(dYImValues, "yim")
+				Case "Combine (dBMag/Ph)"
+					ReDim dYImValues(UBound(dYReValues))
+					For i = 0 To fromNameObject.GetN()-1
+						dYImValues(i) = 10^(dYReValues(i)/20)*SinD(dYReValues1(i))
+						dYReValues(i) = 10^(dYReValues(i)/20)*CosD(dYReValues1(i))
+					Next
+					Convert1D.Initialize(fromNameObject.GetN())
+					Convert1D.SetArray(dXValues, "x")
+					Convert1D.SetArray(dYReValues, "yre")
+					Convert1D.SetArray(dYImValues, "yim")
+				Case Else
+					ReportWarning(sErrUnknownMethod+Method+"'")
+			End Select
+			Convert1D.Title(fromNameObject.GetTitle())
+			Convert1D.XLabel(fromNameObject.GetXLabel())
+			Convert1D.YLabel(fromNameObject.GetYLabel())
+	End Select
+
+End Function
+
+Function Convert0DC(FromName As String, _
+						FromType As String, _
+						ToType As String, _
+						Method As String, _
+						Optional bKeepTypeInfo As Boolean, _
+						Optional FromName2 As String, _
+						Optional FromType2 As String, _
+						Optional ParameterArray As Variant) As Variant
+
+	' No options needed/offered here at this point; included only to complete framework
+
+End Function
+
+Function Convert1DC(FromName As String, _
+						FromType As String, _
+						ToType As String, _
+						Method As String, _
+						Optional bKeepTypeInfo As Boolean, _
+						Optional FromName2 As String, _
+						Optional FromType2 As String, _
+						Optional ParameterArray As Variant) As Variant
+
+	Dim nParameters As Long
+	Dim i As Long, j As Long, nTableItems As Long
+	Dim dWrapTolerance As Double, dCurrentOffset As Double ' needed for unwrap option
+	Dim fromNameObject As Object
+	Dim sTemplateItem(3) As String ' for iterator: resultname, type, templatename, folder
+	Dim TreeObjectToCall As Object
+	Dim IndexOfVaryingParameter As Long
+	Dim sTablePath As String, sTreeItemFile As String
+	Dim dFromObjectValue As Double
+	Dim dXValue As Double
+	Dim dXValues() As Double, dYReValues() As Double, dYImValues() As Double, dYReValues1() As Double, dYImValues1() As Double
+	Dim nMapGlobalParametersToTable() As Long, nMapTableParametersToGlobal() As Long
+
+	nParameters = GetNumberOfParameters
+
+	' Since ConvertM1DC forwards to this function, FromName could refer to a 1DC or an M1DC template
+
+	' Determine tree object to be used for calls further down
+	If (Left(GetApplicationName(),2) = "DS") Then
+		Set TreeObjectToCall = DSResultTree
+	Else
+		Set TreeObjectToCall = Resulttree
+	End If
+
+	Set fromNameObject = GetLastResult_LIB(FromName,FromType,"1DC")
+
+	dXValues = fromNameObject.GetArray("x")
+	dYReValues = fromNameObject.GetArray("yre")
+	dYImValues = fromNameObject.GetArray("yim")
+	
+	Dim yLabel As String
+	Dim yUnit  As String
+
+	Select Case ToType
+		Case "0D"
+			Convert1DC = 0
+		Case "1D"
+			fromNameObject.GetYLabelAndUnit(yLabel, yUnit)
+			
+			Select Case Method
+				Case "Get Real Part"
+					Set Convert1DC = fromNameObject.Real()
+					Convert1DC.Type "Real"
+					Convert1DC.SetYLabelAndUnit(yLabel, yUnit)
+				Case "Get Imaginary Part"
+					Set Convert1DC = fromNameObject.Imaginary()
+					Convert1DC.Type "Imaginary"
+					Convert1DC.SetYLabelAndUnit(yLabel, yUnit)
+				Case "Get Magnitude"
+					Set Convert1DC = fromNameObject.Magnitude()
+					Convert1DC.Type "Magnitude"
+					Convert1DC.SetYLabelAndUnit(yLabel, yUnit)
+				Case "Get Magnitude (dB 10Log10)"
+					Set Convert1DC = fromNameObject.Magnitude()
+					dYReValues = Convert1DC.GetArray("y")
+					For i = 0 To Convert1DC.GetN()-1
+						dYReValues(i) = 10*Log(dYReValues(i))/Log(10)
+					Next
+					Convert1DC.Type "dB"
+					Convert1DC.SetArray(dYReValues, "y")
+					If (yUnit <> "") Then
+						yUnit = "dB10("+yUnit+")"
+					End If
+					Convert1DC.SetYLabelAndUnit(yLabel, yUnit)
+					Convert1DC.SetLogarithmicFactor(10.0)
+				Case "Get Magnitude (dB 20Log10)"
+					Set Convert1DC = fromNameObject.Magnitude()
+					dYReValues = Convert1DC.GetArray("y")
+					For i = 0 To Convert1DC.GetN()-1
+						dYReValues(i) = 20*Log(dYReValues(i))/Log(10)
+					Next
+					Convert1DC.Type "dB"
+					Convert1DC.SetArray(dYReValues, "y")
+					If (yUnit <> "") Then
+						yUnit = "dB20("+yUnit+")"
+					End If
+					Convert1DC.SetYLabelAndUnit(yLabel, yUnit)
+					Convert1DC.SetLogarithmicFactor(20.0)
+				Case "Get Phase", "Get Phase (deg)" ' first string for bwc
+					Set Convert1DC = fromNameObject.Phase()
+					yUnit = "deg"
+					Convert1DC.Type "Phase"
+					Convert1DC.SetYLabelAndUnit(yLabel, yUnit)
+				Case "Get Phase (rad)"
+					Set Convert1DC = fromNameObject.Phase()
+					Convert1DC.ScalarMult(Pi/180)
+					yUnit = "rad"
+					Convert1DC.Type "Phase"
+					Convert1DC.SetYLabelAndUnit(yLabel, yUnit)
+				Case "Get Unwrapped Phase (deg)", "Get Unwrapped Phase (rad)"
+					Set Convert1DC = fromNameObject.Phase()
+					If InStr(Method, "(rad)") Then
+						Convert1DC.ScalarMult(Pi/180)
+						dWrapTolerance = Pi
+						yUnit = "rad"
+					Else
+						dWrapTolerance = 180
+						yUnit = "deg"
+					End If
+					dCurrentOffset = 0 ' store current offset for increased performance, no need to start the while loops at 0 every time
+					dYReValues = Convert1DC.GetArray("y")
+					For i = 1 To Convert1DC.GetN-1
+						dYReValues(i) = dYReValues(i)+dCurrentOffset
+						' Unwrap downwards
+						While((dYReValues(i)-dYReValues(i-1) > dWrapTolerance) And Not GetTemplateAborted())
+							dCurrentOffset = dCurrentOffset - 2*dWrapTolerance
+							dYReValues(i) = dYReValues(i) - 2*dWrapTolerance
+						Wend
+						' Unwrap upwards
+						While((dYReValues(i)-dYReValues(i-1)< -dWrapTolerance) And Not GetTemplateAborted())
+							dCurrentOffset = dCurrentOffset + 2*dWrapTolerance
+							dYReValues(i) = dYReValues(i) + 2*dWrapTolerance
+						Wend
+					Next
+					Convert1DC.SetArray(dYReValues, "y")
+					Convert1DC.Type "Phase"
+					Convert1DC.SetYLabelAndUnit(yLabel, yUnit)				
+				Case "Table Values in Dependence on Parameter","Table Values in dependence on Parameter" ' second spelling for bwc
+					Set Convert1DC = Result1D("")
+					IndexOfVaryingParameter = -1
+					If (nParameters = 0) Then
+						ReportWarning("No parameters defined, 0D to 1D conversion failed.")
+						Exit Function
+					ElseIf (GetScriptSetting("NumberOfTableParameters","0") = "0") Then
+						ReportInformationToWindow("Parameter list has not been set up, varying first parameter in list")
+					ElseIf (Evaluate(GetScriptSetting("NumberOfTableParameters","0")) <> nParameters) Then
+						ReportInformationToWindow("Number of parameters has changed since template setup, using current values for additional parameters that were not set up in the template." + _
+													"If the varying parameter has been removed, the first parameter In the parameter list will be varied.")
+					End If
+					' Number of parameters in tables should always be identical to global number of parameters, plus 1 for run ID
+					ReDim TableParameterList(nParameters)
+					ReDim TableParameterValues(nParameters)
+					' Go through parameter list and read in names. If a values has been stored for this name, load it - else use current value
+					IndexOfVaryingParameter = UBound(TableParameterList) ' last entry is Run ID, use as default
+					For i = 0 To nParameters-1 ' load only true parameters here; then handle other cases (RunID, ...)
+						TableParameterList(i) = GetParameterName(i)
+						TableParameterValues(i) = GetScriptSetting("Parameter_"+TableParameterList(i),GetParameterSValue(i))
+						If(TableParameterValues(i)) = varyParameterID Then
+							IndexOfVaryingParameter = i ' based on global sorting
+						End If
+					Next
+					TableParameterList(nParameters) = "Run ID"
+					TableParameterValues(nParameters) = GetScriptSetting("Parameter_"+TableParameterList(i),GetParameterSValue(i))
+
+					sTablePath = GetTreePathFromResultName(FromName)
+					'ReportInformationToWindow("Table path: " + sTablePath)
+					If (sTablePath = "") Then
+						ReportWarning("Invalid table name. Please select a template that has been evaluated already.")
+						Exit Function
+					End If
+
+					sTreeItemFile = CallByName(TreeObjectToCall, "GetFileFromTreeItem", vbMethod, sTablePath)
+					'ReportInformationToWindow("File name from tree item: " + sTreeItemFile)
+					If ((Left(GetApplicationName, 2) = "DS") And (InStr(sTablePath, "3D Model Results\Tables") = 0)) Then ' tables in 3D blocks should not be loaded as DS tables
+						Set fromNameObject = DS.Table(sTreeItemFile)
+					Else
+						Set fromNameObject = Table(sTreeItemFile)
+					End If
+
+					' Global parameters might be sorted differently than table parameters. Create a map. Reference should be the global index
+					ReDim nMapGlobalParametersToTable(nParameters - 1)
+					ReDim nMapTableParametersToGlobal(nParameters - 1)
+					For i = 0 To nParameters - 1
+						For j = 0 To nParameters - 1
+							If GetParameterName(i) = fromNameObject.GetParameterNameFromIndex(j) Then
+								nMapGlobalParametersToTable(i) = j
+								nMapTableParametersToGlobal(j) = i
+								Exit For
+							End If
+						Next
+					Next
+
+					' Parse through all data items in table FromObject
+					nTableItems = fromNameObject.GetNumberOfDataItems()
+					'ReportInformationToWindow("Convert1DC: nTableItems="+CStr(nTableItems))
+					For i = 0 To nTableItems-1
+						' For a given data item, go through all parameter values
+						' Exit this "For j" loop if a parameter value for the data item does not match the parameter value set selected during the template setup
+						For j = 0 To nParameters-1 ' j is based on global sorting in this loop
+							' Ignore dependent parameters and include all values of varying parameter=abcissa
+							If (j=IndexOfVaryingParameter Or TableParameterValues(j) = depParameterID) Then
+								'Do Nothing
+							ElseIf (TableParameterValues(j) = anyParameterID) Then
+								' Do nothing, accept any value
+							ElseIf (TableParameterValues(j) = runtimeParameterID And EqualWithinTolerance_LIB(fromNameObject.GetParameterValueOfDataItem(i,nMapGlobalParametersToTable(j)), GetParameterNValue(j))) Then
+								' Also do nothing if "runtime value" was selected and parameter value in table matches current parameter value
+								' ReportInformationToWindow("Table at index " & CStr(nMapGlobalParametersToTable(j)) & ": " & fromNameObject.GetParameterNameFromIndex (nMapGlobalParametersToTable(j)) & " = " & fromNameObject.GetParameterValueOfDataItem(i,nMapGlobalParametersToTable(j)))
+								' ReportInformationToWindow("Global at index " & CStr(j) & ": " & GetParameterName(j) & " = " & GetParameterNValue(j))
+								' ReportInformationToWindow(CStr(TableParameterValues(j)))
+								Exit For
+							End If
+						Next j
+						If j = nParameters Then ' For loop was not exited, parameter value set matches setup -> append to plot, insert at right x position
+							If (TableParameterList(IndexOfVaryingParameter) = "Run ID") Then
+								dXValue = i+1 ' could be different from actual run ID
+							Else
+								dXValue = fromNameObject.GetParameterValueOfDataItem(i,nMapGlobalParametersToTable(IndexOfVaryingParameter))
+							End If
+							' table type can differ (MWS vs DS vs MWS block in DS, ...)
+							Select Case fromNameObject.GetResultTypeOfDataItem(i)
+								Case "0d real"
+									dFromObjectValue = fromNameObject.Get0DDataItem(i)
+								Case "1d complex" ' FSR 7/6/15: This branch should not be reached anymore. Old DS tables were always '1d complex'
+									ReportError("template_conversions: Convert1DC: Unknown result type. Please contact support.")
+							End Select
+
+							' NEW: just add and sort later
+							'ReportInformationToWindow(dFromObjectValue)
+							Convert1DC.AppendXY(dXValue,dFromObjectValue)
+							' END FSR
+						End If
+					Next i
+					If Convert1DC.GetN() = 0 Then
+						ReportWarning("'Convert template type' error: Result contains no data. Please check parameter settings.")
+						Convert1DC.AppendXY(0,lib_rundef)
+					Else
+						Convert1DC.SortByX()
+					End If
+					Convert1DC.XLabel(TableParameterList(IndexOfVaryingParameter))
+				Case Else
+					ReportWarning(sErrUnknownMethod+Method+"'")
+			End Select
+			' The following commands are only possible if fromNameObject is of type Result1D. If FromName contains \, then it refers to a tree entry and fromNameObject will be of type (DS.)Table
+			If (UBound(Split(FromName, "\")) = 0) Then
+				Convert1DC.Title(fromNameObject.GetTitle())
+				Convert1DC.XLabel(fromNameObject.GetXLabel())
+			End If
+	End Select
+
+End Function
+
+Function ConvertM0D(FromName As String, _
+						FromType As String, _
+						ToType As String, _
+						SelectedMethod As String, _
+						Optional bKeepTypeInfo As Boolean, _
+						Optional FromName2 As String, _
+						Optional FromType2 As String, _
+						Optional ParameterArray As Variant) As Variant
+
+	Dim sTableName As String
+	Dim nCount As Long, dValue As Double
+
+	Select Case ToType
+		Case "1D"
+			Set ConvertM0D = Result1D("")
+			Select Case SelectedMethod
+				Case "Merge data to 1D curve"
+					nCount = 0
+					sTableName = GetFirstTableResult(FromName)
+					While (sTableName <> "")
+						nCount = nCount + 1
+						dValue = GetLastResult_LIB(sTableName, "0D", "0D")
+						ConvertM0D.AppendXY(nCount, dValue)
+						sTableName = GetNextTableResult(FromName)
+					Wend
+			End Select
+		Case Else
+			ReportError("ConvertM0D: Unknown ToType.")
+	End Select
+
+End Function
+
+Function ConvertM1D(FromName As String, _
+						FromType As String, _
+						ToType As String, _
+						SelectedMethod As String, _
+						Optional bKeepTypeInfo As Boolean, _
+						Optional FromName2 As String, _
+						Optional FromType2 As String, _
+						Optional ParameterArray As Variant) As Variant
+	' For now, simply treat all M1D conversion requests like 1D conversions
+	Assign0DOrObjectResult_LIB(Convert1D(FromName, FromType, ToType, SelectedMethod, bKeepTypeInfo, FromName2, FromType2, ParameterArray), ConvertM1D, ToType)
+End Function
+
+Function ConvertM0DC(FromName As String, _
+						FromType As String, _
+						ToType As String, _
+						SelectedMethod As String, _
+						Optional bKeepTypeInfo As Boolean, _
+						Optional FromName2 As String, _
+						Optional FromType2 As String, _
+						Optional ParameterArray As Variant) As Variant
+End Function
+
+Function ConvertM1DC(FromName As String, _
+						FromType As String, _
+						ToType As String, _
+						SelectedMethod As String, _
+						Optional bKeepTypeInfo As Boolean, _
+						Optional FromName2 As String, _
+						Optional FromType2 As String, _
+						Optional ParameterArray As Variant) As Variant
+	' For now, simply treat all M1DC conversion requests like 1DC conversions
+	Assign0DOrObjectResult_LIB(Convert1DC(FromName, FromType, ToType, SelectedMethod, bKeepTypeInfo, FromName2, FromType2, ParameterArray), ConvertM1DC, ToType)
+End Function
+
+Function Get_TemplateType(ResultName As String) As String
+	Dim tmpString1 As String, tmpString2 As String
+
+	ResetTemplateIterator()
+	SetTemplateFilter("resultname",ResultName)
+	' "SetTemplateFilter" not working properly in DS, need additional check/while loop...
+	While(GetNextTemplate(tmpString1, Get_TemplateType, tmpString2, tmpString2))
+		If (tmpString1 = ResultName) Then Exit Function
+	Wend
+	ResetTemplateIterator()
+End Function
+
+
+Function GetSupportedToTypes(FromType As String) As Variant
+
+	Dim SupportedTypes() As String
+	Dim LookupArray() As Variant
+	Dim i As Long
+
+	' ReportInformationToWindow("GetSupportedToTypes: FromType="+FromType)
+	Select Case FromType
+		Case "0D", "TABLE0d", "TABLE0d real", "real0D"
+			LookupArray = SupportedConversions0D
+		Case "1D", "TABLE1d", "real"
+			LookupArray = SupportedConversions1D
+		Case "0DC", "TABLE0d complex", "complex0D"
+			LookupArray = SupportedConversions0DC
+		Case "1DC", "TABLE1d complex", "complex"
+			LookupArray = SupportedConversions1DC
+		Case "M0D"
+			LookupArray = SupportedConversionsM0D
+		Case "M1D"
+			LookupArray = SupportedConversionsM1D
+		Case "M0DC"
+			LookupArray = SupportedConversionsM0DC
+		Case "M1DC"
+			LookupArray = SupportedConversionsM1DC
+		Case Else
+			LookupArray = InvalidFromType
+	End Select
+
+	For i = 0 To UBound(LookupArray)
+		ReDim Preserve SupportedTypes(i)
+		SupportedTypes(i) = Split(LookupArray(i),":")(0)
+	Next
+
+	GetSupportedToTypes = SupportedTypes
+
+End Function
+
+Function GetSupportedMethods(FromType As String, ToType As String) As Variant
+
+	Dim SupportedMethods() As String
+	Dim LookupArray() As Variant
+	Dim i As Long, j As Long
+
+	Select Case FromType
+		Case "0D", "TABLE0d", "TABLE0d real", "real0D"
+			LookupArray = SupportedConversions0D
+		Case "1D", "TABLE1d", "real"
+			LookupArray = SupportedConversions1D
+		Case "0DC", "TABLE0d complex", "complex0D"
+			LookupArray = SupportedConversions0DC
+		Case "1DC", "TABLE1d complex", "complex"
+			LookupArray = SupportedConversions1DC
+		Case "M0D"
+			LookupArray = SupportedConversionsM0D
+		Case "M1D"
+			LookupArray = SupportedConversionsM1D
+		Case "M0DC"
+			LookupArray = SupportedConversionsM0DC
+		Case "M1DC"
+			LookupArray = SupportedConversionsM1DC
+		Case Else
+			LookupArray = InvalidFromType
+	End Select
+
+	' set default
+	ReDim SupportedMethods(0)
+	SupportedMethods(0) = "none"
+	GetSupportedMethods = SupportedMethods
+
+	For i = 0 To UBound(LookupArray)
+		If (Split(LookupArray(i),":")(0)=ToType) Then
+			For j = 0 To UBound(Split(Split(LookupArray(i),":")(1),"|"))
+				ReDim Preserve SupportedMethods(j)
+				SupportedMethods(j) = Split(Split(LookupArray(i),":")(1),"|")(j)
+			Next j
+			GetSupportedMethods = SupportedMethods
+			Exit Function
+		End If
+	Next i
+
+End Function
+
+' More general part of the library starts here, please add conversion functions non-specific to "Template Type Conversion" template below
+
+Function Expand0DTo1D(cst0DValue As Variant, Optional xmin As Double, Optional xmax As Double) As Object
+	' Value of type "variant" so that double or string (parameters) can be accepted, needed due to missing autoconversion for Linux VBA engine
+	Dim dTemp As Double
+	If (IsObject(cst0DValue)) Then
+ 		cst0DValue.GetData(dTemp) ' convert object to double by getting its data and overwriting object
+ 		cst0DValue = dTemp
+ 	End If
+	xmin = IIf(xmin=0 And xmax = 0, lib_rundef, xmin)
+	xmax = IIf(xmin=0 And xmax = 0, lib_rundef, xmax)
+	Set Expand0DTo1D = Result1D("")
+	' Three points so MakeCompatibleTo can be used
+	Expand0DTo1D.AppendXY(lib_rundef,Evaluate(cst0DValue))
+	Expand0DTo1D.AppendXY(0,Evaluate(cst0DValue))
+	Expand0DTo1D.AppendXY(-lib_rundef,Evaluate(cst0DValue))
+End Function
+
+Function Expand0DTo1DC(cst0DValue As Variant, Optional xmin As Double, Optional xmax As Double) As Object
+	' Value of type "variant" so that double or string (parameters) can be accepted, needed due to missing autoconversion for Linux VBA engine
+	Dim dTemp As Double
+	If (IsObject(cst0DValue)) Then
+ 		cst0DValue.GetData(dTemp) ' convert object to double by getting its data and overwriting object
+ 		cst0DValue = dTemp
+ 	End If
+	Set Expand0DTo1DC = Expand0DCTo1DC(Evaluate(cst0DValue),"0", xmin, xmax)
+End Function
+
+Function Expand0DCTo1DC(cstReValue As Variant, cstImValue As Variant, Optional xmin As Double, Optional xmax As Double) As Object
+	' Value of type "variant" so that double or string (parameters) can be accepted, needed due to missing autoconversion for Linux VBA engine
+	Dim dTemp As Double
+	If (IsObject(cstReValue)) Then
+ 		cstReValue.GetData(dTemp) ' convert object to double by getting its data and overwriting object
+ 		cstReValue = dTemp
+ 	End If
+	If (IsObject(cstImValue)) Then
+ 		cstImValue.GetData(dTemp) ' convert object to double by getting its data and overwriting object
+ 		cstImValue = dTemp
+ 	End If
+	xmin = IIf(xmin=0 And xmax = 0, lib_rundef, xmin)
+	xmax = IIf(xmin=0 And xmax = 0, lib_rundef, xmax)
+	Set Expand0DCTo1DC = Result1DComplex("")
+	' Three points so MakeCompatibleTo can be used
+	Expand0DCTo1DC.AppendXY(lib_rundef,Evaluate(cstReValue),Evaluate(cstImValue))
+	Expand0DCTo1DC.AppendXY(0,Evaluate(cstReValue),Evaluate(cstImValue))
+	Expand0DCTo1DC.AppendXY(-lib_rundef,Evaluate(cstReValue),Evaluate(cstImValue))
+End Function
+
+Function Expand1DTo1DC(aRes1D As Object) As Object
+	Dim i As Long, dStartTime As Double
+	Dim dXValues() As Double, dYReValues() As Double, dYImValues() As Double, nSamples As Long
+	'dStartTime = Timer()
+	Set Expand1DTo1DC = Result1DComplex("")
+	nSamples = aRes1D.GetN()
+	Expand1DTo1DC.Initialize(nSamples)
+	dXValues = aRes1D.GetArray("x")
+	dYReValues = aRes1D.GetArray("y")
+	ReDim dYImValues(nSamples-1)
+	For i = 0 To nSamples-1
+		dYImValues(i)=0
+	Next
+	Expand1DTo1DC.SetArray(dXValues, "x")
+	Expand1DTo1DC.SetArray(dYReValues, "yre")
+	Expand1DTo1DC.SetArray(dYImValues, "yim")
+
+	Expand1DTo1DC.Title(aRes1D.GetTitle())
+	Expand1DTo1DC.XLabel(aRes1D.GetXLabel())
+	Expand1DTo1DC.YLabel(aRes1D.GetYLabel())
+	'ReportInformationToWindow("Expanded 1D to 1DC after " + CStr(Timer()-dStartTime) + " secs.")
+End Function
+
+Function Combine1DTo1DC_LIB(aRes1D As Object, bRes1D As Object) As Object
+	' Combines two Result1D Objects into one Result1DComplex object
+	' Input: aRes1D, Object of Type Result1D, will become real part
+	'			bRes1D, Object of Type Result1D, will become imaginary part
+	' Output: Object of type Result1DComplex
+	'
+	' It is assumed that the samples in both object are ascending in x
+	Dim i As Long
+	Dim dmin_tmp As Double, dmax_tmp As Double
+	Dim itmp1 As Long, itmp2 As Long, itmp3 As Long, itmp4 As Long
+	Dim bResamplingNecessary As Boolean
+	Dim dXValues() As Double, dXValues1() As Double, dYReValues() As Double, dYImValues() As Double
+
+	Set Combine1DTo1DC_LIB = Result1DComplex("")
+
+	bResamplingNecessary = False
+	If (aRes1D.GetN <> bRes1D.GetN _
+		Or aRes1D.GetX(0) <> bRes1D.GetX(0) _
+		Or aRes1D.GetX(aRes1D.GetN-1) <> bRes1D.GetX(bRes1D.GetN-1)) Then
+		bResamplingNecessary = True
+	Else
+		dXValues = aRes1D.GetArray("x")
+		dXValues1 = bRes1D.GetArray("x")
+		For i = 0 To aRes1D.GetN-1
+			If dXValues(i) <> dXValues1(i) Then
+				bResamplingNecessary = False
+				Exit For
+			End If
+		Next
+	End If
+
+	' Make input objects compatible if necessary
+	If bResamplingNecessary Then
+		' search biggest common min-max-range
+		dmin_tmp = lib_rundef   ' max negative value (rundef is negative)
+		dmax_tmp = -lib_rundef  ' max positive value
+
+		If ((aRes1D.GetX(0) > bRes1D.GetX(bRes1D.GetN-1)) Or (aRes1D.GetX(aRes1D.GetN-1) < bRes1D.GetX(0))) Then
+			Set Combine1DTo1DC_LIB = Nothing
+			ReportError("Cannot combine results, no overlapping x data.")
+		Else
+			dmin_tmp = IIf(aRes1D.GetX(0)>bRes1D.GetX(0), aRes1D.GetX(0), bRes1D.GetX(0))
+			dmax_tmp = IIf(aRes1D.GetX(aRes1D.GetN-1)<bRes1D.GetX(bRes1D.GetN-1), aRes1D.GetX(aRes1D.GetN-1), bRes1D.GetX(bRes1D.GetN-1))
+		End If
+
+		' search and take smallest number of samples in found min-max-range
+		itmp1 = aRes1D.GetClosestIndexFromX(dmin_tmp)
+		If aRes1D.GetX(itmp1) < dmin_tmp Then itmp1=itmp1+1
+		itmp2 = aRes1D.GetClosestIndexFromX(dmax_tmp)
+		If aRes1D.GetX(itmp2) > dmax_tmp Then itmp2=itmp2-1
+		itmp3 = bRes1D.GetClosestIndexFromX(dmin_tmp)
+		If bRes1D.GetX(itmp3) < dmin_tmp Then itmp3=itmp3+1
+		itmp4 = bRes1D.GetClosestIndexFromX(dmax_tmp)
+		If bRes1D.GetX(itmp4) > dmax_tmp Then itmp4=itmp4-1
+
+		aRes1D.ResampleTo(dmin_tmp, dmax_tmp, IIf(itmp4-itmp3>itmp2-itmp1, itmp4-itmp3+1, itmp2-itmp1+1))
+		bRes1D.ResampleTo(dmin_tmp, dmax_tmp, IIf(itmp4-itmp3>itmp2-itmp1, itmp4-itmp3+1, itmp2-itmp1+1))
+	End If ' ResamplingNecessary
+
+	' Results are now compatible, combine them
+	dXValues = aRes1D.GetArray("x")
+	dYReValues = aRes1D.GetArray("y")
+	dYImValues = bRes1D.GetArray("y")
+	Combine1DTo1DC_LIB.Initialize(UBound(dXValues)+1)
+	Combine1DTo1DC_LIB.SetArray(dXValues, "x")
+	Combine1DTo1DC_LIB.SetArray(dYReValues, "yre")
+	Combine1DTo1DC_LIB.SetArray(dYImValues, "yim")
+
+End Function
+
+Function GetTreePathFromResultName(ByVal ResultName As String, Optional ResultType As String) As String
+
+	' Expects a unique result name, this is not guaranteed in 2010 (0D and 1D result might have the same name)
+	' FSC 2015: When looking at tree results as well, unique names are not guaranteed anymore.
+	' Furthermore, M0D template can create result names that have nothing to do with the template name.
+	' In such cases, it is impossible to determine the tree path with certainty.
+	Dim sResultNameLocal As String, TemplateType As String, TemplateName As String, TemplateFolder As String
+	Dim bIsTemplate As Boolean
+
+	' If the result type is known, it can be used to determine if the result is a template or a tree entry
+	Select Case ResultType
+		Case "" ' the old default, start guesswork
+			' If ResultName contains a "\", it could be either a template of type multiple or a regular tree result
+			' Search for (Reduced)ResultName in list of templates. If found, it is most likely a template. Otherwise, most likely a tree entry.
+			' Situations in which this would fail:
+			' i) an M-template where template name and tree entry are uncorrelated would not show up in template iterator
+			' ii) There exists a tree folder with the same name as an M-template
+			ResetTemplateIterator
+			If (UBound(Split(ResultName, "\")) > 0) Then
+				SetTemplateFilter("resultname", Split(ResultName, "\")(0))
+			Else
+				SetTemplateFilter("resultname", ResultName)
+			End If
+			GetNextTemplate(sResultNameLocal, TemplateType, TemplateName, TemplateFolder)
+			If (sResultNameLocal <> "") Then ' (Reduced)ResultName exists in list of templates
+				bIsTemplate = True
+			Else ' not in list, most likely a tree entry.
+				bIsTemplate = False
+			End If
+		Case "0D", "0DC", "M0D", "M0DC", "1D", "1DC", "M1D", "M1DC"
+			bIsTemplate = True
+			TemplateType = ResultType
+		Case Else
+			bIsTemplate = False
+	End Select
+
+	' Now we should know if it is a template or not and proceed accordingly
+	If Not bIsTemplate Then ' ResultName is not a template but already a path to a tree result
+		If (Left(GetApplicationName(),2) = "DS") Then
+			GetTreePathFromResultName = DSResultFolder_LIB +"\"+ ResultName
+		Else
+			GetTreePathFromResultName = MWSResultFolder_LIB +"\"+ ResultName
+		End If
+	Else
+		Select Case TemplateType
+			Case "0D", "0DC", "M0D", "M0DC"
+				If (Left(GetApplicationName(),2) = "DS") Then
+					GetTreePathFromResultName = DS.GetActivePostprocessingTask() +"\0D\"+ResultName
+				Else
+					GetTreePathFromResultName = "Tables\0D Results\"+ResultName
+				End If
+			Case "1D", "1DC", "M1D", "M1DC"
+				If (Left(GetApplicationName(),2) = "DS") Then
+					GetTreePathFromResultName = DS.GetActivePostprocessingTask() +"\1D\"+ResultName
+				Else
+					GetTreePathFromResultName = "Tables\1D Results\"+ResultName
+				End If
+			Case Else ' Some guesswork necessary for MXD results...
+				If (Left(GetApplicationName(),2) = "DS") Then
+					If DSResultTree.DoesTreeItemExist(DS.GetActivePostprocessingTask() +"\0D\"+ResultName) Then
+						GetTreePathFromResultName = DS.GetActivePostprocessingTask() +"\0D\"+ResultName ' select suceeded, so it exists
+					ElseIf DSResultTree.DoesTreeItemExist(DS.GetActivePostprocessingTask() +"\1D\"+ResultName) Then ' 1D result
+						GetTreePathFromResultName = DS.GetActivePostprocessingTask() +"\1D\"+ResultName ' select suceeded, so it exists
+					Else
+						ReportError("Convert template type: Could not determine path name for '"+ResultName+"'.")
+					End If
+				Else
+					If (Resulttree.DoesTreeItemExist("Tables\0D Results\"+ResultName)) Then
+						GetTreePathFromResultName = "Tables\0D Results\"+ResultName
+					Else
+						GetTreePathFromResultName = "Tables\1D Results\"+ResultName
+					End If
+				End If
+		End Select
+	End If
+
+End Function
+
+Function GetLastResult_LIB(ByVal sResultName As String, ByVal sResultType As String, Optional ByVal sToType As String) As Variant
+
+	' Load sResultName for last RunID, return as type sToType
+	' sResultType can be left empty if sResultName specifies a tree entry, but not if sResultName refers to a template name
+	' If sToType is left empty/omitted, return type will be set to sResultType, or current object type if sResultType is also left empty
+
+	Dim sLastRunID As String
+
+	If (Left(GetApplicationName,2) = "DS") Then
+		sLastRunID = DS.GetLastResultID()
+	Else
+		sLastRunID = GetLastResultID()
+	End If
+
+	GetLastResult_LIB = GetResultByRunID_LIB(sLastRunID, sResultName, sResultType, sToType)
+
+End Function
+
+Function GetListOfRunIDs_LIB(ByVal sResultName As String) As Variant
+
+	' This function returns a string array containing the list of currently available runIDs for the selected tree entry
+	Dim oTreeObjectToCall As Object, oTable As Object
+	Dim sResultTreePath As String, i As Long
+	Dim sListOfRunIDs() As String
+	Dim sTypeFromItemNameMethodToCall As String
+
+	If (Left(GetApplicationName,2) = "DS") Then
+		'sResultTreePath = DSResultFolder_LIB+"\"+sResultName
+		Set oTreeObjectToCall = DSResultTree
+		sTypeFromItemNameMethodToCall = "GetResultTypeFromItemName"
+	Else
+		'sResultTreePath = MWSResultFolder_LIB+"\"+sResultName
+		Set oTreeObjectToCall = Resulttree
+		sTypeFromItemNameMethodToCall = "GetTypeFromItemName"
+	End If
+	sResultTreePath = sResultName
+
+	GetListOfRunIDs_LIB = CallByName(oTreeObjectToCall, "GetResultIDsFromTreeItem", vbMethod, sResultTreePath)
+
+End Function
+
+Function GetTableIndexForRunID_LIB(oTable As Object, sRunID As String) As Long
+
+	' Returns the index in the table at which the parameter combination belonging to sRunID matches the parameter combination in the table.
+	Dim i As Long, j As Long, vParameterNames As Variant, vParameterValues As Variant
+	Dim dCombinationErrorNorm As Double, dCurrentBestErrorNorm As Double
+	Dim nVaryingParameterIndex As Long, nFirstTestIndex As Long
+
+	' Read parameter combination for given sRunID
+	If (Left(GetApplicationName, 2) = "DS") Then
+		DS.GetParameterCombination(sRunID, vParameterNames, vParameterValues)
+	Else
+		GetParameterCombination(sRunID, vParameterNames, vParameterValues)
+	End If
+
+	If IsEmpty(vParameterNames) Then
+		ReportWarningToWindow("No parameter combination exists for " + sRunID + ".")
+		GetTableIndexForRunID_LIB = -1
+		Exit Function
+	End If
+
+	' Ensure that parameter sorting matches between table and global list
+	For j = 0 To UBound(vParameterNames)
+		Assert_LIB(CStr(vParameterNames(j)) = oTable.GetParameterNameFromIndex(j)) ' If this is not true, we need a third loop to match up parameter names :( =
+	Next
+
+	' Assuming that run ID and table index are somewhat related, start searching at an index just below the current run ID
+	' If no match is found, also search from 0 to nFirstIndex
+	nFirstTestIndex = CLng(Right(sRunID, Len(sRunID) - InStrRev(sRunID, ":"))) - 1
+	If ((nFirstTestIndex < 0) Or (nFirstTestIndex > oTable.GetNumberOfDataItems)) Then nFirstTestIndex = 0
+
+	dCurrentBestErrorNorm = -1
+	nVaryingParameterIndex = 0
+	' For each entry in the table, calculate the norm of difference between para values in table and wanted combination. Minimum (ideally 0) is what we are looking for.
+	For i = nFirstTestIndex To oTable.GetNumberOfDataItems()-1
+		' Try that parameter first, which was found to vary during last run. This helps speeds things up if there are many parameters and the varying parameter has a high index
+		dCombinationErrorNorm = Abs((CDbl(vParameterValues(nVaryingParameterIndex))-oTable.GetParameterValueOfDataItem(i, nVaryingParameterIndex))/IIf(CDbl(vParameterValues(nVaryingParameterIndex))<>0, vParameterValues(nVaryingParameterIndex), 1))
+		For j = 0 To UBound(vParameterNames)
+			dCombinationErrorNorm = dCombinationErrorNorm + Abs((CDbl(vParameterValues(j))-oTable.GetParameterValueOfDataItem(i, j))/IIf(CDbl(vParameterValues(j))<>0, vParameterValues(j), 1))
+			If dCombinationErrorNorm > 1e-6*(j+2) Then Exit For ' Numerical errors should not be larger than 1e-6 per parameter
+		Next
+		' Use j if loop was exited due to mismatch, or UBound(vParameterNames) if loop was exited regularly
+		nVaryingParameterIndex = IIf(j > UBound(vParameterNames), UBound(vParameterNames), j)
+		If dCombinationErrorNorm = 0 Then ' perfect match, found combination
+			GetTableIndexForRunID_LIB = i
+			Exit Function
+		ElseIf (dCombinationErrorNorm < (UBound(vParameterNames)+2) * 1e-6) Then ' no perfect match, but small enough to be within numerical tolerance; mark this combination (if better than current) and keep looking
+			If ((dCurrentBestErrorNorm = -1) Or (dCombinationErrorNorm < dCurrentBestErrorNorm)) Then
+				dCurrentBestErrorNorm = dCombinationErrorNorm
+				GetTableIndexForRunID_LIB = i
+			End If
+		End If
+	Next
+	For i = 0 To nFirstTestIndex-1
+		' Try that parameter first, which was found to vary during last run. This helps speeds things up if there are many parameters and the varying parameter has a high index
+		dCombinationErrorNorm = Abs((CDbl(vParameterValues(nVaryingParameterIndex))-oTable.GetParameterValueOfDataItem(i, nVaryingParameterIndex))/IIf(CDbl(vParameterValues(nVaryingParameterIndex))<>0, vParameterValues(nVaryingParameterIndex), 1))
+		For j = 0 To UBound(vParameterNames)
+			dCombinationErrorNorm = dCombinationErrorNorm + Abs((CDbl(vParameterValues(j))-oTable.GetParameterValueOfDataItem(i, j))/IIf(CDbl(vParameterValues(j))<>0, vParameterValues(j), 1))
+			If dCombinationErrorNorm > 1e-6*(j+2) Then Exit For ' Numerical errors should not be larger than 1e-6 per parameter
+		Next
+		' Use j if loop was exited due to mismatch, or UBound(vParameterNames) if loop was exited regularly
+		nVaryingParameterIndex = IIf(j > UBound(vParameterNames), UBound(vParameterNames), j)
+		If dCombinationErrorNorm = 0 Then ' perfect match, found combination
+			GetTableIndexForRunID_LIB = i
+			Exit Function
+		ElseIf (dCombinationErrorNorm < (UBound(vParameterNames)+2) * 1e-6) Then ' no perfect match, but small enough to be within numerical tolerance; mark this combination (if better than current) and keep looking
+			If ((dCurrentBestErrorNorm = -1) Or (dCombinationErrorNorm < dCurrentBestErrorNorm)) Then
+				dCurrentBestErrorNorm = dCombinationErrorNorm
+				GetTableIndexForRunID_LIB = i
+			End If
+		End If
+	Next
+	' Return error if error is too large
+	If (dCurrentBestErrorNorm > (UBound(vParameterNames)+2)*1e-6) Then
+		GetTableIndexForRunID_LIB = -1
+		ReportWarningToWindow("Could not find a matching table entry for " + sRunID + ".")
+	End If
+
+End Function
+
+Function GetResultByRunID_LIB(sRunID As String, ByVal sResultName As String, ByVal sResultType As String, Optional ByVal sToType As String) As Variant
+
+	' Load sResultName for given sRunID, return as type sToType
+	' sResultType can be left empty if sResultName specifies a tree entry, but not if sResultName refers to a template name
+	' If sToType is left empty/omitted, return type will be set to sResultType, or current object type if sResultType is also left empty
+
+	Dim TreeObjectToCall As Object, dTmpValue As Double, dTmpValue2 As Double
+	Dim sResultTreePath As String
+	Dim oTempObject As Object, sObjResType As String
+
+	If (Left(GetApplicationName,2) = "DS") Then
+		Select Case sResultType
+			Case "0D", "M0D"
+				sResultTreePath = DS.GetActivePostprocessingTask() & "\0D\"+sResultName
+			Case "1D", "1DC", "M1D", "M1DC"
+				sResultTreePath = DS.GetActivePostprocessingTask() & "\1D\"+sResultName
+			Case Else
+				' Not a template, but a tree entry. Could be a task result under "Tasks\" (default), or a 3D block result under "Blocks\"
+				' For historic reasons, "Tasks" in the beginning is omitted, which means that "Blocks\..." could refer to a result under "Blocks\" or "Tasks\Blocks\"
+				If (Left(sResultName, 7) <> "Blocks\") Then
+					' No problem here
+					sResultTreePath = DSResultFolder_LIB+"\"+sResultName
+				ElseIf (DSResultTree.DoesTreeItemExist(DSResultFolder_LIB+"\"+sResultName)) Then
+					' This could be under "Blocks\" or "Tasks\Blocks\", if a task happens to be called "Blocks\"
+					' If the specified result exists under "Tasks\Blocks\", use it
+					sResultTreePath = DSResultFolder_LIB+"\"+sResultName
+				Else
+					' Leave sResultTreePath unchanged, read results from Blocks folder
+					sResultTreePath = sResultName
+				End If
+		End Select
+		Set TreeObjectToCall = DSResultTree
+	Else
+		Select Case sResultType
+			Case "0D", "M0D"
+				sResultTreePath = "Tables\0D Results\"+sResultName
+			Case "1D", "1DC", "M1D", "M1DC"
+				sResultTreePath = "Tables\1D Results\"+sResultName
+			Case Else
+				sResultTreePath = MWSResultFolder_LIB+"\"+sResultName
+		End Select
+		Set TreeObjectToCall = Resulttree
+	End If
+
+	' Get the last result for sResultName of sResultType, convert to sToType
+	Set oTempObject = CallByName(TreeObjectToCall, "GetResultFromTreeItem", vbMethod, sResultTreePath, sRunID)
+	If oTempObject Is Nothing Then
+		' OK if the tree entry exists, but no results for the selected RunID
+		Set GetResultByRunID_LIB = oTempObject
+		Exit Function
+	End If
+
+	' Determine current object type
+	sObjResType = CallByName(oTempObject,"GetResultObjectType", vbMethod)
+	' Default value for optional parameter
+	sToType = IIf(sToType = "", IIf(sResultType = "", sObjResType, sResultType), sToType)
+
+	Select Case sToType
+		Case "0D", "real0D", "TABLE0d real"
+			Select Case sObjResType
+				Case "0D"
+					oTempObject.GetData(dTmpValue)
+					GetResultByRunID_LIB = dTmpValue
+			End Select
+		Case "1D", "real", "TABLE1d"
+			Select Case sObjResType
+				Case "0D"
+					oTempObject.GetData(dTmpValue)
+					Set GetResultByRunID_LIB = Expand0DTo1D(dTmpValue)
+				Case "1D"
+					Set GetResultByRunID_LIB = oTempObject
+				End Select
+		Case "1DC", "complex", "TABLE1d complex"
+			Select Case sObjResType
+				Case "0D"
+					oTempObject.GetData(dTmpValue)
+					Set GetResultByRunID_LIB = Expand0DTo1DC(dTmpValue)
+				Case "0DC"
+					Set GetResultByRunID_LIB = Expand0DTo1DC(oTempObject)
+					GetResultByRunID_LIB.GetDataComplex(dTmpValue, dTmpValue2)
+					Set GetResultByRunID_LIB = Expand0DCTo1DC(dTmpValue, dTmpValue2)
+				Case "1D"
+					Set GetResultByRunID_LIB = Expand1DTo1DC(oTempObject)
+				Case "1DC"
+					Set GetResultByRunID_LIB = oTempObject
+			End Select
+		Case Else
+			Set GetResultByRunID_LIB = Nothing
+	End Select
+End Function
+
+'==========================================================================================================================================
+' TreeEntry iterator, similar to TemplateIterator
+' Consists of 1 global variable, 2 public consts, and 2 functions (reset and getnext)
+'
+Public sCurrentTreeResult_LIB As String
+Public sTreeIteratorStartFolder_LIB As String
+Public Const DSResultFolder_LIB = "Tasks"
+Public Const MWSResultFolder_LIB = "1D Results"
+
+Sub ResetTreeResultIterator_LIB(Optional sStartFolder As String)
+
+	' Reset the iterator
+	If sStartFolder <> "" Then
+		sCurrentTreeResult_LIB = sStartFolder
+		sTreeIteratorStartFolder_LIB = sStartFolder
+	ElseIf Left(GetApplicationName,2) = "DS" Then
+		sCurrentTreeResult_LIB = DSResultFolder_LIB
+	Else
+		sCurrentTreeResult_LIB = MWSResultFolder_LIB
+	End If
+
+End Sub
+
+Function GetNextTreeResult_LIB(ByRef sTreeResultPath As String, ByRef sTreeResultType As String, ByRef sTreeResultFileName As String, Optional bThisFolderOnly As Boolean) As Boolean
+
+	' 11-May-2017: THIS FUNCTION IS DEPRECATED. PLEASE USE ResultTree.GetTreeResults
+	ReportWarning("template_conversions.lib:GetNextTreeResult_LIB is deprecated. Please use ResultTree.GetTreeResults")
+
+	' Set sTreeResultPath to next result item in tree, return "True". Return "False" when end of tree is reached
+	' sTreeResultPath: Used to return the tree path to the next result (including leading *ResultFolder_LIB)
+	' sTreeResultType: Used to return the result type of the next tree result
+	' sTreeResultFileName: Used to return the file name belonging to the next tree result
+	' bThisFolderOnly: If this is "True", the iterator will only return items located in the start folder set by ResetTreeResultIterator_LIB. Useful for subfolders. Optional.
+	Dim i As Long, j As Long
+	Dim treeDepth As Long, treeEntries() As String
+	Dim TreeObjectToCall As Object, sTypeFromItemNameMethodToCall As String
+	Dim aTable As Object
+	Dim dStart As Double
+
+	dStart = Timer()
+
+	If (sCurrentTreeResult_LIB = "") Or (bThisFolderOnly And (InStr(sCurrentTreeResult_LIB, sTreeIteratorStartFolder_LIB) = 0)) Then ' iterator has reached last result or not in selected subfolder anymore
+		sTreeResultPath = ""
+		sTreeResultType = ""
+		sTreeResultFileName = ""
+		GetNextTreeResult_LIB = False
+		Exit Function
+	End If
+
+	On Error GoTo FindNextCandidate
+	'ReportInformationToWindow sCurrentTreeResult_LIB
+
+	treeEntries = Split(sCurrentTreeResult_LIB, "\")
+	treeDepth = UBound(treeEntries)
+	For i = 1 To treeDepth
+		treeEntries(i) = treeEntries(i-1) + "\" + treeEntries(i)
+	Next
+	'Assert_LIB(treeEntries(treeDepth) = sCurrentTreeResult_LIB)
+
+	If (Left(GetApplicationName(),2) = "DS") Then
+		Set TreeObjectToCall = DSResultTree
+		sTypeFromItemNameMethodToCall = "GetResultTypeFromItemName"
+	Else
+		Set TreeObjectToCall = Resulttree
+		sTypeFromItemNameMethodToCall = "GetTypeFromItemName"
+	End If
+
+	' descend to the end of current branch
+	While((CallByName(TreeObjectToCall, "GetFirstChildName", vbMethod, treeEntries(treeDepth)) <> "") _
+		And (CallByName(TreeObjectToCall, "GetFileFromTreeItem", vbMethod, treeEntries(treeDepth))=""))
+		treeDepth = treeDepth + 1
+		ReDim Preserve treeEntries(treeDepth)
+		treeEntries(treeDepth) = CallByName(TreeObjectToCall, "GetFirstChildName", vbMethod, treeEntries(treeDepth-1))
+	Wend
+	' Check if last entry in branch is a valid file
+	sTreeResultFileName = CallByName(TreeObjectToCall, "GetFileFromTreeItem", vbMethod, treeEntries(treeDepth))
+	' ReportInformationToWindow sTreeResultFileName
+	If (sTreeResultFileName<>"") Then
+		sTreeResultPath = treeEntries(treeDepth)
+		sTreeResultType = GetTreeResultType_LIB(sTreeResultPath)
+		' ReportInformationToWindow(sTreeResultFileName+":"+sTreeResultType)
+		GetNextTreeResult_LIB = True
+		' Find next potential result
+		' If it exists, move to next item on same level. If not, go up one level in tree, move to next item there
+		While (CallByName(TreeObjectToCall,"GetNextItemName", vbMethod,treeEntries(treeDepth))="" And treeDepth > 1)
+			treeDepth = treeDepth - 1
+			ReDim Preserve treeEntries(treeDepth)
+		Wend
+		treeEntries(treeDepth) = CallByName(TreeObjectToCall,"GetNextItemName", vbMethod,treeEntries(treeDepth))
+		sCurrentTreeResult_LIB = treeEntries(treeDepth)
+	Else
+		GoTo FindNextCandidate
+	End If
+
+	' ReportInformationToWindow(CStr(Timer() - dStartTime) & ": " & sTreeResultPath)
+
+	Exit Function
+	FindNextCandidate:
+		' Go to next folder on same level and start searching again
+		'sCurrentTreeResult_LIB = CallByName(TreeObjectToCall,"GetNextItemName", vbMethod,treeEntries(treeDepth))
+		While (CallByName(TreeObjectToCall,"GetNextItemName", vbMethod,treeEntries(treeDepth))="" And treeDepth > 1)
+			treeDepth = treeDepth - 1
+			ReDim Preserve treeEntries(treeDepth)
+		Wend
+		treeEntries(treeDepth) = CallByName(TreeObjectToCall,"GetNextItemName", vbMethod,treeEntries(treeDepth))
+		sCurrentTreeResult_LIB = treeEntries(treeDepth)
+		GetNextTreeResult_LIB = GetNextTreeResult_LIB(sTreeResultPath, sTreeResultType, sTreeResultFileName)
+
+		' ReportInformationToWindow(CStr(Timer() - dStartTime) & ": " & sTreeResultPath)
+
+End Function
+' End of TreeEntry Iterator
+'==========================================================================================================================================
+
+Function GetTreeResultType_LIB(sTreeResultPath As String) As String
+
+	' Returns the result type of a given result item, as identified by its tree path
+
+	Dim aTable As Object
+	Dim TreeObjectToCall As Object, sTypeFromItemNameMethodToCall As String
+	Dim sTreeResultFileName As String
+
+	If (Left(GetApplicationName(),2) = "DS") Then
+		Set TreeObjectToCall = DSResultTree
+		sTypeFromItemNameMethodToCall = "GetResultTypeFromItemName"
+	Else
+		Set TreeObjectToCall = Resulttree
+		sTypeFromItemNameMethodToCall = "GetTypeFromItemName"
+	End If
+
+	sTreeResultFileName = CallByName(TreeObjectToCall, "GetFileFromTreeItem", vbMethod, sTreeResultPath)
+
+	' Manually set ResultType in case "2D/3D Result" or "Farfield" is in the result path, "GetFileType" unfortunately classifies them as "complex"
+	If (InStr(sTreeResultPath, "\3D Model Results\2D/3D Results\")>0) Then
+		GetTreeResultType_LIB = "2d3dresult"
+	ElseIf (InStr(sTreeResultPath, "\3D Model Results\Farfields\")>0) Then
+		GetTreeResultType_LIB = "farfield"
+	ElseIf ((GetFileType(sTreeResultFileName)="unknown") And _
+		 (UCase(CallByName(TreeObjectToCall, sTypeFromItemNameMethodToCall, vbMethod, sTreeResultPath))="TABLE")) Then
+		If (Left(GetApplicationName, 2) = "DS") Then
+			Set aTable = DS.Table(sTreeResultFileName)
+		Else
+			Set aTable = Table(sTreeResultFileName)
+		End If
+		GetTreeResultType_LIB = "TABLE"+aTable.GetResultTypeOfDataItem(0)
+	ElseIf (sTreeResultFileName = "") Then
+		ReportError("GetTreeResultType: File name is empty. Cannot determine result type.")
+	Else
+		GetTreeResultType_LIB = GetFileType(sTreeResultFileName)
+	End If
+
+End Function

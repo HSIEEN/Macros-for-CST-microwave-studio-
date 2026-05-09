@@ -1,0 +1,32 @@
+' ================================================================================================
+' Copyright 2018-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================
+' History of Changes
+' ------------------------------------------------------------------------------------------------
+' 25-Jul-2018 tps: First version
+' ================================================================================================
+
+Private Function GetUnit1(sQuantity As String) As String
+	Select Case sQuantity
+		Case "Position"
+			GetUnit1 = Units.GetUnit("Length")
+		Case "Current"
+			GetUnit1 = "A"
+		Case "Mass"
+			GetUnit1 = "kg"
+		Case "ChargeMacro", "Charge"
+			GetUnit1 = "C"
+		Case "Time"
+			GetUnit1 = Units.GetUnit("Time")
+		Case "Velocity"
+			GetUnit1 = "m/s"
+		Case "Energy"
+			GetUnit1 = "eV"
+		Case "Beta", "Gamma", "Momentum", "EmissionID", "ParticleID"
+			GetUnit1 = ""
+		Case "Orbital Angle"
+			GetUnit1 = "rad"
+        Case Else
+            GetUnit1 = "" ' TODO: implement fetching Units for quantities from Particle2DMonitorReader interface
+	End Select
+End Function

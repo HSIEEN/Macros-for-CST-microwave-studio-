@@ -1,0 +1,21 @@
+'------------------------------------------------------------------------------------------
+' Array_wizard specific procedures and functions
+'------------------------------------------------------------------------------------------
+' Copyright 2012-2023 Dassault Systemes Deutschland GmbH
+'------------------------------------------------------------------------------------------
+' History of Changes
+'====================
+' 20-Apr-2012 fhi: add function to check for the existance of a MWS-parameter
+
+
+Function IfParameterExists (parameter As String) As Boolean
+	Dim cst_restore As Double
+	On Error GoTo notfound
+	cst_restore = restoredoubleparameter (parameter)
+	IfParameterExists = True
+	Exit Function
+	notfound:
+	IfParameterExists = False
+	On Error GoTo 0
+End Function
+

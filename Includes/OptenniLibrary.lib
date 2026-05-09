@@ -1,0 +1,131 @@
+Option Explicit
+
+' History of Changes
+'-----------------------------------------------------------------------------------------------------------------------------
+' 22-Feb-2023 jra: Fixed a problem with the optenniLabPath when no Optenni Lab installation was found
+' 16-Jan-2023 dre: [Simulia]Changed location of "findLatestOptenniLabVersion.sh" to "<installPath>" 
+'                  to prevent slash-backslash meddling that happens for files in the "Macro" path.
+' 17-Oct-2022 jra: Extracted the routines which can be used from Microwave Studio to optenniLibrary_MWS.lib
+' 14-Oct-2022 jra: Added the freqUnit attribute to the EfficiencyData xml tag in the efficiency interface file
+' 06-Jul-2021 jra: If radiation pattern data is to be sent, switch to 3D farfield view
+' 09-Feb-2021 jra: Reorganized common code to OptenniLibrary.lib
+' 09-Feb-2021 jra: Enabling Linux functionality
+
+Dim optenniLabPath As String
+Dim optenniLabMajorVersion As Integer
+Dim optenniLabMinorVersion As Integer
+
+
+Public Sub InitOptenniLibrary
+   If IsWindows Then
+      GetWindowsInstallation()
+   Else
+      GetLinuxInstallation()
+   End If
+End Sub
+
+Private Sub GetWindowsInstallation
+   ' The GetOptenniLabDirectory.exe is checking if Optenni Lab is installed and what is the latest version.
+   ' The information is written in the registry key HKEY_CURRENT_USER\Software\Optenni Ltd\LatestInstallation
+   Dim MacroPath As String
+   ' Modify this if the exe and this macro are in different directories.
+   MacroPath = GetInstallPath + "\Library\Macros\Matching Circuits\"
+   
+   ChDir(MacroPath)
+   If Dir("GetOptenniLabDirectory.exe*") = "" Then
+      MsgBox ("Internal problem with the Launch Optenni Lab macro, GetOptenniLabDirectory.exe not found. Contact CST for help.", _
+              vbOkOnly, "Internal macro problem")
+      Exit Sub
+   End If
+   MacroPath = MacroPath + "GetOptenniLabDirectory.exe"
+   RunAndWait(MacroPath)
+
+   'Get the installation directory from the registry from
+   ' HKEY_CURRENT_USER\Software\Optenni Ltd\LatestInstallation, value Install_Dir
+   ' If Optenni Lab is not installed, the value is "OptenniLabNotInstalled"
+
+   optenniLabPath = GetSetting("..\Optenni Ltd", "LatestInstallation", "Install_Dir")
+   If optenniLabPath = "OptenniLabNotInstalled" Then
+      optenniLabMajorVersion = 0
+      optenniLabMinorVersion = 0
+      Exit Sub
+   End If
+   
+   optenniLabPath = optenniLabPath + "\OptenniLab.exe"
+
+   optenniLabMajorVersion = Cint (GetSetting("..\Optenni Ltd", "LatestInstallation", _
+                                             "Major_version"))
+   optenniLabMinorVersion = Cint(GetSetting("..\Optenni Ltd", "LatestInstallation", _
+                                            "Minor_version"))
+End Sub
+
+Private Sub GetLinuxInstallation
+   Dim MacroPath As String
+' When called from a CST Design Studio instance not associated with a Microwave Studio Model, 
+' the result of GetInstallPath does not include a final backslash	
+   MacroPath = replace(GetInstallPath, "\", "/")
+   ChDir(MacroPath)
+   If Dir("findLatestOptenniLabVersion.sh*") = "" Then
+      MsgBox ("Internal problem with the Launch Optenni Lab macro, findLatestOptenniLabVersion.sh not found. Contact CST for help.", _
+              vbOkOnly, "Internal macro problem")
+      Exit Sub
+   End If
+
+   RunAndWait("findLatestOptenniLabVersion.sh")
+
+   ' The file findLatestOptenniLabVersion.sh should write three lines, first is the installation path (including exe)
+   ' and second and third are the major and minor version numbers
+   Dim locationFile As String
+   locationFile = "/tmp/tmp_OptenniLabLocation"
+   If Dir(locationFile+"*") = "" Then
+      MsgBox ("Internal problem with the Launch Optenni Lab macro, findLatestOptenniLabVersion.sh output not found.", _
+              vbOkOnly, "Internal macro problem")
+      Exit Sub
+   End If
+   Open locationFile For Input As #11
+   If Not EOF(11) Then
+      Line Input #11, optenniLabPath
+   Else
+      Close #11
+      Kill locationFile
+      Exit Sub
+   End If
+   Dim tempStr As String
+   If Not EOF(11) Then
+      Line Input #11, tempStr
+      optenniLabMajorVersion = CInt(tempStr)
+   Else
+      Close #11
+      Kill locationFile
+      Exit Sub
+   End If
+
+   If Not EOF(11) Then
+      Line Input #11, tempStr
+      optenniLabMinorVersion = CInt(tempStr)
+   Else
+      Close #11
+      Kill locationFile
+      Exit Sub
+   End If
+   
+   Close #11
+   Kill locationFile
+
+End Sub
+
+Public Function GetOptenniLabPath As String
+   GetOptenniLabPath = optenniLabPath
+End Function
+
+Public Function GetOptenniLabMajorVersion As Integer
+   GetOptenniLabMajorVersion = optenniLabMajorVersion
+End Function
+
+Public Function GetOptenniLabMinorVersion As Integer
+   GetOptenniLabMinorVersion = optenniLabMinorVersion
+End Function
+
+
+
+

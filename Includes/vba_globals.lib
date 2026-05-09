@@ -1,0 +1,2589 @@
+'--------------------------------------------------------------------------------
+'		==========================
+'		IMPORTANT INFO 28-Jul 2007 (ube)
+'		==========================
+'
+' vba_globals.lib is no longer maintained and only exists for
+' backward compatibility reaons!
+'
+' all constants/subroutines/functions of vba_globals.lib have been moved into
+'
+' either	vba_globals_all.lib    (in case they work in DS as well)
+'
+' or 		vba_globals_3d.lib	(for elements, which only work in 3d-modeler)
+'
+'	please perform bugfixes or include new functionality 
+'		ONLY IN these NEW libs  vba_globals_all.lib or vba_globals_3d.lib
+'
+'--------------------------------------------------------------------------------
+'-----------------------------------------------------------------------------------------------------------------------------
+' Useful VBA procedures and functions
+'-----------------------------------------------------------------------------------------------------------------------------
+' Copyright 2003-2023 Dassault Systemes Deutschland GmbH
+'-----------------------------------------------------------------------------------------------------------------------------
+' History of Changes
+'====================
+' 30-Jul-2009 ube: Split replaced by CSTSplit, since otherwise compeating with standrad VBA-Split function
+' 18-May-2009 ube,pgl: RemoveFileHeader Function adapted to new clipboard format (2010 only) - required for bwc of ResTempl "Farfield (single frq)"
+' 27-Apr-2007 ube: conversion to 2008 + new subroutines RemoveFirstChars and RemoveLastChars
+' 15-Aug-2006 pth,pha: resolved case-sensitive filename comparison in FindNext function.
+' 05-Jul-2006 ube: added PS-default results to GetAll2D3DResults and bScalarField
+' 04-Jul-2006 ube: change EMS-result names in GetAll2D3DResults 
+' 23-Jun-2006 ube: fix in subroutine SendEMail (attachment now working) 
+' 30-Sep-2005 ube: bracket bugfix in bScalarField 
+' 29-Sep-2005 ube: added Temperature results to functions GetAll2D3DResults and bScalarField 
+' 19-Sep-2005 ube: Particle Studio was not handled in function GetAll2D3DResults
+' 05-Aug-2005 imu: Bugfix in routine "ShowHelp"
+' 28-Apr-2005 ube: "Parameter Study" replaced by "Comparison"
+' 05-Jan-2005 ube,lsa: bMathChar also includes "," now due to mathematical functions AtnD2(A,B), ....
+' 22-Dec-2004 ube: no, do not allow [], because of Make Archive cannot archive files with brackets  
+' 06-Aug-2004 ube,cwe: GetSpiceDouble: changed CVar to CDbl (now CVar had problems, see also 13-Nov-2003)
+' 25-Jun-2004 ube: new function bMWS51
+' 23-Jun-2004 ube,imu:  allow [] in filenames (subroutine NoForbiddenFilenameCharacters)
+' 18-Jun-2004 ube: small changes in LoadSigFiles for Particle Studio
+' 27-May-2004 ube: allow komma in filenames (excluded in subroutine NoForbiddenFilenameCharacters)
+' 21-Apr-2004 ube: bugfix: LoadSigFiles did not work for rcs farfield probes (now error handling for prs and prp files)
+' 29-Jan-2004 ube: new subroutine DrawXYZPickPoints to show integration point/line/area/volume
+' 08-Jan-2004 ube: bugfix: LoadSigFiles did not work for adaptive mesh-files (adapt_...-sig-file)
+' 08-Jan-2004 ube: bugfix: GetAttr has strange behaviour, therefore removed from "FindNextFile"
+' 24-Nov-2003 ube: bugfix: LoadSigFiles did not work for full deembedding (alpha-sig-file)
+' 13-Nov-2003 ube: GetSpiceDouble: CDbl replaced by CVar, 1) faster 2) bugfree
+' 03-Nov-2003 ube: Bugfix in dInterpolate for x0=x1 and y0=y1
+' 30-Sep-2003 ube: Tilde(~) replaced by Hat(^)
+' 25-Sep-2003 ube: new Routine DRound (rounding a double value to ndigits)
+' 30-Apr-2003 ube: several replacements of BaseName(lib_modfile) by ShortName(lib_modfile), so that 40.5.sig  still works
+' 10-Apr-2003 ube: new Loadsigfile (no also works with full deembedding)
+' 02-Apr-2003 ube: lib_rundef constant for undefined values
+' 31-Jan-2003 ube: fix for komma problem with reference impedance
+'-----------------------------------------------------------------------------------------------------------------------------
+' To avoid name collision with parameters in CST MicroWaveStudio,
+' all variable names in this library have the prefix "lib_"
+'
+' The following functions and procedures are available:
+'
+'-----------------------------------------------------------------------------------------------------------------------------
+Const lib_rundef = -1.2345678e27
+Const lib_deg2rad = Pi/180.0
+Const lib_rad2deg = 180.0/Pi
+
+'================================================================================
+
+Public oSelectedSP As Object
+Function GetSimulationProjectByName_LIB(sSPName As String) As Object
+
+	' Get simulation project by name
+	If (Left(GetApplicationName, 2) = "DS") Then
+		If (sSPName <> "") And (sSPName <> "3D Tab") Then
+			If Not CallByName(SimulationProject, "DoesExist", vbMethod, sSPName) Then
+				ReportWarning("The specified simulation project '" & sSPName & "' does not exist. Please check your settings.") ' cannot be error or it might prevent FF GUI from opening
+			End If
+		End If
+		Set GetSimulationProjectByName_LIB = CallByName(DS, "GetSimulationProject", vbMethod, sSPName)
+		If GetSimulationProjectByName_LIB Is Nothing Then
+			Set GetSimulationProjectByName_LIB = GetOwnProject
+		End If
+	Else
+		Set GetSimulationProjectByName_LIB = GetOwnProject
+	End If
+
+End Function
+
+'================================================================================
+' COMPLEX Arithmetics (c_...)
+'Function c_Text(cst_x As Variant) As String
+'Function c_Neg(cst_x As Variant) As Variant
+'Function c_Sum(cst_x As Variant, cst_y As Variant) As Variant
+'Function c_Diff(cst_x As Variant, cst_y As Variant) As Variant
+'Function c_Prod(cst_x As Variant, cst_y As Variant) As Variant
+'Function c_Quot(cst_x As Variant, cst_y As Variant) As Variant
+'Function c_Mag(cst_x As Variant) As Double
+'Function c_Deg(cst_x As Variant) As Double
+'================================================================================
+'Sub Start (lib_filename As String)
+'Function FindFirstFile (lib_rootdir As String, lib_pattern As String, lib_recursive As Boolean) As String
+'Function FindNextFile () As String
+'Function Quote (lib_Text As String) As String
+'Function RealVal(lib_Text As Variant) As Double
+'Sub CheckApplication (lib_appname As String, lib_filename As String, lib_downloadsource As String)
+'Sub ShowHelp (lib_name As String)
+'================================================================================
+'Functions to get File- and Dir-Names:  e.g. "c:\work\test.mod"
+'MWS-Function GetProjectBaseName As String
+'				Result "C:\work\test"
+'Function DriveName (lib_path As String) As String
+'				Result "C"
+'Function DirName (lib_path As String) As String
+'				Result "C:\work"
+'Function ShortName (lib_path As String) As String
+'				Result "test.mod"
+'Function BaseName (lib_path As String) As String
+'				Result "test"
+'Function ExtName (lib_filename As String) As String
+'				Result "mod"
+'Function FullPath(lib_filename As String, lib_directory As String) As String
+'				Result "C:\work\test.mod"
+'Function ShortPath(lib_filename As String, lib_directory As String) As String
+'				Result "test.mod"
+'Function MoveMWSModel (lib_fullpath_from As String, lib_dir_to As String) As String
+'		moves whole MWS-model into a new directory
+'===============================================================================
+'Function GetString(lib_application As String, lib_section As String, lib_key As String, lib_default As String) As String
+'Function GetDouble(lib_application As String, lib_section As String, lib_key As String, lib_default As Integer) As Double
+'Sub SaveString(lib_application As String, lib_section As String, lib_key As String, lib_value As String)
+'Sub SaveInteger(lib_application As String, lib_section As String, lib_key As String, lib_value As Integer)
+'===============================================================================
+
+'---------------------------------------------------------------------
+' public variables for searching (=grepping) patterns in txt-file
+Dim lib_GrepFilename As String
+Dim lib_GrepPattern As String
+Dim lib_GrepIndex As Long
+'---------------------------------------------------------------------
+' public variables for file-searching file-patterns
+Dim lib_FindFileRoot As String
+Dim lib_FindFilePattern As String
+Dim lib_FindFileRecursive As Boolean
+Dim lib_FindFileLast As String
+'---------------------------------------------------------------------
+Function c_Text(cst_x As Variant) As String
+
+        c_Text = "(" + CStr(cst_x(0)) + "+i*" + CStr(cst_x(1)) + ")"
+
+End Function
+'---------------------------------------------------------------------
+Function c_Neg(cst_x As Variant) As Variant
+
+        c_Neg = Array( _
+                                - cst_x(0), - cst_x(1) _
+                        )
+
+End Function
+'---------------------------------------------------------------------
+Function c_Sum(cst_x As Variant, cst_y As Variant) As Variant
+
+        c_Sum = Array( _
+                                cst_x(0) + cst_y(0), _
+                                cst_x(1) + cst_y(1) _
+                        )
+
+End Function
+'---------------------------------------------------------------------
+Function c_Diff(cst_x As Variant, cst_y As Variant) As Variant
+
+        c_Diff = Array( _
+                                cst_x(0) - cst_y(0), _
+                                cst_x(1) - cst_y(1) _
+                        )
+
+End Function
+'---------------------------------------------------------------------
+Function c_Prod(cst_x As Variant, cst_y As Variant) As Variant
+
+        c_Prod = Array( _
+                                cst_x(0) * cst_y(0) - cst_x(1) * cst_y(1), _
+                                cst_x(0) * cst_y(1) + cst_x(1) * cst_y(0) _
+                        )
+
+End Function
+'---------------------------------------------------------------------
+Function c_Quot(cst_x As Variant, cst_y As Variant) As Variant
+
+        c_Quot = Array( _
+                                (cst_x(0) * cst_y(0) + cst_x(1) * cst_y(1)) / (1e-10 + cst_y(0)^2 + cst_y(1)^2), _
+                                (cst_x(1) * cst_y(0) - cst_x(0) * cst_y(1)) / (1e-10 + cst_y(0)^2 + cst_y(1)^2) _
+                        )
+
+End Function
+'---------------------------------------------------------------------
+Function c_Mag(cst_x As Variant) As Double
+
+        c_Mag = Sqr(cst_x(0)^2 + cst_x(1)^2)
+
+End Function
+'---------------------------------------------------------------------
+Function c_Deg(cst_x As Variant) As Double
+
+		MsgBox "only with MWS"
+       ' c_Deg = ATn2D (cst_x(0), cst_x(1))
+
+End Function
+'---------------------------------------------------------------------
+Sub Start (lib_filename As String)
+
+        On Error GoTo Win95
+        WINNT:
+                Shell "cmd /c " + Quote(lib_filename)
+                Exit Sub
+        Win95:
+                Shell "start " + Quote(lib_filename)
+                Exit Sub
+
+End Sub
+'---------------------------------------------------------------------
+Function GrepFirstPattern (lib_filename As String, lib_pattern As String) As String
+	
+	' initialize public variables
+	
+	lib_GrepFilename = lib_filename
+	lib_GrepPattern = lib_pattern
+	lib_GrepIndex = 0
+	
+	GrepFirstPattern = GrepNextPattern
+
+End Function
+			
+Function GrepNextPattern As String
+	
+	Dim lib_dummy As String
+	Dim lib_count As Long
+	
+	' use public variables, initialized in function GrepFirstPattern
+	
+	lib_count = 0
+	
+	Open lib_GrepFilename For Input As #44
+		While Not EOF(44)
+			Line Input #44, lib_dummy
+			If (InStr(lib_dummy, lib_GrepPattern)) Then
+				lib_count = lib_count + 1
+				If (lib_count > lib_GrepIndex) Then
+					GrepNextPattern = lib_dummy
+					lib_GrepIndex = lib_GrepIndex + 1
+					Close #44
+					Exit Function
+				End If
+			End If
+		Wend
+	Close #44
+		
+	GrepNextPattern = ""
+
+End Function
+
+Function GetLastLine  (lib_filename As String) As String
+	
+	Dim lib_dummy As String
+	
+	lib_dummy = ""
+	Open lib_filename For Input As #44
+		While Not EOF(44)
+			Line Input #44, lib_dummy
+		Wend
+	Close #44
+		
+	GetLastLine = lib_dummy
+
+End Function
+
+Function FindFirstFile (lib_rootdir As String, lib_pattern As String, lib_recursive As Boolean) As String
+
+        If (Right$(lib_rootdir, 1) = "\") Then lib_rootdir = Left$(lib_rootdir, Len(lib_rootdir) - 1)
+        If (lib_pattern = "")             Then lib_pattern = "*.*"
+
+        CST_MkDir lib_rootdir
+
+		lib_FindFileRoot      = lib_rootdir
+        lib_FindFilePattern   = lib_pattern
+        lib_FindFileRecursive = lib_recursive
+        lib_FindFileLast      = Dir$(lib_rootdir + "\*.*", vbDirectory)
+
+        FindFirstFile     = FindNextFile()
+
+End Function
+'---------------------------------------------------------------------
+Function FindNextFile () As String
+
+        Dim lib_subdir As String, lib_currentdir, lib_dummy As String, lib_short As String, lib_filename As String
+        Dim lib_fileattribute As Integer, lib_tmp_curdir As String
+
+        lib_subdir = DirName(lib_FindFileLast)
+        lib_dummy  = Dir$()
+
+        While (Not LCase(lib_dummy) Like LCase(lib_FindFilePattern))
+
+'                If MsgBox(IIf(lib_subdir <> "", lib_subdir + "\" + lib_dummy, lib_dummy), vbQuestion + vbYesNo, "Continue") <> vbYes Then Exit All
+                lib_currentdir = lib_FindFileRoot + IIf(lib_subdir <> "", "\" + lib_subdir, "")
+
+                On Error Resume Next
+                    lib_fileattribute = 0
+                    '
+                    ' Bug in GetAttr-Function  for some directories 8208, 8209, 8240 is delivered
+                    ' lib_fileattribute = GetAttr(lib_currentdir + "\" + lib_dummy)
+                    '
+                    ' replaced by new check: try to enter file, if successful => folder, otherwise not
+                    '
+					lib_tmp_curdir = CurDir
+					On Error GoTo No_Directory
+						ChDir lib_currentdir + "\" + lib_dummy
+						lib_fileattribute = vbDirectory
+					No_Directory:
+						ChDir lib_tmp_curdir
+                On Error GoTo 0
+
+                If (lib_dummy = "") Then
+                        If (lib_subdir = "") Then Exit While
+                        lib_short      = ShortName(lib_subdir)
+                        lib_subdir     = DirName(lib_subdir)
+                        lib_currentdir = IIf(lib_subdir <> "", lib_FindFileRoot + "\" + lib_subdir, lib_FindFileRoot)
+                        lib_dummy      = Dir$(lib_currentdir + "\*.*", vbDirectory)
+                        While (lib_dummy <> lib_short)
+                                lib_dummy = Dir$()
+                        Wend
+                        lib_dummy = Dir$()
+                ElseIf (lib_dummy = ".") Or (lib_dummy = "..") Then
+                        lib_dummy = Dir$()
+                ElseIf (lib_fileattribute = vbDirectory) And lib_FindFileRecursive Then
+                        lib_subdir     = IIf(lib_subdir <> "", lib_subdir + "\" + lib_dummy, lib_dummy)
+                        lib_currentdir = IIf(lib_subdir <> "", lib_FindFileRoot + "\" + lib_subdir, lib_FindFileRoot)
+                        lib_dummy      = Dir$(lib_currentdir + "\*.*", vbDirectory)
+                Else
+                        lib_dummy = Dir$()
+                End If
+        Wend
+        lib_filename     = IIf(lib_dummy <> "", IIf(lib_subdir <> "", lib_subdir + "\", "") + lib_dummy, "")
+        lib_FindFileLast = lib_filename
+
+        FindNextFile     = lib_filename
+
+End Function
+'---------------------------------------------------------------------
+Function DriveName (lib_path As String) As String
+
+        DriveName  = Left$(lib_path, 1)
+
+End Function
+'---------------------------------------------------------------------
+Function DirName (lib_path As String) As String
+
+        Dim lib_dircount As Integer
+
+        lib_dircount = InStrRev(lib_path, "\")
+        DirName  = Left$(lib_path, IIf(lib_dircount > 1, lib_dircount - 1, 0))
+
+End Function
+'---------------------------------------------------------------------
+Function ShortName (lib_path As String) As String
+
+        Dim lib_dircount As Integer
+
+        lib_dircount  = InStrRev(lib_path, "\")
+        ShortName = Mid$(lib_path, lib_dircount+1, 999)
+
+End Function
+'---------------------------------------------------------------------
+Function BaseName_noIndex (lib_path As String) As String
+
+	' Basename is short name without index _###
+	' Examples
+	'			BaseName_noIndex("D:\ub\test_790.sh") = test
+	'			BaseName_noIndex("D:\ub\test_79.sh") = test_79
+	'			BaseName_noIndex("D:\ub\test_79a.sh") = test_79a
+	'			BaseName_noIndex("D:\ub\test_001.sh") = test
+	'			BaseName_noIndex("D:\ub\test000.mod") = test000
+
+        Dim lib_dircount As Integer, lib_extcount As Integer, lib_idummy As Integer
+        Dim lib_filename As String, lib_name2 As String, lib_length As Integer
+
+        lib_dircount = InStrRev(lib_path, "\")
+        lib_filename = Mid$(lib_path, lib_dircount+1)
+        lib_extcount = InStrRev(lib_filename, ".")
+        lib_name2 = Left$(lib_filename, IIf(lib_extcount > 0, lib_extcount-1, 999))
+
+		On Error GoTo NO_RUN_ID
+		If Left(Right(lib_name2,4),1) = "_" Then
+			lib_idummy = CInt(Right(lib_name2,3))
+			lib_length = Len(lib_name2)
+			BaseName_noIndex = Left$(lib_name2, IIf(lib_length > 4, lib_length-4, 999))
+			Exit Function
+		End If
+        
+    NO_RUN_ID:
+        BaseName_noIndex = lib_name2
+
+End Function
+'---------------------------------------------------------------------
+Function BaseName (lib_path As String) As String
+
+        Dim lib_dircount As Integer, lib_extcount As Integer, lib_filename As String
+
+        lib_dircount = InStrRev(lib_path, "\")
+        lib_filename = Mid$(lib_path, lib_dircount+1)
+        lib_extcount = InStrRev(lib_filename, ".")
+        BaseName = Left$(lib_filename, IIf(lib_extcount > 0, lib_extcount-1, 999))
+
+End Function
+'---------------------------------------------------------------------
+Function ExtName (lib_filename As String) As String
+
+        Dim lib_extcount As Integer
+
+        lib_extcount = InStrRev(lib_filename, ".")
+        ExtName = IIf(lib_extcount > 0, Mid$(lib_filename, lib_extcount+1), "")
+
+End Function
+'---------------------------------------------------------------------
+Function FullPath(lib_filename As String, lib_directory As String) As String
+
+        FullPath = IIf(Mid$(lib_filename,2,1) = ":", lib_filename, lib_directory + "\" + lib_filename)
+
+End Function
+'---------------------------------------------------------------------
+Function ShortPath(lib_filename As String, lib_directory As String) As String
+
+        If (LCase$(DirName(lib_filename)) = LCase$(lib_directory)) Then
+                ShortPath = ShortName(lib_filename)
+        Else
+                ShortPath = lib_filename
+        End If
+
+End Function
+'---------------------------------------------------------------------
+Function Quote (lib_Text As String) As String
+
+        Quote = Chr$(34) + lib_Text + Chr$(34)
+
+End Function
+'---------------------------------------------------------------------
+Sub CheckApplication (lib_appname As String, lib_filename As String, lib_downloadsource As String)
+
+        Dim lib_newline As String, lib_appdir As String, lib_hotlink As String
+        lib_newline = Chr$(10) + Chr$(13)
+        lib_appdir  = DirName(lib_filename)
+        lib_hotlink = lib_appdir + lib_appname + ".url"
+
+       	Dim bLib_Missing As Boolean
+       	bLib_Missing = False
+        If (Dir$(DirName(lib_filename), vbDirectory) = "") Then
+        	bLib_Missing = True
+        Else
+	        If (Dir$(lib_filename, vbNormal) = "") Then
+	        	bLib_Missing = True
+	        End If
+        End If
+        
+        If (bLib_Missing) Then
+                If (MsgBox( _
+                                lib_appname + " must be installed in" + lib_newline + lib_newline + _
+                                lib_appdir                            + lib_newline + lib_newline + _
+                                "Download " + lib_appname + " from"   + lib_newline + lib_newline + _
+                                lib_downloadsource, _
+                                vbOkCancel + vbQuestion, _
+                                lib_appname + " is missing" _
+                        ) = vbOK) Then
+                        If (Dir$(lib_appdir, vbDirectory) = "") Then
+                                MkDir lib_appdir
+                        End If
+                        Open lib_hotlink For Output As #1
+                                Print #1, "[DEFAULT]"
+                                Print #1, "BASEURL=" + lib_downloadsource
+                                Print #1, "[InternetShortcut]"
+                                Print #1, "URL=" + lib_downloadsource
+                        Close #1
+                        Shell "explorer " + lib_downloadsource
+                End If
+                Exit All
+        End If
+
+End Sub
+'---------------------------------------------------------------------
+Sub ShowHelp (lib_name As String)
+
+        Dim lib_filename As String, lib_extension() As Variant, lib_index As Integer
+
+        lib_extension = Array("htm", "html", "txt", "rtf", "doc", "hlp", "pdf", "")
+
+        lib_index = 0
+        Do
+                    lib_filename = Dir$(GetMacroPath + "\*" + lib_name + "." + lib_extension(lib_index))
+                    lib_index = lib_index + 1
+        Loop Until (lib_filename <> "" Or lib_extension(lib_index) = "")
+	lib_filename = GetMacroPath + "\" + lib_filename 
+
+        Start lib_filename
+
+End Sub
+'-----------------------------------------------------------------------------------------------------------------------------
+
+Function GetString(lib_application As String, lib_section As String, lib_key As String, lib_default As String) As String
+
+        Dim lib_dummy As String
+
+        lib_dummy = GetSetting(lib_application, lib_section, lib_key)
+        GetString = IIf(lib_dummy <> "", lib_dummy, lib_default)
+
+End Function
+
+'-----------------------------------------------------------------------------------------------------------------------------
+
+Function GetRegDouble(lib_application As String, lib_section As String, lib_key As String, lib_default As Integer) As Double
+
+        Dim lib_dummy As String
+
+        lib_dummy  = GetSetting(lib_application, lib_section, lib_key)
+        GetRegDouble = IIf(lib_dummy <> "", RealVal(lib_dummy), lib_default)
+
+End Function
+
+'-----------------------------------------------------------------------------------------------------------------------------
+
+Sub SaveString(lib_application As String, lib_section As String, lib_key As String, lib_value As String)
+
+        SaveSetting lib_application, lib_section, lib_key, lib_value
+
+End Sub
+
+'-----------------------------------------------------------------------------------------------------------------------------
+
+Sub SaveInteger(lib_application As String, lib_section As String, lib_key As String, lib_value As Integer)
+
+        SaveSetting lib_application, lib_section, lib_key, CStr(lib_value)
+
+End Sub
+
+'-----------------------------------------------------------------------------------------------------------------------------
+Function Pretty(x As Variant) As String
+
+        Pretty = Replace(Left$(IIf(Left$(CStr(x), 1) = "-", "", " ") + CStr(x) + String$(16, 32), 24) + Chr$(9), ",", ".")
+
+End Function
+'--------------------------------------------------------------------------------------------
+Function Pretty2(x As Variant, length As Integer) As String
+
+	Select Case Left$(CStr(x), 1)
+		Case "0" To "9"
+	        Pretty2 = Left$(" " + CStr(x) + String$(length, 32), length)
+		Case Else		     
+	        Pretty2 = Left$(CStr(x) + String$(length, 32), length)
+	End Select
+				
+End Function
+Function CST_Print(variant_cst As Variant, ncharlen_cst As Integer) As String
+
+	' this function prints the variant with ncharlen characters, and tries to make this as flexible as possible
+	' there are short functions PP4, PP6, ...., PP30 (also PP15L, ) to have nice tabulated formats in txt-files
+
+	Dim stmp_cst1 As String, stmp_cst2 As String, islen_cst As Integer
+
+	stmp_cst1 = CStr(variant_cst)
+	islen_cst = Len(stmp_cst1)
+
+	If (islen_cst > ncharlen_cst-1) Then
+		If (IsNumeric(variant_cst)) Then
+			If (ncharlen_cst<9) Then
+				' number cannot be displayed completely
+				stmp_cst2 = " " + Left(stmp_cst1,ncharlen_cst-2) + "x"
+			Else
+				stmp_cst2 = " " + IIf(variant_cst < 0,""," ") + Replace(Format(variant_cst,"0.0"+Left("0000000000000000000",ncharlen_cst-9)+"E+00"),",",".")
+			End If
+		Else
+			stmp_cst2= " " + Left(stmp_cst1,ncharlen_cst-1)
+		End If
+	Else
+		stmp_cst2 = Left("                                     ", ncharlen_cst-islen_cst) + stmp_cst1
+	End If
+
+	CST_Print = stmp_cst2
+
+End Function
+Function PP4(variant_cst As Variant) As String
+	PP4 = CST_Print(variant_cst, 4)
+End Function
+
+Function PP5(variant_cst As Variant) As String
+	PP5 = CST_Print(variant_cst, 5)
+End Function
+
+Function PP6(variant_cst As Variant) As String
+	PP6 = CST_Print(variant_cst, 6)
+End Function
+
+Function PP8(variant_cst As Variant) As String
+	PP8 = CST_Print(variant_cst, 8)
+End Function
+
+Function PP10(variant_cst As Variant) As String
+	PP10 = CST_Print(variant_cst, 10)
+End Function
+
+Function PP12(variant_cst As Variant) As String
+	PP12 = CST_Print(variant_cst, 12)
+End Function
+
+Function PP15(variant_cst As Variant) As String
+	PP15 = CST_Print(variant_cst, 15)
+End Function
+
+Function PP20(variant_cst As Variant) As String
+	PP20 = CST_Print(variant_cst, 20)
+End Function
+
+Function PP25(variant_cst As Variant) As String
+	PP25 = CST_Print(variant_cst, 25)
+End Function
+
+Function PP30(variant_cst As Variant) As String
+	PP30 = CST_Print(variant_cst, 30)
+End Function
+
+Function PP15L(variant_cst As Variant) As String
+	PP15L = CST_Print(CStr(variant_cst)+"                      ", 15)
+End Function
+
+Function PP20L(variant_cst As Variant) As String
+	PP20L = CST_Print(CStr(variant_cst)+"                      ", 20)
+End Function
+
+Function PP25L(variant_cst As Variant) As String
+	PP25L = CST_Print(CStr(variant_cst)+"                               ", 25)
+End Function
+
+Function PP30L(variant_cst As Variant) As String
+	PP30L = CST_Print(CStr(variant_cst)+"                                        ", 30)
+End Function
+'--------------------------------------------------------------------------------------------
+Function GetSpiceDouble(value As String) As Double
+
+	' Spice has a special convention for exponential number (without E)
+	' e.g.  1.2345+007   instead of 1.2345E+007
+	' GetSpiceDouble = 12345000, 
+	' GetDouble (=Evaluate) would not work : 8.2345
+
+	'	MsgBox CStr(GetSpiceDouble("1.2345+007"))
+
+	Dim index As Long
+	index = InStrRev(value, "+")
+	If (index = 0) Then index = InStrRev(value, "-")
+	If (index > 1) Then
+		If (Mid(value, index-1, 1) <> "E" And Mid(value, index-1, 1) <> "e") Then
+			value = Left(value, index-1) + "E" + Mid(value, index)
+		End If
+	End If
+
+	Dim cst_separator    As String								'<<<<<<<<<<
+	cst_separator    = Mid$(CStr(0.5), 2, 1)					'<<<<<<<<<<<
+
+	' 06-aug-2004 ube/cwe: GetSpiceDouble: changed CVar to CDbl (now CVar had problems, see also 13-Nov-2003)
+	GetSpiceDouble   = CDbl(Replace(value, ".", cst_separator))	'<<<<<<<<<<<
+
+	'GetSpiceDouble = CVar(Replace(value, ".", ","))
+
+End Function
+'--------------------------------------------------------------------------------------------
+Function GetDouble(lib_Text As Variant) As Double
+
+	GetDouble = RealVal(lib_Text)
+
+End Function
+'---------------------------------------------------------------------
+Function RealVal(lib_Text As Variant) As Double
+
+  Dim sText As String
+  sText = CStr(lib_Text)
+  
+  If sText = "" Then
+    RealVal = 0
+  Else
+    RealVal = Evaluate(CStr(lib_Text))
+  End If
+
+' known problem does not work in France	
+'	If (CDbl("0.5") > 1) Then
+'		' komma needed instead of point 
+'		RealVal = CDbl(Replace(CStr(lib_Text), ".", ","))
+'	Else
+'                On Error Resume Next
+'                        RealVal = CDbl(CStr(lib_Text))
+'                On Error GoTo 0
+'	End If
+
+'does also not work in France	
+'	If (Val("0.5") > Val("1")) Then
+
+End Function
+'---------------------------------------------------------------------
+Function MWS_Version As Double
+
+	MWS_Version = RealVal (Mid(Trim$(GetMWSVersion),3,3))
+	
+End Function
+'---------------------------------------------------------------------
+Function CSTSplit(lib_Text As String, lib_array() As String) As Integer
+
+	Dim lib_index As Integer, lib_position As Integer
+	
+	lib_Text  = Trim$(Replace(lib_Text, Chr$(9), " "))
+	lib_index = 0
+
+	While lib_Text <> ""
+		lib_position         = InStr(lib_Text + " ", " ")
+		lib_array(lib_index) = Trim$(Left$(lib_Text, lib_position))
+		lib_Text             = Trim$(Mid$(lib_Text, lib_position))
+		lib_index            = lib_index + 1
+	Wend
+
+	CSTSplit = lib_index
+				
+End Function
+'---------------------------------------------------------------------
+Sub CST_MkDir (lib_dir As String)
+
+	' creates directory, even if some directory levels are missing
+
+	Const dir_max_level = 10
+	
+	Dim lib_subdir(dir_max_level) As String, lib_Ftmp As String, lib_dir2 As String
+	Dim lib_iii As Integer, lib_jjj As Integer
+	
+	lib_dir2 = lib_dir
+	
+	If Right$(lib_dir2,1) = "\" Then
+		' removes trailing "\"
+		lib_dir2 = DirName (lib_dir2)
+	End If
+	        
+	lib_Ftmp$ = ""
+	On Error Resume Next
+		lib_Ftmp$ = Dir$(lib_dir2,vbDirectory)
+	On Error GoTo 0
+	
+	If lib_Ftmp$ <> "" Then
+		' directory already exists
+		Exit Sub
+	End If
+	
+	lib_iii=0
+	Do
+		lib_subdir(lib_iii) = lib_dir2
+		lib_dir2 = DirName (lib_dir2)
+		lib_iii=lib_iii+1
+	
+		lib_Ftmp$ = ""
+		On Error Resume Next
+			lib_Ftmp$ = Dir$(lib_dir2,vbDirectory)
+		On Error GoTo 0
+	
+	Loop Until lib_Ftmp$ <> "" Or lib_iii = dir_max_level+1 Or Right$(lib_dir2,1)=":" 
+	
+	If lib_iii <= dir_max_level Then
+	
+		For lib_jjj = lib_iii-1 To 0 STEP -1
+			MkDir lib_subdir(lib_jjj)
+			Wait 0.1
+		Next lib_jjj
+	
+	End If
+	
+End Sub
+'---------------------------------------------------------------------
+Sub CST_RmDir (lib_dir As String)
+
+	' removes an empty directory
+	' If the directory is not empty, do not remove and proceed without a warning
+
+	On Error Resume Next
+		RmDir lib_dir
+	On Error GoTo 0
+
+End Sub
+'---------------------------------------------------------------------
+Function MoveMWSModel (lib_fullpath_from As String, lib_dir_to As String) As String
+
+	Dim lib_dir_from As String
+	Dim lib_basename_from As String, lib_basename_from_noIndex As String
+	Dim lib_basename_to As String, lib_dir_name As String
+	Dim lib_tmp_from As String
+	Dim lib_backup_from As String
+	Dim lib_tmp_to As String
+	Dim lib_full_from As String
+	Dim lib_full_to As String
+	
+	Dim lib_version As Integer, lib_ijk As Integer
+	Dim lib_filename As String, lib_mod_file As String
+	Dim lib_Ftmp As String, lib_Ftmp2 As String
+	Dim lib_mylock_set As Boolean, lib_my_lock As String, lib_already_locked As Boolean
+
+	lib_dir_from     	= DirName(lib_fullpath_from)
+	lib_basename_from 	= BaseName(lib_fullpath_from)
+	lib_basename_from_noIndex		= BaseName_noIndex(lib_fullpath_from)
+	
+	CST_MkDir lib_dir_to
+	
+	lib_version  = 1
+	lib_filename = FindFirstFile(lib_dir_to, lib_basename_from_noIndex + "_###", False)
+	While (lib_filename <> "")
+			lib_version  = CInt(Right$(BaseName(lib_filename), 3)) + 1
+			lib_filename = FindNextFile
+	Wend
+
+	lib_mylock_set = False
+
+	While Not lib_mylock_set
+			
+			lib_basename_to	= lib_basename_from_noIndex + Format(lib_version, "\_000")
+			lib_dir_name 	= lib_dir_to + "\" + lib_basename_to
+			lib_my_lock 	= lib_dir_name + "_" + Environ$("COMPUTERNAME")+"_"+CStr(CLng(Date))+"_"+Replace(CStr(Time),":","")
+	
+			lib_already_locked = False
+			lib_ijk = 0
+			
+			Do 
+					lib_ijk = lib_ijk + 1
+			
+					If Not lib_already_locked Then
+						lib_Ftmp = Dir$(lib_dir_name + "_*")
+						If lib_Ftmp <> "" Then
+							If LCase(lib_Ftmp) <> LCase(ShortName(lib_my_lock)) Then
+								lib_already_locked = True
+							Else
+								lib_Ftmp2 = Dir$()
+								If lib_Ftmp2 <> "" Then
+									lib_already_locked = True
+								End If
+							End If
+						End If
+					End If
+					
+					If Not lib_already_locked Then
+						Open lib_my_lock For Output As #2
+						Close #2
+						lib_mylock_set = True
+					End If
+		
+					Wait 3*Rnd()
+
+			Loop Until lib_ijk=3 Or lib_already_locked
+			
+			If lib_already_locked Then
+				If lib_mylock_set Then
+					Kill lib_my_lock
+					lib_mylock_set = False
+				End If
+				lib_version = lib_version + 1
+			End If
+	Wend
+	
+	' now free unique directory-name is found, which is definitely notlocked by someone else
+	
+	CST_MkDir (lib_dir_name)
+
+	lib_tmp_from	= LCase (lib_dir_from + "\" + lib_basename_from)
+	lib_tmp_to		= LCase (lib_dir_name + "\" + lib_basename_from)
+	
+	lib_filename = FindFirstFile(lib_dir_from, lib_basename_from + ".???", False)
+	While (lib_filename <> "")
+			lib_full_from = LCase (FullPath(lib_filename,lib_dir_from))
+			lib_full_to = Replace(lib_full_from, lib_tmp_from, lib_tmp_to, 1, 1)
+			FileCopy lib_full_from, lib_full_to
+			lib_filename = FindNextFile
+	Wend
+
+	lib_filename = FindFirstFile(lib_dir_from, lib_basename_from + "^*.???", False)
+	While (lib_filename <> "")
+			lib_full_from = LCase (FullPath(lib_filename,lib_dir_from))
+			lib_full_to = Replace(lib_full_from, lib_tmp_from, lib_tmp_to, 1, 1)
+			FileCopy lib_full_from, lib_full_to
+			lib_filename = FindNextFile
+	Wend
+
+	lib_backup_from = "C:\TEMP\MWS_Backup"		
+
+	CST_MkDir lib_backup_from
+
+	FileCopy lib_dir_from + "\" + lib_basename_from + ".mod", _
+			lib_backup_from + "\" + lib_basename_from + ".mod_" + _
+			Environ$("COMPUTERNAME")+"_"+CStr(CLng(Date))+"_"+Replace(CStr(Time),":","")
+
+	On Error GoTo DO_NOT_COPY_PAR
+
+		FileCopy lib_dir_from + "\" + lib_basename_from + ".par", _
+			lib_backup_from + "\" + lib_basename_from + ".par_"  + _
+			Environ$("COMPUTERNAME")+"_"+CStr(CLng(Date))+"_"+Replace(CStr(Time),":","")
+				
+		On Error GoTo 0 ' Disable the error handler 
+		
+	DO_NOT_COPY_PAR:	
+
+	Wait 3'00		' afterwards files should be copied, then kill then original
+	
+	lib_filename = FindFirstFile(lib_dir_from, lib_basename_from + ".???", False)
+	While (lib_filename <> "")
+			lib_full_from = LCase (FullPath(lib_filename,lib_dir_from))
+			Kill lib_full_from
+			lib_filename = FindNextFile
+	Wend
+
+	lib_filename = FindFirstFile(lib_dir_from, lib_basename_from + "^*.???", False)
+	While (lib_filename <> "")
+			lib_full_from = LCase (FullPath(lib_filename,lib_dir_from))
+			Kill lib_full_from
+			lib_filename = FindNextFile
+	Wend
+
+	Wait 3'00		' wait another time before proceed and exit function
+
+	Kill lib_my_lock
+	
+	CST_RmDir (lib_dir_from)
+
+	MoveMWSModel = lib_dir_name + "\" + lib_basename_from + ".mod"
+	
+End Function
+'-------------------------------------------------------------------------------------
+Sub Prepare_Step_File
+
+	SelectTreeItem "Components"
+	With STEP
+		.Reset
+		.ExportAttributes (True)
+		.FileName GetProjectPath("ModelCache") + "example.stp"
+		On Error GoTo no_step_license
+		.WriteAll
+	End With
+
+	Dim sfile As String
+	sfile = GetProjectPath("ModelCache") + "example.stp"
+
+	Dim cst_line As String
+	cst_line = GrepFirstPattern(sfile, sfile)
+	If (cst_line <> "") Then
+		StoreGlobalDataValue ("Step\Chk1", "11")
+	End If
+
+	Dim stree As String
+	stree = ResultTree.GetFirstChildName("Components")
+	RemoveFirstChars(stree,11)
+
+	cst_line = GrepFirstPattern(sfile, stree)
+	If (cst_line <> "") Then
+		StoreGlobalDataValue ("Step\Chk2", "23")
+	End If
+
+	Exit Sub
+
+  no_step_license:
+    MsgBox "Step License not available.",vbCritical
+End Sub
+'-------------------------------------------------------------------------------------
+Sub LoadSignalFiles (lib_modfile As String, cst_runid As String)
+
+Dim mysigname2 As String
+Dim myfilepath$, myfilepattern$, myfilepath_short$, mysigname$, mysigname_short$
+Dim mysigname_short_1$, mysigname_short_2$, mysigname_short_3$, mysigname_short_4$
+Dim mysigname_short_12$, mysigname_short_13$
+Dim myTreePath$, myXLabel$, imylength As Integer, bReady As Boolean, bSkipThisFile As Boolean, bOtherFile As Boolean
+Dim normimp_filename As String, tmpstr As String	' For Smith chart
+Dim normimp As Double
+Dim ilen As Long, ileft As Long
+
+myfilepath    = DirName(lib_modfile)
+myfilepattern = ShortName(lib_modfile) + "^*.sig"
+
+' Search for first sig file
+mysigname = FindFirstFile(myfilepath , myfilepattern, False) 'See if a sig exist
+
+While (mysigname <> "")
+
+	myfilepath_short = ShortName(lib_modfile)
+
+	imylength = Len(BaseName(mysigname))-Len(myfilepath_short)-1
+
+	mysigname_short   = Right$( BaseName(mysigname), imylength   )
+
+	If imylength > 1 Then mysigname_short_1 = Right$( BaseName(mysigname), imylength-1 )
+	If imylength > 2 Then mysigname_short_2 = Right$( BaseName(mysigname), imylength-2 )
+	If imylength > 3 Then mysigname_short_3 = Right$( BaseName(mysigname), imylength-3 )
+	If imylength > 4 Then mysigname_short_4 = Right$( BaseName(mysigname), imylength-4 )
+
+	mysigname2 = DirName(lib_modfile) + "\" + myfilepath_short + "^" +mysigname_short + ".sig"
+
+	bSkipThisFile = False
+	bOtherFile = False
+	bReady = False
+
+	If (imylength > 2) Then
+		If ( Left(mysigname_short,2)="ac" Or Left(mysigname_short,2)="bc" ) Then
+
+			' these are internal full-deembedding files, not to be compared (^ac1(1)1(1).sig) (^bc1(1)1(1).sig)
+
+			bSkipThisFile = True
+			bReady = True
+		End If
+	End If
+
+	If (imylength > 4) Then
+		If ( Left(mysigname_short,4)="alph" ) Then
+
+			' full-deembedding alpha file, directly goto other...
+
+			bOtherFile = True
+			bReady = True
+		End If
+		If ( Left(mysigname_short,5)="adapt" ) Then
+
+			' adaptive meshing info file, directly goto other...
+
+			bOtherFile = True
+			bReady = True
+		End If
+		If ( Left(mysigname_short,5)="parti" ) Then
+
+			' particle studio current ...
+
+			bOtherFile = True
+			bReady = True
+		End If
+		If ( Left(mysigname_short,5)="all s" ) Then
+
+			' particle monitor "all sources" ...
+
+			bOtherFile = True
+			bReady = True
+		End If
+		If ( InStr(mysigname_short,"_eps_")<>0 Or InStr(mysigname_short,"_mu_")<>0 Or InStr(mysigname_short,"_mue_")<>0 ) Then
+
+			' material dispersion file ...
+
+			bOtherFile = True
+			bReady = True
+		End If
+	End If
+
+	If Not bReady Then
+		bReady = True
+		Select Case Left(mysigname_short,12)
+			Case "Farfield_lin"
+				mysigname_short_13 = Right$( BaseName(mysigname), imylength-13 )
+
+				' create farfield polar plot together with according angle-file *.ang
+
+				myTreePath = "Farfield\polar-linear\" + Replace(mysigname_short_13,"_","\",,2)
+				myXLabel   = "Angle / degree"
+				With ResultTree
+					.Reset
+					.Type "PolarPlot"
+					.Xlabel myXLabel
+					.Title myTreePath
+					.Name "1D Results\Comparison\" + myTreePath + "\" + cst_runid
+					.File mysigname2
+					.File2 Replace(mysigname2,".sig",".ang")
+					.Add
+				End With
+				' change treepath for cartesian plot
+				myTreePath = "Farfield\cartesian-linear\" + Replace(mysigname_short_13,"_","\",,2)
+
+			Case "Farfield_dB_"
+				mysigname_short_12 = Right$( BaseName(mysigname), imylength-12 )
+
+				' create polar plot first together with according phase
+				myTreePath = "Farfield\polar-dB\" + Replace(mysigname_short_12,"_","\",,2)
+				myXLabel   = "Angle / degree"
+				With ResultTree
+					.Reset
+					.Type "PolarPlotDB"
+					.Xlabel myXLabel
+					.Title myTreePath
+					.Name "1D Results\Comparison\" + myTreePath + "\" + cst_runid
+					.File mysigname2
+					.File2 Replace(mysigname2,".sig",".ang")
+					.Add
+				End With
+				' change treepath for cartesian plot
+				myTreePath = "Farfield\cartesian-dB\" + Replace(mysigname_short_12,"_","\",,2)
+
+			Case Else
+				bReady = False
+		End Select
+	End If
+
+	If Not bReady Then
+		bReady = True
+		Select Case Left(mysigname_short,4)
+			Case "ar^a"
+				' create polar plot first together with according phase
+				myTreePath = "S-Parameter\|S| polar (AR)\S" + mysigname_short_4
+				myXLabel   = "Frequency"
+				With ResultTree
+					.Reset
+					.Type "PolarSignal"
+					.Xlabel myXLabel
+					.Title myTreePath
+					.Name "1D Results\Comparison\" + myTreePath + "\" + cst_runid
+					.File mysigname2
+					.File2 Replace(mysigname2,"^ar^a","^ar^p")
+					.Add
+				End With
+				' then create the Smith chart
+				ilen = Len(mysigname_short_4)
+				ileft = CLng(ilen/2)
+				If Left(mysigname_short_4,ileft)=Right(mysigname_short_4,ilen-ileft) Then
+
+					normimp_filename = myfilepath + "\"+myfilepath_short+".sds"
+					normimp = GetNormImpedance(normimp_filename, Left(mysigname_short_4,ilen/2))
+
+					If normimp > 0 Then
+						' Plot it
+						myTreePath = "S-Parameter\Smith Chart (AR)\S" + mysigname_short_4
+						myXLabel   = "Frequency"
+						With ResultTree
+							.Reset
+							.Type "SmithSignal"
+							.Xlabel myXLabel
+							.Title myTreePath
+							.Name "1D Results\Comparison\" + myTreePath + "\" + cst_runid
+							.File mysigname2
+							.File2 Replace(mysigname2,"^ar^a","^ar^p")
+							.ReferenceImpedance Replace(CStr(normimp),",",".")
+							' komma problem .ReferenceImpedance CStr(normimp)
+							.Add
+						End With
+					End If
+				End If
+				'
+				' now prepare normal plot of amplitude
+				myTreePath = "S-Parameter\|S| linear (AR)\S" + mysigname_short_4
+				myXLabel   = "Frequency"
+
+			Case "ar^d"
+				myTreePath = "S-Parameter\|S| dB (AR)\S" + mysigname_short_4
+				myXLabel   = "Frequency"
+			Case "ar^p"
+				myTreePath = "S-Parameter\arg(S) (AR)\S" + mysigname_short_4
+				myXLabel   = "Frequency"
+			Case Else
+				bReady = False
+		End Select
+	End If
+
+	If Not bReady Then
+		bReady = True
+		Select Case Left(mysigname_short,3)
+			Case "plw"
+				myTreePath = "Plane Wave\Time Signal"
+				myXLabel   = "Time"
+
+			Case "pua"
+				myTreePath = "Discrete Ports\Voltages\|U| linear\" + mysigname_short_3
+				myXLabel   = "Frequency"
+			Case "pud"
+				myTreePath = "Discrete Ports\Voltages\|U| dB\" + mysigname_short_3
+				myXLabel   = "Frequency"
+			Case "pup"
+				myTreePath = "Discrete Ports\Voltages\arg(U)\" + mysigname_short_3
+				myXLabel   = "Frequency"
+			Case "pus"
+				myTreePath = "Discrete Ports\Voltages\Signals\" + mysigname_short_3
+				myXLabel   = "Time"
+
+			Case "pia"
+				myTreePath = "Discrete Ports\Currents\|I| linear\" + mysigname_short_3
+				myXLabel   = "Frequency"
+			Case "pid"
+				myTreePath = "Discrete Ports\Currents\|I| dB\" + mysigname_short_3
+				myXLabel   = "Frequency"
+			Case "pip"
+				myTreePath = "Discrete Ports\Currents\arg(I)\" + mysigname_short_3
+				myXLabel   = "Frequency"
+			Case "pis"
+				myTreePath = "Discrete Ports\Currents\Signals\" + mysigname_short_3
+				myXLabel   = "Time"
+
+			Case Else
+				bReady = False
+		End Select
+	End If
+
+	If Not bReady Then
+		bReady = True
+		Select Case Left(mysigname_short,3)
+			Case "zre"
+				myTreePath = "Z-Parameter\Re(Z)\" + mysigname_short_3
+				myXLabel   = "Frequency"
+			Case "zim"
+				myTreePath = "Z-Parameter\Im(Z)\" + mysigname_short_3
+				myXLabel   = "Frequency"
+			Case "zam"
+				myTreePath = "Z-Parameter\|Z|\" + mysigname_short_3
+				myXLabel   = "Frequency"
+			Case "zph"
+				myTreePath = "Z-Parameter\arg(Z)\" + mysigname_short_3
+				myXLabel   = "Frequency"
+
+			Case "yre"
+				myTreePath = "Y-Parameter\Re(Y)\" + mysigname_short_3
+				myXLabel   = "Frequency"
+			Case "yim"
+				myTreePath = "Y-Parameter\Im(Y)\" + mysigname_short_3
+				myXLabel   = "Frequency"
+			Case "yam"
+				myTreePath = "Y-Parameter\|Y|\" + mysigname_short_3
+				myXLabel   = "Frequency"
+			Case "yph"
+				myTreePath = "Y-Parameter\arg(Y)\" + mysigname_short_3
+				myXLabel   = "Frequency"
+
+			Case Else
+				bReady = False
+		End Select
+	End If
+
+	If Not bReady Then
+		bReady = True
+		Select Case Left(mysigname_short,2)
+			Case "zr"
+				myTreePath = "Lumped Elements\Impedances\Re(Z)\" + mysigname_short_2
+				myXLabel   = "Frequency"
+			Case "zi"
+				myTreePath = "Lumped Elements\Impedances\Im(Z)\" + mysigname_short_2
+				myXLabel   = "Frequency"
+			Case "za"
+				myTreePath = "Lumped Elements\Impedances\|Z|\" + mysigname_short_2
+				myXLabel   = "Frequency"
+			Case "zp"
+				myTreePath = "Lumped Elements\Impedances\arg(Z)\" + mysigname_short_2
+				myXLabel   = "Frequency"
+
+			Case "ua"
+				myTreePath = "Lumped Elements\Voltages\|U| linear\" + mysigname_short_2
+				myXLabel   = "Frequency"
+			Case "ud"
+				myTreePath = "Lumped Elements\Voltages\|U| dB\" + mysigname_short_2
+				myXLabel   = "Frequency"
+			Case "up"
+				myTreePath = "Lumped Elements\Voltages\arg(U)\" + mysigname_short_2
+				myXLabel   = "Frequency"
+			Case "us"
+				myTreePath = "Lumped Elements\Voltages\Signals\" + mysigname_short_2
+				myXLabel   = "Time"
+
+			Case "ia"
+				myTreePath = "Lumped Elements\Currents\|I| linear\" + mysigname_short_2
+				myXLabel   = "Frequency"
+			Case "id"
+				myTreePath = "Lumped Elements\Currents\|I| dB\" + mysigname_short_2
+				myXLabel   = "Frequency"
+			Case "ip"
+				myTreePath = "Lumped Elements\Currents\arg(I)\" + mysigname_short_2
+				myXLabel   = "Frequency"
+			Case "is"
+				myTreePath = "Lumped Elements\Currents\Signals\" + mysigname_short_2
+				myXLabel   = "Time"
+
+			Case Else
+				bReady = False
+		End Select
+	End If
+
+	If Not bReady Then
+		bReady = True
+		Select Case Left(mysigname_short,1)
+			Case "a"
+
+				' create polar plot first
+				myTreePath = "S-Parameter\|S| polar\S" + mysigname_short_1
+				myXLabel   = "Frequency"
+				With ResultTree
+					.Reset
+					.Type "PolarSignal"
+					.Title myTreePath
+					.Name "1D Results\Comparison\" + myTreePath + "\" + cst_runid
+					.File mysigname2
+					.File2 Replace(mysigname2,"^a","^p")
+					.Add
+				End With
+
+				' then create the Smith chart
+				ilen = Len(mysigname_short_1)
+				ileft = CLng(ilen/2)
+				If Left(mysigname_short_1,ileft)=Right(mysigname_short_1,ilen-ileft) Then
+
+					normimp_filename = myfilepath + "\"+myfilepath_short+".sds"
+					normimp = GetNormImpedance(normimp_filename, Left(mysigname_short_1,ilen/2))
+
+					If normimp > 0 Then
+						' Plot it
+						myTreePath = "S-Parameter\Smith Chart\S" + mysigname_short_1
+						myXLabel   = "Frequency"
+						With ResultTree
+							.Reset
+							.Type "SmithSignal"
+							.Xlabel myXLabel
+							.Title myTreePath
+							.Name "1D Results\Comparison\" + myTreePath + "\" + cst_runid
+							.File mysigname2
+							.File2 Replace(mysigname2,"^a","^p")
+							.ReferenceImpedance Replace(CStr(normimp),",",".")
+							' komma problem .ReferenceImpedance CStr(normimp)
+							.Add
+						End With
+					End If
+				End If
+				' now prepare normal plot of amplitude
+				myTreePath = "S-Parameter\|S| linear\S" + mysigname_short_1
+				myXLabel   = "Frequency"
+
+			Case "d"
+				myTreePath = "S-Parameter\|S| dB\S" + mysigname_short_1
+				myXLabel   = "Frequency"
+			Case "p"
+				myTreePath = "S-Parameter\arg(S)\S" + mysigname_short_1
+				myXLabel   = "Frequency"
+
+			Case "o"
+				myTreePath = "Port Signals\outcoming\o" + mysigname_short_1
+				myXLabel   = "Time"
+			Case "i"
+				myTreePath = "Port Signals\ingoing\i" + mysigname_short_1
+				myXLabel   = "Time"
+
+			Case Else
+				bReady = False
+		End Select
+	End If
+
+	If bOtherFile Or Not bReady Then
+		myTreePath = "other\" + mysigname_short
+		myXLabel   = ""
+	End If
+
+	If (Not bSkipThisFile) Then
+		'Add all sig files to
+		With ResultTree
+			.Reset
+			.Type "XYSignal"
+			.Xlabel myXLabel
+			.Title myTreePath
+			.Name "1D Results\Comparison\" + myTreePath + "\" + cst_runid
+			.File mysigname2
+			.Add
+		End With
+	End If
+
+	mysigname = FindNextFile
+Wend
+
+End Sub
+
+'-------------------------------------------------------------------------------------
+Sub LoadBalances (lib_modfile As String, cst_runid As String)
+
+Dim MyResult$(4), MyFolder$(4), myXLabel$(4)
+
+	MyResult$(1)=".bil"
+	MyFolder$(1)="Balance"
+	myXLabel$(1)="Frequency"
+
+Dim mysigname2 As String
+Dim myres$, myfol$, myfilepath$, myfilepattern$, myfilepath_short$, myext$, myext2$, mysigname$, mysigname_short$
+Dim iii As Integer
+		
+myfilepath    = DirName(lib_modfile)
+myfilepattern = ShortName(lib_modfile) + "^*" + MyResult$(1)
+
+' Search for first sig file
+mysigname = FindFirstFile(myfilepath , myfilepattern, False) 'See if a sig exist 
+
+While (mysigname <> "")
+	For iii = 1 To 1
+		myfilepath_short = ShortName(lib_modfile)
+		mysigname_short = Right$((BaseName(mysigname)), (Len(BaseName(mysigname))-Len(myfilepath_short)-1))
+		mysigname2 = DirName(lib_modfile) + "\" + myfilepath_short + "^" +mysigname_short +MyResult$(iii)
+		
+		'Add all sig files to  
+		With ResultTree
+				.Reset
+				.Type "XYSignal"
+				.Xlabel myXLabel$(iii)
+				.Title "Balance " + mysigname_short
+				.Name "1D Results\Comparison\Balance\" + "Balance " + mysigname_short +"\" + cst_runid
+				.File mysigname2
+				.Add
+		End With
+	Next iii
+
+	mysigname = FindNextFile
+Wend
+
+End Sub
+
+'-------------------------------------------------------------------------------------
+Sub LoadEnergies (lib_modfile As String, cst_runid As String)
+
+Dim MyResult$(4), MyFolder$(4), myXLabel$(4)
+
+	MyResult$(1)=".eng"
+	MyFolder$(1)="Energy"
+	myXLabel$(1)="Time"
+
+Dim mysigname2 As String
+Dim myres$, myfol$, myfilepath$, myfilepattern$, myfilepath_short$, myext$, myext2$, mysigname$, mysigname_short$
+Dim iii As Integer
+		
+myfilepath    = DirName(lib_modfile)
+myfilepattern = ShortName(lib_modfile) + "^*" + MyResult$(1)
+
+' Search for first sig file
+mysigname = FindFirstFile(myfilepath , myfilepattern, False) 'See if a sig exist 
+
+While (mysigname <> "")
+	For iii = 1 To 1
+		myfilepath_short = ShortName(lib_modfile)
+		mysigname_short = Right$((BaseName(mysigname)), (Len(BaseName(mysigname))-Len(myfilepath_short)-1))
+		mysigname2 = DirName(lib_modfile) + "\" + myfilepath_short + "^" +mysigname_short +MyResult$(iii)
+		
+		'Add all sig files to  
+		With ResultTree
+				.Reset
+				.Type "XYSignal"
+				.Xlabel myXLabel$(iii)
+				.Title "Energy " + mysigname_short
+				.Name "1D Results\Comparison\Energy\" + "Energy " + mysigname_short +"\" + cst_runid
+				.File mysigname2
+				.Add
+		End With
+	Next iii
+
+	mysigname = FindNextFile
+Wend
+
+End Sub
+'-------------------------------------------------------------------------------------
+Sub LoadVoltages (lib_modfile As String, cst_runid As String)
+
+Dim myvoltagename2 As String
+Dim MyResult$(4), MyFolder$(4), myXLabel$(4)
+
+	MyResult$(1)=".vra"
+	MyFolder$(1)="linear"
+	myXLabel$(1)="Frequency"
+
+	MyResult$(2)=".vrd"
+	MyFolder$(2)="dB"
+	myXLabel$(2)="Frequency"
+
+	MyResult$(3)=".vrp"
+	MyFolder$(3)="Phase"
+	myXLabel$(3)="Frequency"
+
+	MyResult$(4)=".vrs"
+	MyFolder$(4)="Signal"
+	myXLabel$(4)="Time"
+
+	
+Dim myres$, myfol$, myfilepath$, myfilepattern$, myfilepath_short$, myext$, myext2$, myvoltagename$, myvoltagename_short$
+Dim iii As Integer
+		
+myfilepath    = DirName(lib_modfile)
+myfilepattern = ShortName(lib_modfile) + "^*" + MyResult$(1)
+
+' Search for first voltage file
+myvoltagename = FindFirstFile(myfilepath , myfilepattern, False) 'See if a voltage exist 
+
+While (myvoltagename <> "")
+	For iii = 1 To 4
+		myfilepath_short = ShortName(lib_modfile)
+		myvoltagename_short = Right$((BaseName(myvoltagename)), (Len(BaseName(myvoltagename))-Len(myfilepath_short)-1))
+		myvoltagename2 = DirName(lib_modfile) + "\" + myfilepath_short + "^" +myvoltagename_short +MyResult$(iii)
+		
+		'Add all voltage files to  
+		With ResultTree
+				.Reset
+				.Type "XYSignal"
+				.Xlabel myXLabel$(iii)
+				.Title "Voltage Monitor " + myvoltagename_short + " - " + MyFolder$(iii)
+				.Name "1D Results\Comparison\Voltage Monitors\" + myvoltagename_short +"\"+MyFolder$(iii)+"\"+ cst_runid
+				.File myvoltagename2
+				.Add
+		End With
+	Next iii
+
+	myvoltagename = FindNextFile
+Wend
+
+End Sub
+
+
+'-------------------------------------------------------------------------------------
+Sub LoadProbes (lib_modfile As String, cst_runid As String)
+
+Dim myprobename2 As String
+Dim MyResult$(4), MyFolder$(4), myXLabel$(4)
+
+	MyResult$(1)=".pra"
+	MyFolder$(1)="linear"
+	myXLabel$(1)="Frequency"
+
+	MyResult$(2)=".prd"
+	MyFolder$(2)="dB"
+	myXLabel$(2)="Frequency"
+
+	MyResult$(3)=".prp"
+	MyFolder$(3)="Phase"
+	myXLabel$(3)="Frequency"
+
+	MyResult$(4)=".prs"
+	MyFolder$(4)="Signal"
+	myXLabel$(4)="Time"
+
+	
+Dim myres$, myfol$, myfilepath$, myfilepattern$, myfilepath_short$, myext$, myext2$, myprobename$, myprobename_short$
+Dim iii As Integer
+		
+myfilepath    = DirName(lib_modfile)
+myfilepattern = ShortName(lib_modfile) +  "^*" + MyResult$(1)
+
+' Search for first probe file
+myprobename = FindFirstFile(myfilepath , myfilepattern, False) 'See if a Probe exist 
+
+While (myprobename <> "")
+	For iii = 1 To 4
+		myfilepath_short = ShortName(lib_modfile)
+		myprobename_short = Right$((BaseName(myprobename)), (Len(BaseName(myprobename))-Len(myfilepath_short)-1))
+		myprobename2 = DirName(lib_modfile) + "\" + myfilepath_short + "^" +myprobename_short +MyResult$(iii)
+		
+		'Add all probe files to  
+		With ResultTree
+				.Reset
+				.Type "XYSignal"
+				.Xlabel myXLabel$(iii)
+				.Title "Probe " + myprobename_short + " - " + MyFolder$(iii)
+				.Name "1D Results\Comparison\Probes\" + myprobename_short +"\"+MyFolder$(iii)+"\"+ cst_runid
+				.File myprobename2
+				On Error Resume Next
+					.Add   ' some endings do not exist for rcs farfield probes (prp, prs)
+				On Error GoTo 0
+		End With
+	Next iii
+
+	myprobename = FindNextFile
+Wend
+
+End Sub
+Sub Load_1D (lib_modfile As String, cst_runid As String)
+
+Dim sResultName_tmp2 As String
+Dim MyResult$(4), MyFolder$(4), myXLabel$(4)
+
+MyResult$(1)=".rd1"
+MyFolder$(1)="1D-Templates"
+myXLabel$(1)=""
+
+MyResult$(2)=".m1d"
+MyFolder$(2)="MAFIA"
+myXLabel$(2)=""
+
+Dim myres$, myfol$, myfilepath$, myfilepattern$, myfilepath_short$, myext$, myext2$, sResultName_tmp$, sResultName_tmp_short$
+Dim iii As Integer
+
+For iii = 1 To 2
+
+	myfilepath    = DirName(lib_modfile)
+	myfilepattern = ShortName(lib_modfile) +  "^*" + MyResult$(iii)
+
+	' Search for first result file
+	sResultName_tmp = FindFirstFile(myfilepath , myfilepattern, False) 'See if a result exist
+
+	While (sResultName_tmp <> "")
+			myfilepath_short = ShortName(lib_modfile)
+			sResultName_tmp_short = Right$((BaseName(sResultName_tmp)), (Len(BaseName(sResultName_tmp))-Len(myfilepath_short)-1))
+			sResultName_tmp2 = DirName(lib_modfile) + "\" + myfilepath_short + "^" +sResultName_tmp_short +MyResult$(iii)
+
+			'Add all result files to tree
+			With ResultTree
+					.Reset
+					.Type "XYSignal"
+					.Xlabel myXLabel$(iii)
+					.Title sResultName_tmp_short
+					.Name "1D Results\Comparison\" + MyFolder$(iii) + "\" + sResultName_tmp_short + "\" + cst_runid
+					.File sResultName_tmp2
+					.Add
+			End With
+
+		sResultName_tmp = FindNextFile
+	Wend
+
+Next iii
+
+End Sub
+
+'------------------------------------------------------------------------------------------------------
+Sub SendEmail(EmailSubject As String, AttachFile As String)
+	
+	On Error GoTo NoOutlook
+	
+	Dim myAttachments As Object
+
+    With CreateObject("Outlook.Application").CreateItem(0)
+        .Subject = EmailSubject
+        If Not (IsNull(AttachFile) Or IsEmpty(AttachFile)) Then
+        	Set myAttachments = .Attachments
+            myAttachments.Add AttachFile
+        End If
+        .Display
+    End With
+    
+NoOutlook:
+    
+End Sub
+'-----------------------------------------------------------------------------------------------------------------------------
+Function bMWS As Boolean
+	bMWS = (GetApplicationName="MWS")
+End Function
+'-----------------------------------------------------------------------------------------------------------------------------
+Function bPS As Boolean
+	bPS = (GetApplicationName="PS")
+End Function
+'-----------------------------------------------------------------------------------------------------------------------------
+Function bEMS As Boolean
+	bEMS = (GetApplicationName="EMS")
+End Function
+'-----------------------------------------------------------------------------------------------------------------------------
+Function bMWS51 As Boolean
+	bMWS51 = ( bMWS And (CDbl(Mid(GetApplicationVersion,9,3)) >= 5.1) ) Or _
+		     ( bEMS And (CDbl(Mid(GetApplicationVersion,9,3)) >= 2.1) ) Or _
+		       bPS
+End Function
+'-----------------------------------------------------------------------------------------------------------------------------
+Function GetNormImpedance(sdsfilename As String, spomo As String) As Double
+
+	On Error GoTo Imp_undefined
+	GetAttr(sdsfilename)	' See if file exists; don't use Dir() !!
+	On Error GoTo 0
+	
+	Dim spomo2 As String
+	spomo2 = Replace(spomo,"(",",")
+	spomo2 = Left(spomo2, Len(spomo2)-1)
+	
+	Dim icount As Integer
+	icount = 0
+	
+	Dim cst_imped As Double
+	Dim cst_line As String
+	Dim cst_nitems As Integer
+	Dim string_item(999) As String
+
+	cst_imped = -1
+	cst_line = GrepFirstPattern(sdsfilename, "normed    port#")
+	While (cst_line <> "")
+		icount = icount +1
+		If InStr(cst_line, "port# "+spomo2+" ") >0 Then
+			cst_nitems = CSTSplit (cst_line, string_item)
+			cst_imped = RealVal(string_item(4))
+			
+			cst_line = GrepFirstPattern(sdsfilename, "norm flags")
+			cst_nitems = CSTSplit (cst_line, string_item)			
+			
+			If (Left(string_item(icount+2),1)="0") Then
+				' successful impedance found and norming flag is set
+				GetNormImpedance = cst_imped
+			Else
+				' port is not normed
+				GetNormImpedance = -1
+			End If
+			'   !!!!  jump completely out
+			Exit Function
+		End If
+		cst_line = GrepNextPattern
+	Wend
+
+Imp_undefined: 
+	GetNormImpedance = -1
+End Function
+'-----------------------------------------------------------------------------------------------------------------------------
+'-----------------------------------------------------------------------------------------------------------------------------
+' functions included for result templates
+'-----------------------------------------------------------------------------------------------------------------------------
+'---------------------------------------------------------------------------------------------------------------------------
+Function FindListIndex(sListArray() As String, sItem As String) As Long
+
+' -------------------------------------------------------------------------------------------------
+' FindListIndex: This function determines the index of a given string in a given array.
+'				 The function returns -1 if the array does not contain the desired string.
+' -------------------------------------------------------------------------------------------------
+
+	On Error GoTo ErrorLabel
+
+	' Determine the dimension of the given array
+
+	Dim nBound As Long, nIndex As Long
+	nBound = UBound(sListArray())
+
+	' Loop over all elements of the array and check whether an element is identical to
+	' the searched string. If the string is found the function is exited and the
+	' return value is assigned to the index of the element.
+
+	For nIndex = 0 To nBound
+		If (sListArray(nIndex) = sItem) Then
+			FindListIndex = nIndex
+			Exit Function
+		End If
+	Next nIndex
+
+ErrorLabel:
+	' If the execution comes here, either the searched item could not be found or
+	' an error occured (e.g. the array is empty). In any case, the function returns
+	' -1 to indicate the failure of the search.
+
+	FindListIndex = -1
+End Function
+'---------------------------------------------------------------------------------------------------------------------------
+Sub FillArray (sListArray() As String, sourceArray As Variant)
+
+' -------------------------------------------------------------------------------------------------
+' FillArray : This function copies all elements of a given array(even constant) into the sListArray
+'             The function is useful in dialogues (especially for templates), which do not accept
+'             constant arrays
+' -------------------------------------------------------------------------------------------------
+
+	Dim nBound As Long, nIndex As Long
+	nBound = UBound(sourceArray)
+
+	ReDim sListArray(nBound)
+	
+	For nIndex = 0 To nBound
+		sListArray(nIndex)=sourceArray(nIndex)
+	Next nIndex
+	
+End Sub
+'---------------------------------------------------------------------------------------------------------------------------
+Sub Append2Array (sListArray() As String, sourceArray As Variant)
+
+' -------------------------------------------------------------------------------------------------
+' Append2Array : This function appends all elements of a given array(even constant) into the sListArray
+'             The function is useful in dialogues (especially for templates), which do not accept
+'             constant arrays
+' -------------------------------------------------------------------------------------------------
+
+	Dim nBound As Long, nIndex As Long
+	nBound = UBound(sourceArray)
+
+	Dim nBound2 As Long
+
+	On Error GoTo EmptyArray
+		nBound2 = UBound(sListArray)
+		On Error GoTo 0
+		GoTo ProceedRedim
+
+EmptyArray:
+	nBound2 = 0
+
+ProceedRedim:
+
+	ReDim Preserve sListArray(nBound2 + nBound + 1)
+
+	For nIndex = 0 To nBound
+		sListArray(nBound2 + nIndex + 1) = sourceArray(nIndex)
+	Next nIndex
+
+End Sub
+' -------------------------------------------------------------------------------------------------
+Function NoForbiddenFilenameCharacters(s1 As String) As String
+
+' -------------------------------------------------------------------------------------------------
+' NoForbiddenFilenameCharacters : This function eliminates all characters from a string, which
+'				are not allowed as filenames within CST Studios     ~^[]:,|*/\$"()
+'				All these characters are just removed from the string.
+'				The function is useful e.g. in ResultTemplates, whose name is identical to a filename.
+' -------------------------------------------------------------------------------------------------
+
+	Dim s2 As String
+
+	s2 = s1
+
+	s2 = Replace(s2,"~","")
+	s2 = Replace(s2,"^","")
+	' ============== begin of the brackets story []   ====================
+	'ube/imu 23-jun-04  allow []
+	'ube 22-dec-04  no, do not allow [], because of Make Archive cannot archive files with brackets  
+	s2 = Replace(s2,"]",")")
+	s2 = Replace(s2,"[","(")
+	' ============== end of the brackets story []   ====================
+	s2 = Replace(s2,":","")
+	'ube 27-may-04  allow komma      s2 = Replace(s2,",","")
+	s2 = Replace(s2,"|","")
+	s2 = Replace(s2,"*","")
+	s2 = Replace(s2,"/","")
+	s2 = Replace(s2,"\","")
+	s2 = Replace(s2,"$","")
+	s2 = Replace(s2,"""","")
+	'	s2 = Replace(s2,"(","")
+	'	s2 = Replace(s2,")","")
+
+	'ube/fmo 08-sep-08  do not allow semikolon, since copy paste from tables in this case does not work
+	s2 = Replace(s2,";",",")
+
+	NoForbiddenFilenameCharacters = s2
+
+End Function
+
+' -------------------------------------------------------------------------------------------------
+Function dInterpolate_linear_x(lib_y As Double, lib_x0 As Double, lib_x1 As Double, lib_y0 As Double, lib_y1 As Double) As Double
+' -------------------------------------------------------------------------------------------------
+' dInterpolate_linear_x : calculates x at a given y-value from linear interpolation from neighboured points.
+'				This function gives more accurate values, especially for a coarse definition range.
+'
+' 		linear function y = y0 + m*(x-x0)     with m=(y1-y0)/(x1-x0)
+' -------------------------------------------------------------------------------------------------
+	Dim lib_m As Double
+	
+	If lib_x0=lib_x1 Then
+		dInterpolate_linear_x = lib_x0
+	Else
+		lib_m=(lib_y1-lib_y0)/(lib_x1-lib_x0)
+		dInterpolate_linear_x = (lib_y-lib_y0)/lib_m + lib_x0
+	End If
+End Function
+
+' -------------------------------------------------------------------------------------------------
+Function dInterpolate_linear_y(lib_x As Double, lib_x0 As Double, lib_x1 As Double, lib_y0 As Double, lib_y1 As Double) As Double
+' -------------------------------------------------------------------------------------------------
+' dInterpolate_linear_y : calculates y at a given x-value from linear interpolation from neighboured points.
+'				This function gives more accurate values, especially for a coarse definition range.
+'
+' 		linear function y = y0 + m*(x-x0)     with m=(y1-y0)/(x1-x0)
+' -------------------------------------------------------------------------------------------------
+	Dim lib_m As Double
+	
+	If lib_x0=lib_x1 Then
+		' take mean value between y0 and y1
+		dInterpolate_linear_y = 0.5*(lib_y0+lib_y1)
+	Else
+		lib_m=(lib_y1-lib_y0)/(lib_x1-lib_x0)
+		dInterpolate_linear_y = lib_y0 + lib_m*(lib_x-lib_x0)
+	End If
+End Function
+' -------------------------------------------------------------------------------------------------
+Function bMathChar (s1 As String) As Boolean
+
+	bMathChar = False
+
+	If Len(s1) = 1 Then
+		If ( s1="+" Or s1="-" Or s1="^" Or s1="*" Or s1="/" Or s1="\" Or s1="," Or _
+			 s1="<" Or s1=">" Or s1="=" Or s1="(" Or s1=")" Or s1="&" Or s1=" " ) Then
+			bMathChar = True
+		End If
+	End If
+
+End Function
+Function IsDigit_1_9(s1 As String) As Boolean
+
+	IsDigit_1_9 = False
+
+	If Len(s1) = 1 Then
+		If ( s1="1" Or s1="2" Or s1="3" Or s1="4" Or s1="5" Or s1="6" Or _
+			 s1="7" Or s1="8" Or s1="9" ) Then
+			IsDigit_1_9 = True
+		End If
+	End If
+
+End Function
+' -------------------------------------------------------------------------------------------------
+Function CST_ReplaceString (s1 As String, s2 As String) As String
+
+	' this function is searching for all occurances of s2 within s1 and adds the string "_cst_tmp"
+	' to each s2-string, if s2 is surrounded by only math. characters
+
+	' This function is useful to avoid naming conflicts between A B C D x y ... in the Result Templates
+	' and identical variables. The result templates variables are replaced by  A ==> A_cst_tmp
+
+	' Thus even variable a can be used together with A.
+
+	Dim i0 As Integer, i1 As Integer, islength As Integer, ilast As Integer
+	Dim s3 As String
+	Dim bReplace As Boolean
+
+	i0=1
+	islength = Len(s1)
+	ilast = 0
+	s3 = ""
+	While True
+		i1=InStr(i0,s1,s2)
+		If (i1 = 0) Then Exit While
+
+		bReplace = True
+		If (i1 > 1) Then
+			bReplace = bReplace And bMathChar(Mid$(s1,i1-1,1))
+		End If
+		If (i1 < islength) Then
+			bReplace = bReplace And bMathChar(Mid$(s1,i1+1,1))
+		End If
+		If (bReplace) Then
+			s3 = s3 + Mid$(s1,ilast+1,i1-ilast) + "_cst_tmp"
+			ilast = i1
+		End If
+		i0=i1+1
+	Wend
+
+	If (ilast < islength) Then
+		s3 = s3 + Mid$(s1,ilast+1,islength-ilast)
+	End If
+
+	CST_ReplaceString = s3
+
+End Function
+' -------------------------------------------------------------------------------------------------
+Sub GetAll2D3DResults (sListArray() As String, n2D3DFields As Integer)
+
+' -------------------------------------------------------------------------------------------------
+' GetAll2D3DResults : This subroutine is collecting all available 2D/3D Results from the .res file
+'
+'	Before the simulation, all freq-monitors, modes, static, ... fields are collected/estimated
+'
+' -------------------------------------------------------------------------------------------------
+	Dim aField(999) As String
+
+	Dim cst_line As String
+	Dim sfilename As String
+	Dim icount As Integer, nIndex As Integer
+
+	sfilename = GetProjectPath("Result") + "\Model.res"
+	icount = 0
+	If Dir$(sfilename) <> "" Then
+		cst_line = GrepFirstPattern(sfilename, "2D/3D Results")
+		While (cst_line <> "")
+			aField(icount) = Mid$(Trim$(cst_line),15)
+			icount  = icount + 1
+			cst_line = GrepNextPattern
+		Wend
+	End If
+
+	If (icount = 0) Then
+
+		' no calculation has been performed so far, therefore take default list
+		' different for MWS and EMS
+
+		If (bMWS) Then
+
+			' each monitor with excitation at port 1 (=> extension " [1]")
+			' skip farfield and time domain monitors
+
+			Dim sMoniName As String
+			Dim bTakeIt As Boolean
+
+			With Monitor
+				For nIndex= 0 To .GetNumberOfMonitors-1
+
+					bTakeIt = True
+					sMoniName = .GetMonitorNameFromIndex(nIndex)
+
+					Select Case	Mid(.GetMonitorTypeFromIndex(nIndex),1,8)
+
+						Case "Farfield"
+
+							bTakeIt = False
+
+						Case "E-Field "
+
+							sMoniName = "E-Field\" + sMoniName
+
+						Case "H-Field "
+
+							If (.GetMonitorDomainFromIndex(nIndex) <> "Time") Then
+
+								' besides standard H-Field also take Surface Current
+
+								aField(icount) = "Surface Current\" + sMoniName + " [1]"
+								icount  = icount + 1
+
+							End If
+
+							sMoniName = "H-Field\" + sMoniName
+
+						Case "Powerflo"
+
+							sMoniName = "Power Flow\" + sMoniName
+
+						Case "Loss den"
+
+							sMoniName = "Power Loss Dens.\" + sMoniName
+
+						Case "E-Energy"
+
+							sMoniName = "El. Energy Dens.\" + sMoniName
+
+						Case "H-Energy"
+
+							sMoniName = "Mag. Energy Dens.\" + sMoniName
+
+					End Select
+
+					If (.GetMonitorDomainFromIndex(nIndex) = "Time") Then
+
+						bTakeIt = False
+
+					End If
+
+					If bTakeIt Then
+
+						aField(icount) = sMoniName + " [1]"
+						icount  = icount + 1
+
+					End If
+
+				Next
+			End With
+
+			For nIndex= 1 To Solver.AKSGetNumberOfModes
+
+				' also take for each mode
+
+				aField(icount) = "Modes\Mode " + CStr(nIndex) + "\e"
+				icount  = icount + 1
+				aField(icount) = "Modes\Mode " + CStr(nIndex) + "\h"
+				icount  = icount + 1
+				aField(icount) = "Modes\Mode " + CStr(nIndex) + "\Surface Current"
+				icount  = icount + 1
+
+			Next
+		End If
+
+		If (bEMS or bPS) Then
+
+			' in EMS take the static fields
+
+			aField(icount) = "E-Field [Es]"
+			icount  = icount + 1
+			aField(icount) = "D-Field [Es]"
+			icount  = icount + 1
+			aField(icount) = "Potential [Es]"
+			icount  = icount + 1
+			aField(icount) = "E-Field [Js]"
+			icount  = icount + 1
+			aField(icount) = "Cond. Current Dens. [Js]"
+			icount  = icount + 1
+			aField(icount) = "Potential [Js]"
+			icount  = icount + 1
+			aField(icount) = "B-Field [Ms]"
+			icount  = icount + 1
+			aField(icount) = "H-Field [Ms]"
+			icount  = icount + 1
+			aField(icount) = "Material [Ms]"
+			icount  = icount + 1
+			aField(icount) = "Permanent Flux [Ms]"
+			icount  = icount + 1
+
+			if (not bPS) then
+				aField(icount) = "Source Current Dens. [Ms]"
+				icount  = icount + 1
+	
+				aField(icount) = "Temperature [Th]"
+				icount  = icount + 1
+	
+				aField(icount) = "Heat Flow Density [Th]"
+				icount  = icount + 1
+	
+				' once VBA-commands for FD-frequencies exist, also include those fields
+	
+				' EMS-FD Solver .GetNumberOfFrequencies
+				' .GetCalculationFrequency (index)  , index = 0... .GetNumberOfFrequencies-1
+	
+				Dim dFrequency As Double
+				Dim sFrequency As String
+	
+				Dim nFreq_LFSolver_CST As Integer
+				Dim iFreq_CST As Integer
+	
+				nFreq_LFSolver_CST = LFSolver.GetNumberOfFrequencies
+	
+				For iFreq_CST = 0 To nFreq_LFSolver_CST-1
+	
+					dFrequency = LFSolver.GetCalculationFrequency(iFreq_CST)
+	
+					' MsgBox CStr(iFreq_CST) + ".  ==>   Frq = " + CStr(dFrequency)
+	
+					sFrequency = "[" + CStr(dFrequency) + "]"
+	
+					aField(icount) = "Source Current Dens." + sFrequency
+					icount  = icount + 1
+					aField(icount) = "Cond. Current Dens." + sFrequency
+					icount  = icount + 1
+					aField(icount) = "Total Current Dens." + sFrequency
+					icount  = icount + 1
+					aField(icount) = "D-Field " + sFrequency
+					icount  = icount + 1
+					aField(icount) = "E-Field " + sFrequency
+					icount  = icount + 1
+					aField(icount) = "B-Field " + sFrequency
+					icount  = icount + 1
+					aField(icount) = "H-Field " + sFrequency
+					icount  = icount + 1
+					aField(icount) = "El. Energy Dens. " + sFrequency
+					icount  = icount + 1
+					aField(icount) = "Mag. Energy Dens. " + sFrequency
+					icount  = icount + 1
+					aField(icount) = "El. Loss Dens. " + sFrequency
+					icount  = icount + 1
+	
+				Next iFreq_CST
+	
+				If nFreq_LFSolver_CST = 0 Then
+	
+					' take 50 Hz as default
+	
+					dFrequency = 50
+					sFrequency = "[" + CStr(dFrequency) + "]"
+	
+					aField(icount) = "Source Current Dens." + sFrequency
+					icount  = icount + 1
+					aField(icount) = "Cond. Current Dens." + sFrequency
+					icount  = icount + 1
+					aField(icount) = "Total Current Dens." + sFrequency
+					icount  = icount + 1
+					aField(icount) = "D-Field " + sFrequency
+					icount  = icount + 1
+					aField(icount) = "E-Field " + sFrequency
+					icount  = icount + 1
+					aField(icount) = "B-Field " + sFrequency
+					icount  = icount + 1
+					aField(icount) = "H-Field " + sFrequency
+					icount  = icount + 1
+					aField(icount) = "El. Energy Dens. " + sFrequency
+					icount  = icount + 1
+					aField(icount) = "Mag. Energy Dens. " + sFrequency
+					icount  = icount + 1
+					aField(icount) = "El. Loss Dens. " + sFrequency
+					icount  = icount + 1
+	
+				End If
+
+			End If
+
+		End If
+
+		If (bPS) Then
+
+			' in PS additionally take the particle space charge and current fields
+
+			aField(icount) = "Particle Current"
+			icount  = icount + 1
+
+			aField(icount) = "Particle Space Charge"
+			icount  = icount + 1
+
+		End If
+
+	End If
+
+	n2D3DFields = icount
+
+	ReDim sListArray(n2D3DFields)
+
+	For nIndex = 0 To n2D3DFields-1
+		sListArray(nIndex)=aField(nIndex)
+	Next nIndex
+
+End Sub
+Function bScalarField (sField As String) As Boolean
+
+	If (InStr(sField,"Dens.")>0 And InStr(sField,"Current")=0) Or (InStr(sField,"Electron")>0)  Or (InStr(sField,"Potential")>0) Or (InStr(sField,"Temperature")>0) Or (InStr(sField,"Pressure")>0) Or (InStr(sField,"Space Charge")>0 Or (InStr(sField,"Material")>0)) Then
+		bScalarField = True
+	Else
+		bScalarField = False
+	End If
+
+	' special handling for mech stress solver
+	If (InStr(sField,"Force Dens.")>0) Then
+		bScalarField = False
+	End If
+	If (InStr(sField,"Strain\")=1 Or InStr(sField,"Stress\")=1) Then
+		bScalarField = True
+	End If
+
+End Function
+Sub CST_AppendFile (sfile1 As String, sfile2 As String)
+
+	' this subroutine appends file2 to file1 (file1 is modified)
+
+	If Dir$(sfile1) = "" Or Dir$(sfile2) = "" Then
+
+		' Nothing done, one of the files does not exist
+
+	Else
+
+		Dim sline_cst1 As String
+
+		Open sfile1 For Append As #11
+		Open sfile2 For Input As #12
+
+			' now copy all lines of #12 to the end of #11
+
+			While Not EOF(12)
+				Line Input #12, sline_cst1
+				Print #11, sline_cst1
+			Wend
+
+		Close #12
+		Close #11
+
+	End If
+
+End Sub
+Sub Handle_0D_Results  (lib_action As String, lib_extension As String, lib_0Dtype As String, _
+						lib_targetdir1 As String, lib_modfile As String, lib_dXValue_now As Double, lib_cXLabelNow As String)
+
+	' this subroutine can be used to collect and plot arbitrary 0D Results, written in a file
+	' action=write  /  plot   available
+
+	'
+	' in this subroutine targetdir must not have a backslash at the end
+	'
+	Dim lib_targetdir As String
+	lib_targetdir = lib_targetdir1
+
+	If Right(lib_targetdir1,1)="\" Then lib_targetdir = Left(lib_targetdir1,Len(lib_targetdir1)-1)
+
+	Dim s0Dtargetmain As String, istartname As Integer, ilenpattern As Integer
+	Dim lib_searchpath As String, lib_searchpattern As String, lib_dummy As String
+	Dim mysigname As String, sm0dfile As String, iLenM0dfile As Integer, s0DName As String
+
+	s0Dtargetmain = lib_targetdir + "\0D_" + lib_0Dtype + "_"
+
+	'
+	' define parameters for file search
+	'
+	Select Case lib_action
+
+		Case "write"
+
+			lib_searchpath = DirName(lib_modfile)
+			lib_searchpattern = ShortName(lib_modfile) + "^*" + lib_extension
+			istartname = Len(lib_modfile) + 2
+
+		Case "plot"
+
+			lib_searchpath = DirName(s0Dtargetmain)
+			lib_searchpattern = ShortName(s0Dtargetmain) + "*.txt"
+			istartname = Len(s0Dtargetmain) + 1
+
+	End Select
+
+	ilenpattern = Len(lib_searchpath) + Len(lib_searchpattern)
+
+	mysigname = FindFirstFile(lib_searchpath , lib_searchpattern, False)
+
+	While (mysigname <> "")
+
+		sm0dfile = lib_searchpath + "\" + mysigname
+		iLenM0dfile = Len(sm0dfile)
+
+		s0DName = Mid(sm0dfile, istartname, iLenM0dfile-ilenpattern)
+
+		Select Case lib_action
+
+			Case "write"
+
+				Open s0Dtargetmain + s0DName + ".txt" For Append As #12
+					lib_dummy = ""
+					Open sm0dfile For Input As #44
+						Line Input #44, lib_dummy
+					Close #44
+					Print #12, CStr(lib_dXValue_now) + "   " +  lib_dummy
+				Close #12
+
+			Case "plot"
+
+				With ResultTree
+					.Reset
+					.Type "XYSignal"
+					.Xlabel lib_cXLabelNow
+					.Title s0DName
+					.Title "" ' otherwise no multiplot possible
+					.Name "0D Results\" + lib_0Dtype + "\" + s0DName
+					.File sm0dfile
+					.Add
+				End With
+
+		End Select
+
+		mysigname = FindNextFile
+	Wend
+
+End Sub
+Function SolidPointCoordinatesSTEP(sName As String, index As String, x As Double, y As Double, z As Double) As Boolean
+
+	If ( Solid.GetPointCoordinates(sName, index, x, y, z) ) Then
+		SolidPointCoordinatesSTEP = True
+	Else
+		SolidPointCoordinatesSTEP = False
+	End If
+
+	' If RestoreGlobalDataValue("Step\Chk1") <> "11" Then	SolidPointCoordinatesSTEP = False
+
+End Function
+
+Function CurvePointCoordinatesSTEP(cName As String, index As String, x As Double, y As Double, z As Double) As Boolean
+	If ( Curve.GetPointCoordinates(cName, index, x, y, z) ) Then
+		CurvePointCoordinatesSTEP = True
+	Else
+		CurvePointCoordinatesSTEP = False
+	End If
+
+	' If RestoreGlobalDataValue("Step\Chk2") <> "23" Then CurvePointCoordinatesSTEP = False
+
+End Function
+Sub RemoveFileHeader(sfile As String)
+
+	' this subroutine removes the header lines of sfile1 (file1 is modified)
+
+	If Dir$(sfile) = "" Then
+		' Nothing done, file does not exist
+	Else
+		Dim sline_cst1 As String
+		Dim sfile2 As String
+
+		Dim string_item(30) As String
+		Dim cst_nitems As Integer
+
+		sfile2 = sfile+"_tmp"
+
+		Open sfile2 For Output As #11
+		Open sfile For Input As #12
+
+		Line Input #12, sline_cst1	'discard first line
+
+		Dim bHeaderLine As Boolean
+		bHeaderLine = True
+
+		While (Not EOF(12) And bHeaderLine)
+			Line Input #12, sline_cst1
+			bHeaderLine = (Len(sline_cst1) <= 2) Or (InStr(sline_cst1,"="))
+		Wend
+
+		If Not bHeaderLine Then
+			cst_nitems = CSTSplit(sline_cst1, string_item)
+			if (cst_nitems>2) then
+				' the new 2010 clipboard format might contain 3 colums, because of angle
+				Print #11, string_item(1) + "   " + string_item(2)
+			Else
+				Print #11, string_item(0) + "   " + string_item(1)
+			End If
+		End If
+
+		While Not EOF(12)
+			Line Input #12, sline_cst1
+			cst_nitems = CSTSplit(sline_cst1, string_item)
+			if (cst_nitems>2) then
+				' the new 2010 clipboard format might contain 3 colums, because of angle
+				Print #11, string_item(1) + "   " + string_item(2)
+			Else
+				Print #11, string_item(0) + "   " + string_item(1)
+			End If
+		Wend
+
+		Close #12
+		Close #11
+
+		FileCopy sfile2, sfile
+
+		Kill sfile2
+
+	End If
+
+End Sub
+Sub SelectSolids(aSolidArray_LIB() As String, nSolids_LIB As Integer)
+
+	Dim cst_button As Integer
+	Dim cst_Operation As String
+	Dim cst_index As Long
+	Dim cst_iii As Long
+
+	Dim cst_solid_select_count As Integer
+	Dim cst_solid_unselect_count As Integer
+	Dim cst_solid_select_name(999) As String
+	Dim cst_solid_unselect_name(999) As String
+
+	Dim cst_solid As String
+	Dim bSelected As Boolean
+
+	cst_solid_unselect_count = 0
+	cst_solid_select_count = 0
+
+	For cst_index = 1 To Solid.GetNumberOfShapes
+		cst_solid = Solid.GetNameOfShapeFromIndex(cst_index-1)
+		bSelected = False
+		For cst_iii = 1 To nSolids_LIB
+			If (cst_solid = aSolidArray_LIB(cst_iii-1)) Then
+				bSelected = True
+				Exit For
+			End If
+		Next cst_iii
+
+		If bSelected Then
+			cst_solid_select_count = cst_solid_select_count + 1
+			cst_solid_select_name(cst_solid_select_count) = cst_solid
+		Else
+			cst_solid_unselect_count = cst_solid_unselect_count + 1
+			cst_solid_unselect_name(cst_solid_unselect_count) = cst_solid
+		End If
+	Next
+
+
+	Begin Dialog UserDialog 550,238,"Selected Solids" ' %GRID:10,7,1,1
+		Text 20,7,120,14,"Unselected",.LabelSource
+		ComboBox 20,21,200,189,cst_solid_unselect_name(),.Unselect_box
+		PushButton 240,49,70,28,"=====>",.AddAll
+		PushButton 240,84,70,28,"----->",.Add
+		PushButton 240,119,70,28,"<-----",.Remove
+		PushButton 240,154,70,28,"<=====",.RemoveAll
+		Text 330,7,90,14,"Selected",.LabelTarget
+		ComboBox 330,21,200,189,cst_solid_select_name(),.Select_box
+		OKButton 20,210,90,21
+		CancelButton 120,210,90,21
+	End Dialog
+	Dim dlg_Solid_CST As UserDialog
+
+	cst_Operation = ""
+
+	Do
+		cst_button = Dialog(dlg_Solid_CST)
+
+        Select Case cst_button
+			Case -1		' OK
+				cst_Operation = "OK"
+				'
+			Case 1		' ====> add all probes
+				For cst_iii = 1 To cst_solid_unselect_count
+					cst_solid_select_count = cst_solid_select_count + 1
+					cst_solid_select_name(cst_solid_select_count) = cst_solid_unselect_name(cst_iii)
+					cst_solid_unselect_name(cst_iii) = ""
+				Next
+				cst_solid_unselect_count = 0
+				'
+			Case 2		' ----> add only one probe
+				cst_solid_select_count = cst_solid_select_count + 1
+				cst_solid_select_name(cst_solid_select_count) = dlg_Solid_CST.Unselect_box
+				For cst_iii = 1 To cst_solid_unselect_count
+					If (cst_solid_unselect_name(cst_iii) = dlg_Solid_CST.unselect_box) Then
+						cst_solid_unselect_name(cst_iii) = ""
+						dlg_Solid_CST.unselect_box = ""
+					ElseIf (dlg_Solid_CST.unselect_box = "") Then
+						dlg_Solid_CST.unselect_box = cst_solid_unselect_name(cst_iii)
+					End If
+				Next
+				'
+			Case 3	' <----
+				cst_solid_unselect_count = cst_solid_unselect_count + 1
+				cst_solid_unselect_name(cst_solid_unselect_count) = dlg_Solid_CST.select_box
+				For cst_iii = 1 To cst_solid_select_count
+					If (cst_solid_select_name(cst_iii) = dlg_Solid_CST.select_box) Then
+						cst_solid_select_name(cst_iii) = ""
+						dlg_Solid_CST.select_box = ""
+					ElseIf (dlg_Solid_CST.select_box = "") Then
+						dlg_Solid_CST.select_box = cst_solid_select_name(cst_iii)
+					End If
+				Next
+				'
+			Case 4	' <====
+				For cst_iii = 1 To cst_solid_select_count
+					cst_solid_unselect_count = cst_solid_unselect_count + 1
+					cst_solid_unselect_name(cst_solid_unselect_count) = cst_solid_select_name(cst_iii)
+					cst_solid_select_name(cst_iii) = ""
+				Next
+				cst_solid_select_count = 0
+				dlg_Solid_CST.Select_box = ""
+				'
+			Case Else		' Cancel
+				cst_Operation = "Quit"
+		End Select
+
+	Loop Until (cst_Operation <> "")
+
+	If cst_Operation = "OK" Then
+
+		' only update external solid-array, if OK is pressed, Cancel leaves array unchanged
+
+		nSolids_LIB = cst_solid_select_count
+
+		If (nSolids_LIB > 0) Then
+			ReDim aSolidArray_LIB(nSolids_LIB-1)
+
+			For cst_iii = 1 To nSolids_LIB
+				aSolidArray_LIB(cst_iii-1) = cst_solid_select_name(cst_iii)
+			Next
+		End If
+
+	End If
+
+End Sub
+Function DRound (cst_calue As Double, ndigits As Integer) As Double
+
+	' DRound is rounding a double value to ndigits
+
+	Dim nFactor As Long
+	nFactor = 10^ndigits
+
+	If (cst_calue*nFactor <= 1e9) Then
+		DRound = CDbl(CLng(cst_calue*nFactor))/nFactor
+	Else
+		' too big for type "Long"
+		DRound = cst_calue
+	End If
+
+End Function
+Function mwsversion4 As Boolean
+	If InStr(getmwsversion,"V 3") > 0 Then
+     mwsversion4 = False
+    Else
+     mwsversion4 = True
+    End If 
+End Function
+Sub DrawXYZPickPoints (sFileCoordxyz As String, nMaxPicks As Long)
+
+	If Dir$(sFileCoordxyz)="" Then Exit Sub
+
+	SelectTreeItem "Components"
+	Plot.Wireframe True
+	Pick.ClearAllPicks
+
+	Dim iLineCounter As Long, iLastLine As Long, dDiffID As Double, dNextID As Double
+	Dim sLine_lib As String, string_item(30) As String, cst_nitems As Integer
+
+	iLineCounter = 0
+
+    Open sFileCoordxyz For Input As #11
+		While Not EOF(11)
+			Line Input #11, sLine_lib
+			iLineCounter = iLineCounter + 1
+		Wend
+    Close #11
+
+    iLastLine = iLineCounter
+    '
+    ' --- now pick up to nMaxPicks points, always take first and last point
+    '
+	dDiffID = CDbl(iLastLine)/nMaxPicks
+	dNextID = 0.0
+
+    Open sFileCoordxyz For Input As #11
+		While Not EOF(11)
+			Line Input #11, sLine_lib
+			iLineCounter = iLineCounter + 1
+			If (iLineCounter = iLastLine Or iLineCounter > dNextID) Then
+				' pick this point
+				cst_nitems = CSTSplit(sLine_lib, string_item)
+				Pick.PickPointFromCoordinates string_item(0),string_item(1),string_item(2)
+
+				dNextID = dNextID + dDiffID
+			End If
+		Wend
+    Close #11
+
+	Plot.Update
+
+End Sub
+
+Sub RemoveFirstChars(sfile As String, ichar As Integer)
+
+	Dim itotal As Integer
+	itotal = Len(sfile)
+
+	sfile = Right$(sfile,itotal-ichar)
+
+End Sub
+Sub RemoveLastChars(sfile As String, ichar As Integer)
+
+	Dim itotal As Integer
+	itotal = Len(sfile)
+
+	sfile = Left$(sfile,itotal-ichar)
+
+End Sub

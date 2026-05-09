@@ -1,0 +1,4130 @@
+'#Language "WWB-COM"
+
+'Option Explicit
+
+' Library to convert infix math expression to postfix math expressions, which can be evaluated more systematically
+' Also includes a function to create VBA code to evaluate postfix expressions for Result1DComplex objects
+'
+' IMPORTANT: Output objects of math functions need to be compatible with input object: 1) same min, 2) same max), 3) same number of samples
+' It should be assumed that input objects represent true functions: x values increase strictly monotonically
+' The result should also always be stored in the input object "Operand"
+'
+' Copyright 2010-2023 Dassault Systemes Deutschland GmbH
+' -------------------------------------------------------------------------------------------------------------------------------------------------------
+' History of Changes:
+' -------------------------------------------------------------------------------------------------------------------------------------------------------
+' 29-Aug-2024 fsr: Added new component product & division functions for 3D fields; applied character based truncation to functions and operators as well.
+' 29-Aug-2024 fsr: Clarified "Division by 3D fields not supported" error message, which would also get triggered when dividing by a product of multiple factors
+' 02-Mar-2023 mha: Changed rule for adding linebreaks in ShowSupportedOperators as regarding constants to a system based on number of characters instead of number of constants
+' 02-Mar-2023 mha: Changed constant PlanckH to 6.62607015e-34 in accordance with the 2019 redefinition of SI base units
+' 02-Mar-2023 mha: Changed constant names to be consistent with global constants to be used in expressions / parameter (former names still work, but are not shown in msgbox) 
+' 22-Apr-2020 fsr: Added a rudimentary format check for InfixToPostfix
+' 28-Oct-2019 fsr: Load parameter values by RunID if possible
+' 12-Sep-2018 ebu,fsr: Set the imaginary part to zero for XYZMag(), MagnitudeByComponent3D
+' 03-May-2018 fsr: Accept numbers in scientific format using capital E to denote exponent
+' 18-Oct-2017 fsr: Added Log and Log10 for 3D fields
+' 28-Jun-2017 fsr: Fixed Sum & CumSum
+' 27-Feb-2017 fsr: Switched from legacy Mue0 to Mu0 (Mue0 still works for bwc); added option to create 3D constant scalar field (constant numerical value
+'					will be expanded to 3D const field automatically); fixed a problem with tiny imaginary parts in ComplexScalarMult3D
+' 27-Sep-2016 fsr: Added "Sum" and "CumSum" operations
+' 06-Sep-2016 fsr: Fixed problem with negative sign in 2nd (or higher) arguments, e.g. "Atn2(A,-B)"
+' 01-Sep-2016 fsr: Added Modulo, Remainder, Round, Floor, Ceiling functions
+' 20-May-2016 fsr: Fixed definition of QElectron
+' 09-May-2016 fsr: Fixed Boolean functions for non-complex inputs
+' 02-May-2016 fsr: Added "Boolean" functions GTR, GEQ, LSS, LEQ, EQL, EQLtol, NEQ, NOT
+' 08-Feb-2016 fsr: Added option to create constant 3d vector field, 3D trigonometric functions
+' 19-Nov-2015 fsr: Nicefied 'ShowSupportedOperators'
+' 09-Nov-2015 fsr: Implemented Sqr3D for 1DC; added Planck's constant
+' 17-Mar-2015 fsr: Finalized 3D framework; fixed arity detection for nested functions
+' 16-Dec-2014 fsr: Implemented complex ScalarMult, ScalarCompMult
+' 15-Dec-2014 fsr: Fixed Log101DC, MagdB201DC; Added a number of 3D functions
+' 09-Dec-2014 fsr: Extended framework for 3D results (Real/Imag functions etc)
+' 05-Dec-2014 fsr: Fixed Im1DC
+' 03-Dec-2014 fsr: Overall performance improvements; added derivative and integral functions
+' 11-Jul-2014 fsr: IsNumeric check is now always carried out using US locale
+' 25-Apr-2014 mku: Added Sinh, Asinh, Cosh, Acosh
+' 21-Nov-2013 fsr: Added framework for mix 3D results
+' 25-Jul-2012 fsr: Added Heaviside/unit step function
+' 04-Apr-2012 fsr: Fixed a bug in the Min/Max/Mean1D functions
+' 14-Mar-2012 fsr: New functions: PhD, ArcD, MagdB10, MagdB20, UPh, UArc, UPhD, UArcD
+' 29-Jan-2012 fsr: Added a check if numerical expressions are followed by a proper operator
+' 20-Oct-2011 fsr: fixed a problem with commas as separator in number formating;
+'					array indexes now use "long" so that plots With more than 32k samples can be handled
+' 08-Sep-2011 fsr: added function Sgn(z)
+' 15-Jul-2011 fsr: moved the actual implementation of ztan, zatn, and zatn2 into complex.lib, improved parameter handling for functions with arity>1
+' 01-Jun-2011 fsr: "Stack(UBound(Stack))=-0" caused problems in Linux, changed to "Stack(UBound(Stack))=CStr(0)"
+' 26-Apr-2011 fsr: fixed a problem where constants like "Pi" would not work for non-US locales
+' 22-Apr-2011 fsr: new function "Abscissa" allows to extract the "x" value of a template, useful for example if "Frequency" is needed in a formula
+' 06-Apr-2011 fsr: finished framework for functions with arity>1, separator for parameters is sParaSep; included functions Atn2 and Atn2d
+' 22-Feb-2011 fsr: included some physical and mathematical constants, fixed some bugs related to the CosD, ACosD, ATn, ATnD functions
+' 17-Feb-2011 fsr: included "Xe-Y" expressions. Xe(Y) and Xe(-Y) are not working, but VBA does not recognize these as numeric, either
+' 07-Feb-2011 fsr: remapped ^ operator from NthPower to new ZthPower
+' 25-Oct-2010 fsr: adjusted for DS - changed all "Report*ToWindow" calls to "Report*" calls
+' 13-Oct-2010 fsr: minor changes
+' 11-Oct-2010 fsr: added min/max/mean/Ln/Log10 functions, straightened up a little
+' 04-Oct-2010 fsr: included ".XX" for "0.XX" and "XeY" expressions, arbitrary capitalization for functions, improved parameter recognition&handling
+' 22-Sep-2010 fsr: initial version
+' -------------------------------------------------------------------------------------------------------------------------------------------------------
+
+' The include below is only necessary when "Main" is active for testing:
+''include "complex.lib"
+
+Public Const sParaSep_LIB = "," ' Use this character to separate parameters for functions with arity >1
+
+' Currently supported operators, sorted by priority, plus corresponding command and number of arguments (arity), separated by |
+Public Const OperatorSet1DC = Array("+|Add|2", _
+							"-|Subtract|2", _
+							"*|ComponentMult|2", _
+							"/|ComponentDiv|2", _
+							"^|ZthPower|2", _
+							"'|Conjugate|1")
+Public Const OperatorSet3D = Array("+|Add|2", _
+							"-|Subtract|2", _
+							"*|ScalarMult|2", _
+							"/|ScalarDiv|2", _
+							"^|Pow|2", _
+							"'|Conjugate|1")
+
+' List of currently supported functions with function and arity, please remember to add implementation when adding a new function
+Public Const FunctionSet1DC = Array("Sin|Sin1DC|1", _
+								"SinD|SinD1DC|1", _
+								"ASin|ASin1DC|1", _
+								"ASinD|ASinD1DC|1", _
+								"Cos|Cos1DC|1", _
+								"CosD|CosD1DC|1", _
+								"ACos|ACos1DC|1", _
+								"ACosD|ACosD1DC|1", _
+								"Tan|Tan1DC|1", _
+								"TanD|TanD1DC|1", _
+								"Atn|Atn1DC|1", _
+								"Atn2|Atn21DC|2", _
+								"AtnD|AtnD1DC|1", _
+								"Atn2D|Atn2D1DC|2", _
+								"Re|Re1DC|1", _
+								"Real|Re1DC|1", _
+								"Im|Im1DC|1", _
+								"Imag|Im1DC|1", _
+								"Abs|Abs1DC|1", _
+								"Mag|Abs1DC|1", _
+								"MagdB10|MagdB101DC|1", _
+								"MagdB20|MagdB201DC|1", _
+								"Arc|Arc1DC|1", _
+								"Ph|Arc1DC|1", _
+								"ArcD|ArcD1DC|1", _
+								"PhD|ArcD1DC|1", _
+								"UArc|UArc1DC|2", _
+								"UPh|UArc1DC|2", _
+								"UArcD|UArcD1DC|2", _
+								"UPhD|UArcD1DC|2", _
+								"Exp|Exp1DC|1", _
+								"Log|Log1DC|1", _
+								"Ln|Log1DC|1", _
+								"Log10|Log101DC|1", _
+								"Sqr|Sqr1DC|1", _
+								"Min|Min1DC|1", _
+								"Max|Max1DC|1", _
+								"Mean|Mean1DC|1", _
+								"MinMag|MinMag1DC|1", _
+								"MaxMag|MaxMag1DC|1", _
+								"MeanMag|MeanMag1DC|1", _
+								"Mod|Modulo1DC|2", _
+								"Rem|Remainder1DC|2", _
+								"Round|Round1DC|2", _
+								"Floor|Floor1DC|1", _
+								"Ceil|Ceiling1DC|1", _
+								"Abscissa|Abscissa1DC|1", _
+								"XAxis|Abscissa1DC|1", _
+								"Sgn|Sgn1DC|1", _
+								"UnitStep|UnitStep1DC|1", _
+								"Sinh|Sinh1DC|1", _
+								"Asinh|Asinh1DC|1", _
+								"Cosh|Cosh1DC|1", _
+								"Acosh|Acosh1DC|1", _
+								"Deriv|Derivative1DC|2", _
+								"Integ|Integral1DC|1", _
+								"CumInteg|CumulativeIntegral1DC|1", _
+								"Sum|Sum1DC|1", _
+								"CumSum|CumulativeSum1DC|1", _
+								"NOT|BooleanNot1DC|1|", _
+								"EQL|Equal1DC|2", _
+								"NEQ|NotEqual1DC|2", _
+								"EQLtol|EqualWithTolerance1DC|3", _
+								"GTR|Greater1DC|2", _
+								"GEQ|GreaterOrEqual1DC|2", _
+								"LSS|Less1DC|2", _
+								"LEQ|LessOrEqual1DC|2", _
+								"IIF|IIF1DC|3")
+
+Public Const FunctionSet3D = Array("DotProd|DotProduct3D|2", _
+									"VecProd|VectorProduct3D|2", _
+									"CompProd|ComponentProduct3D|2", _
+									"CompDivide|ComponentDivision3D|2", _
+									"ScalarMult3|ComplexScalarMultByComp3D|4", _
+									"Sqr|Sqr3D|1", _
+									"Sin|Sin3D|1", _
+									"SinD|SinD3D|1", _
+									"ASin|ASin3D|1", _
+									"ASinD|ASinD3D|1", _
+									"Cos|Cos3D|1", _
+									"CosD|CosD3D|1", _
+									"ACos|ACos3D|1", _
+									"ACosD|ACosD3D|1", _
+									"Tan|Tan3D|1", _
+									"TanD|TanD3D|1", _
+									"Atn|Atn3D|1", _
+									"Atn2|Atn23D|2", _
+									"AtnD|AtnD3D|1", _
+									"Atn2D|Atn2D3D|2", _
+									"Log|Log3D|1", _
+									"Ln|Log3D|1", _
+									"Log10|Log103D|1", _
+									"Real|Real3D|1", _
+									"Imag|Imag3D|1", _
+									"ExtractX|ExtractX3D|1", _
+									"ExtractY|ExtractY3D|1", _
+									"ExtractZ|ExtractZ3D|1", _
+									"XYZMag|MagnitudeByComponent3D|1", _
+									"ConstScalarField|ConstScalarField3D|2", _
+									"ConstVectorField|ConstVectorField3D|4")
+
+Public Const ConstantSet = Array("Pi|Pi", _
+								"Eps0|Eps0", _
+								"Mue0|Mue0", _
+								"Mu0|Mu0", _
+								"CLight|CLight", _
+								"ChargeElementary|ChargeElementary", _
+								"MassElectron|MassElectron", _
+								"MassProton|MassProton", _
+								"ConstantBoltzmann|ConstantBoltzmann", _
+								"QElementary|ChargeElementary", _
+								"QElectron|-ChargeElementary", _
+								"MElectron|MassElectron", _
+								"MProton|MassProton", _
+								"kBoltzmann|ConstantBoltzmann", _
+								"PlanckH|6.62607015e-34", _
+								"PlanckHbar|6.62607015e-34/2/Pi") ' Legacy Mue0 for bwc 2/27/17 fsr (Same for "QElementary", "QElectron", "MElectron", "MProton", "kBoltzmann", 2/3/23 mhh)
+
+
+'Public Const lib_rundef = -1.234567e-27
+Sub Main_LIB
+
+	' Test function
+
+	Dim Infix As String
+	Dim Postfix As String
+	Dim VBA As String
+
+	ShowSupportedOperators()
+	Infix = InputBox("Please enter an infix expression:")
+	Postfix = InfixToPostfix(Infix)
+	VBA = PostfixToVBA_1DC(Postfix)
+
+	MsgBox("Infix: " + Infix + vbNewLine _
+			+ "Postfix: "+ Postfix + vbNewLine _
+			+ "VBA: " + vbNewLine + VBA)
+
+End Sub
+
+Sub ShowSupportedOperators(Optional sDataType As String)
+
+	Dim SupportedOperators As String
+	Dim i As Long, j As Long
+	Dim sEnumeration As String ' enumeration of entries in current line (used to determine linebreak)
+
+	If (sDataType = "" Or sDataType = "1DC") Then
+		SupportedOperators = "Supported operators, functions, and constants (see help for more details): " + vbNewLine + vbNewLine + vbTab
+		'For i = 0 To UBound(OperatorSet1DC)
+		'	SupportedOperators = SupportedOperators + Split(OperatorSet1DC(i),"|")(0) + " (" + MapOperatorToCommand(Split(OperatorSet1DC(i),"|")(0)) + "), "  +vbTab+ CStr(GetOperatorArity(Split(OperatorSet1DC(i),"|")(0))) + " argument(s)." +vbNewLine
+		'Next
+		'SupportedOperators = SupportedOperators  + vbNewLine
+		'For i = 0 To UBound(FunctionSet1DC)
+		'	SupportedOperators = SupportedOperators  + Split(FunctionSet1DC(i),"|")(0) + ", "  +vbTab + CStr(GetFunctionArity(Split(FunctionSet1DC(i),"|")(0))) + " argument(s)." +vbNewLine
+		'Next
+		sEnumeration = ""
+		For i = 0 To UBound(OperatorSet1DC)
+			sEnumeration = sEnumeration + Split(OperatorSet1DC(i),"|")(0) + " (" + MapOperatorToCommand(Split(OperatorSet1DC(i),"|")(0), sDataType) + ")" + IIf(i = UBound(OperatorSet1DC),"",", ")
+			If ( Len(sEnumeration) > 40 ) Then
+				' add linebreak if a certain number of characters is surpassed (and reset basis for counter of current line)
+				SupportedOperators   = SupportedOperators + sEnumeration + vbNewLine + vbTab
+				sEnumeration = ""
+			End If
+		Next
+		SupportedOperators = SupportedOperators + sEnumeration + vbNewLine + vbNewLine + vbTab
+		sEnumeration = ""
+		For i = 0 To UBound(FunctionSet1DC)
+			sEnumeration = sEnumeration  + Split(FunctionSet1DC(i),"|")(0) +"(#"
+			For j = 1 To GetFunctionArity(Split(FunctionSet1DC(i),"|")(0), sDataType)-1
+				sEnumeration = sEnumeration + sParaSep_LIB + "#"
+			Next
+			sEnumeration = sEnumeration + ")" + IIf(i = UBound(FunctionSet1DC),"",", ")
+			If ( Len(sEnumeration) > 40 ) Then
+				' add linebreak if a certain number of characters is surpassed (and reset basis for counter of current line)
+				SupportedOperators   = SupportedOperators + sEnumeration + vbNewLine + vbTab
+				sEnumeration = ""
+			End If
+		Next
+		SupportedOperators = SupportedOperators + sEnumeration
+	ElseIf (sDataType = "3D") Then
+		SupportedOperators = "Supported operators, functions, and constants (see help for more details): " + vbNewLine + vbNewLine + vbTab
+		'For i = 0 To UBound(OperatorSet3D)
+		'	SupportedOperators = SupportedOperators + Split(OperatorSet3D(i),"|")(0) + " (" + MapOperatorToCommand(Split(OperatorSet3D(i),"|")(0), sDataType) + "), "  +vbTab+ CStr(GetOperatorArity(Split(OperatorSet3D(i),"|")(0))) + " argument(s)." +vbNewLine
+		'Next
+		'SupportedOperators = SupportedOperators  + vbNewLine
+		'For i = 0 To UBound(FunctionSet3D)
+		'	SupportedOperators = SupportedOperators  + Split(FunctionSet3D(i),"|")(0) + ", "  +vbTab + CStr(GetFunctionArity(Split(FunctionSet3D(i),"|")(0))) + " argument(s)." +vbNewLine
+		'Next
+
+		sEnumeration = ""
+		For i = 0 To UBound(OperatorSet3D)
+			sEnumeration = sEnumeration + Split(OperatorSet3D(i),"|")(0) + " (" + MapOperatorToCommand(Split(OperatorSet3D(i),"|")(0), sDataType) + ")" + IIf(i = UBound(OperatorSet3D),"",", ")
+			If ( Len(sEnumeration) > 40 ) Then
+				' add linebreak if a certain number of characters is surpassed (and reset basis for counter of current line)
+				SupportedOperators   = SupportedOperators + sEnumeration + vbNewLine + vbTab
+				sEnumeration = ""
+			End If
+		Next
+		SupportedOperators = SupportedOperators + sEnumeration + vbNewLine + vbNewLine + vbTab
+		sEnumeration = ""
+		For i = 0 To UBound(FunctionSet3D)
+			sEnumeration = sEnumeration  + Split(FunctionSet3D(i),"|")(0) +"(#"
+			For j = 1 To GetFunctionArity(Split(FunctionSet3D(i),"|")(0), sDataType)-1
+				sEnumeration = sEnumeration + sParaSep_LIB + "#"
+			Next
+			sEnumeration = sEnumeration + ")" + IIf(i = UBound(FunctionSet3D),"",", ")
+			If ( Len(sEnumeration) > 40 ) Then
+				' add linebreak if a certain number of characters is surpassed (and reset basis for counter of current line)
+				SupportedOperators   = SupportedOperators + sEnumeration + vbNewLine + vbTab
+				sEnumeration = ""
+			End If
+		Next
+	End If
+	SupportedOperators   = SupportedOperators + sEnumeration + vbNewLine + vbNewLine + vbTab
+	sEnumeration = ""
+	For i = 0 To UBound(ConstantSet)
+		If (Split(ConstantSet(i),"|")(0) <> "Mue0") Then ' hide legacy Mue0
+			If (Split(ConstantSet(i),"|")(0) <> "QElementary") Then ' hide legacy QElementary
+				If (Split(ConstantSet(i),"|")(0) <> "QElectron") Then ' hide legacy QElectron
+					If (Split(ConstantSet(i),"|")(0) <> "MElectron") Then ' hide legacy MElectron
+						If (Split(ConstantSet(i),"|")(0) <> "MProton") Then ' hide legacy MProton
+							If (Split(ConstantSet(i),"|")(0) <> "kBoltzmann") Then ' hide legacy kBoltzmann
+								sEnumeration = sEnumeration + Split(ConstantSet(i),"|")(0) + IIf(i = UBound(ConstantSet),"",", ")
+								'SupportedOperators   = SupportedOperators  + Split(ConstantSet(i),"|")(0) + IIf(i = UBound(ConstantSet),"",", ")
+							End If
+						End If
+					End If
+				End If
+			End If
+		End If
+		If ( Len(sEnumeration) > 40 ) Then
+			' add linebreak if a certain number of characters is surpassed (and reset basis for counter of current line)
+			SupportedOperators   = SupportedOperators + sEnumeration + vbNewLine + vbTab
+			sEnumeration = ""
+		End If
+	Next i
+	SupportedOperators   = SupportedOperators + sEnumeration
+	MsgBox(SupportedOperators,"List of supported operators, functions, and constants")
+End Sub
+
+Function InfixToPostfix(Infix As String, Optional sDataType As String) As String
+
+	' Operators have to consist of exactly one character, names of variables must have identical length, given by VarNameLength
+
+	Dim Stack() As String
+	Dim Postfix() As String
+	Dim ParsedItem As String
+	Dim ParsedItemLength As Integer
+	Dim i As Integer, j As Integer, offset As Integer
+	Dim nOpenBrackets As Integer, nOpenInternalBrackets As Integer, nFunctionParameters As Integer, bFunctionFormatCorrect As Boolean
+	Dim PostfixCheck() As String, nArityCheck As Integer
+
+	ReDim Postfix(0)
+	ReDim Stack(0)
+
+	If Infix = "" Then
+		InfixToPostfix = ""
+		Exit Function
+	End If
+
+	InfixToPostfix = ""
+	nOpenBrackets = 0
+
+	' Wrap infix in parentheses, exchange "-" where it means "negative", not "minus" (and equivalent for "+")
+	Infix = "(" + Infix + ")"
+	Infix = Replace(Infix,"(-","((0-1)*",1,-1)
+	Infix = Replace(Infix,"(+","((0+1)*",1,-1)
+	Infix = Replace(Infix,",-",",(0-1)*",1,-1)
+	Infix = Replace(Infix,",+",",(0+1)*",1,-1)
+
+	For i = 1 To Len(Infix)
+		ParsedItemLength = GetNextItemLength(Infix,i)
+		If (ParsedItemLength = -1) Then ' Something went wrong
+			InfixToPostfix = InfixToPostfix + " error"
+			Exit Function
+		End If
+		ParsedItem = GetNextItem(Infix,i)
+		'ReportInformationToWindow(ParsedItem)
+		' FSR: A test:
+		If (Len(ParsedItem) <> ParsedItemLength) Then ReportWarning("ParsedItemLength <> Len(ParsedItem). This causes no errors but should not have happened.")
+		' FSR end test
+		If (IsPostfixToVBAOperator(ParsedItem, sDataType) Or IsPostfixToVBAFunction(ParsedItem, sDataType)) Then ' parsed item is in operator or function set
+			' For functions: Check if number of parameters is correct
+			If IsPostfixToVBAFunction(ParsedItem, sDataType) Then
+				nFunctionParameters = 0
+				offset = i + ParsedItemLength
+				bFunctionFormatCorrect = True ' Assume that the format is correct
+				bFunctionFormatCorrect = (GetNextItem(Infix, offset) = "(") ' first item after function should be "("
+				offset = offset + 1
+				nOpenInternalBrackets = 0 ' Number of open parentheses within the function parameter list
+				' Next there should be (Arity-1) occurrences of sParaSep_LIB
+				While ((offset < Len(Infix) And ((GetNextItem(Infix, offset) <> ")") Or (nOpenInternalBrackets >= 1))))
+					'ReportInformationToWindow(GetNextItem(Infix, offset))
+					If GetNextItem(Infix, offset) = "(" Then
+						nOpenInternalBrackets = nOpenInternalBrackets + 1
+					ElseIf GetNextItem(Infix, offset) = ")" Then
+						nOpenInternalBrackets = nOpenInternalBrackets - 1
+					End If
+					' only count sParaSep_LIBs while nOpenInternalBrackets = 0; otherwise, sParaSep_LIB most likely belongs to a nested function
+					nFunctionParameters = nFunctionParameters + IIf((GetNextItem(Infix, offset) = sParaSep_LIB) And (nOpenInternalBrackets = 0), 1, 0)
+					offset = offset + GetNextItemLength(Infix, offset)
+				Wend
+				bFunctionFormatCorrect = bFunctionFormatCorrect And (nFunctionParameters = GetFunctionArity(ParsedItem, sDataType)-1) And (nOpenInternalBrackets = 0)
+				If Not bFunctionFormatCorrect Then
+					ReportError(ParsedItem + " requires " + CSTr(GetFunctionArity(ParsedItem, sDataType)) _
+								+ IIf(GetFunctionArity(ParsedItem, sDataType)=1, " parameter.", " parameters, separated by '"+sParaSep_LIB+"'.") _
+								+ " Please check expression.")
+				End If
+			End If
+			If ((UBound(Stack)>0) And (Priority(ParsedItem, sDataType) <= Priority(Stack(UBound(Stack)), sDataType))) Then ' Operator with higher or equal priority lies on top of stack
+				' Move operator from top of stack to postfix
+				ReDim Preserve Postfix(UBound(Postfix)+1)
+				Postfix(UBound(Postfix)) = Stack(UBound(Stack))
+				ReDim Preserve Stack(UBound(Stack)-1)
+				' decrease i to keep current ParsedItem, to be compared with next item on top of stack
+				i = i-ParsedItemLength
+			Else ' Operator with lower priority lies on top of stack
+				' Put new operator on top of stack
+				ReDim Preserve Stack(UBound(Stack)+1)
+				Stack(UBound(Stack))=ParsedItem
+			End If
+		ElseIf IsPostfixToVBANumeric(ParsedItem, sDataType) Then ' parsed item is a number
+			' What to do with numbers? Add to postfix for now
+			ReDim Preserve Postfix(UBound(Postfix)+1)
+			Postfix(UBound(Postfix))=ParsedItem
+			' Next item has to be an operator, sParaSep_LIB, or parenthesis
+			If (Not IsPostfixToVBAOperator(GetNextItem(Infix, i+ParsedItemLength), sDataType) And GetNextItem(Infix, i+ParsedItemLength)<>sParaSep_LIB And InStr("()",GetNextItem(Infix,i+ParsedItemLength))=0) Then
+				ReportError("Mix Template Results: Could not find proper operator after numerical expression '"+ParsedItem+"'. Please check expression.")
+			End If
+		ElseIf (ParsedItem = "(") Then
+			' Put on top of stack
+			ReDim Preserve Stack(UBound(Stack)+1)
+			Stack(UBound(Stack))=ParsedItem
+			nOpenBrackets = nOpenBrackets+1
+		ElseIf (ParsedItem = ")") Then
+			While ((Stack(UBound(Stack)) <> "(") And (UBound(Stack) > 0))
+				' Take item from top of stack, add to postfix, shorten stack
+				ReDim Preserve Postfix(UBound(Postfix)+1)
+				Postfix(UBound(Postfix)) = Stack(UBound(Stack))
+				ReDim Preserve Stack(UBound(Stack)-1)
+			Wend
+			If nOpenBrackets <= 0 Then
+				ReportError("Invalid expression, check parentheses!")
+			Else
+				' Remove "(" now as well
+				ReDim Preserve Stack(UBound(Stack)-1)
+				nOpenBrackets = nOpenBrackets-1
+			End If
+		ElseIf (ParsedItem = sParaSep_LIB) Then ' similar to closing parenthesis, but no open parenthesis to remove
+			While ((Stack(UBound(Stack)) <> "(") And (Stack(UBound(Stack)) <> sParaSep_LIB) And (UBound(Stack) > 0))
+				' Take item from top of stack, add to postfix, shorten stack
+				ReDim Preserve Postfix(UBound(Postfix)+1)
+				Postfix(UBound(Postfix)) = Stack(UBound(Stack))
+				ReDim Preserve Stack(UBound(Stack)-1)
+			Wend
+		Else ' Item is a variable
+			ReDim Preserve Postfix(UBound(Postfix)+1)
+			Postfix(UBound(Postfix))=ParsedItem
+		End If
+		i = i + ParsedItemLength - 1
+	Next i
+	' Move all remaining items in stack to postfix
+	While (UBound(Stack) > 0)
+		ReDim Preserve Postfix(UBound(Postfix)+1)
+		Postfix(UBound(Postfix)) = Stack(UBound(Stack))
+		ReDim Preserve Stack(UBound(Stack)-1)
+	Wend
+
+	If nOpenBrackets <> 0 Then ReportError("Invalid expression, check parentheses!")
+
+	InfixToPostfix = Mid(Join(Postfix,"|"),2,Len(Join(Postfix,"|"))-1) ' Strip first "|"
+	'ReportInformationToWindow(InfixToPostfix)
+
+	' Quick check on general format errors in Postfix expression:
+	' Find first operator, check arity, and replace Operator + Arity * Number of Operands by "X"
+	' Continue until no more operators exist. The resulting expression should be "X"
+	PostfixCheck = Split(InfixToPostfix, "|")
+	If (IsPostfixToVBAFunction(PostfixCheck(0), sDataType) Or IsPostfixToVBAOperator(PostfixCheck(0), sDataType)) Then
+		' First item should not be a function or operator
+		ReportError("Problem converting expression '" & Infix & "'. Please check expression.")
+	ElseIf (UBound(PostfixCheck) = 0) Then
+		' Only a single entry, and it is not a function or operator, OK
+		PostfixCheck(0) = "X"
+	Else
+		' Full expression, carry out pseudo evaluation to make sure that number of functions/operators aligns with inputs
+		i = 0
+		While (i <= UBound(PostfixCheck))
+			If (IsPostfixToVBAFunction(PostfixCheck(i), sDataType) Or IsPostfixToVBAOperator(PostfixCheck(i), sDataType)) Then
+				nArityCheck = GetArity_LIB(PostfixCheck(i), sDataType)
+				If (nArityCheck > i) Then
+					ReportError("Problem converting expression '" & Infix & "'. Please check expression.")
+				Else
+					PostfixCheck(i - nArityCheck) = "X"
+					For j = i + 1 To UBound(PostfixCheck)
+						PostfixCheck(j - nArityCheck) = PostfixCheck(j)
+					Next
+					ReDim Preserve PostfixCheck(UBound(PostfixCheck) - nArityCheck)
+					i = i - nArityCheck
+				End If
+			Else
+				i = i + 1
+			End If
+		Wend
+	End If
+	If ((UBound(PostfixCheck) <> 0) Or (PostfixCheck(0) <> "X")) Then ReportError("Problem converting expression '" & Infix & "'. Please check expression.")
+
+End Function
+
+Function PostfixToVBA_1DC(Postfix As String) As String
+
+	Dim ParsedItem As String
+	Dim ParsedItemLength As Integer
+	Dim Arity As Integer, ParsedCommand As String, FullCommand As String
+	Dim NonNumReference As String, Operand As String
+	Dim i As Integer, j As Integer
+	Dim Stack() As String
+	Dim sTemp As String
+	ReDim Stack(0)
+
+	If Postfix = "" Then
+		PostfixToVBA_1DC = ""
+		Exit Function
+	End If
+
+	' Parse postfix expression once to find first non-numeric object to use as reference (.MakeCompatibleTo) for numeric objects
+	NonNumReference = "GetRes1DComplexFrom1DCNumeric(0,0)" ' default in case all items are numeric
+	For i = 1 To Len(Postfix)
+		ParsedItemLength = GetNextItemLength(Postfix, i)
+		If (ParsedItemLength = -1) Then ' Something went wrong
+			PostfixToVBA_1DC = PostfixToVBA_1DC + " error"
+			Exit Function
+		End If
+		ParsedItem = Mid(Postfix,i,ParsedItemLength)
+		If (Is1DCVariable(ParsedItem)) Then
+			NonNumReference = ParsedItem
+			' First non-numeric, non-operator, non-function variable has been found
+			Exit For
+		End If
+		i = i+ParsedItemLength
+	Next
+
+	For i = 1 To Len(Postfix)
+		FullCommand = ""
+		ParsedItemLength = GetNextItemLength(Postfix, i)
+		If (ParsedItemLength = -1) Then ' Something went wrong
+			PostfixToVBA_1DC = PostfixToVBA_1DC + " error"
+			Exit Function
+		End If
+		ParsedItem = GetNextItem(Postfix,i)
+		' FSR: A test:
+		If (Len(ParsedItem) <> ParsedItemLength) Then ReportWarning("ParsedItemLength <> Len(ParsedItem). This causes no errors but should not have happened.")
+		If (Is1DCOperator(ParsedItem) Or Is1DCFunction(ParsedItem)) Then ' parsed item is an operator or a function
+			ParsedCommand = IIf(Is1DCOperator(ParsedItem),MapOperatorToCommand(ParsedItem),MapFunctionToCommand(ParsedItem))
+			Arity = IIf(Is1DCOperator(ParsedItem),GetOperatorArity(ParsedItem),GetFunctionArity(ParsedItem))
+			'Check if any of the operands involved are numeric. If so, create corresponding complex 1D object, (skip last operand if operator is NthPower)
+			For j = 1 To Arity
+				Operand = Stack(UBound(Stack)-Arity+j)
+				If Is1DCNumeric(Operand) Then
+					FullCommand = FullCommand + "Dim NumObject_"+Cstr(i)+"_"+Cstr(j)+" As Object" + vbNewLine
+					FullCommand = FullCommand + "Set NumObject_"+Cstr(i)+"_"+Cstr(j)+" = GetRes1DComplexFrom1DCNumeric("+IIf(Operand="j","0,1",Operand+",0")+",callingApp)" + vbNewLine
+					Stack(UBound(Stack)-Arity+j) = "NumObject_"+Cstr(i)+"_"+Cstr(j)
+					FullCommand = FullCommand + "NumObject_"+Cstr(i)+"_"+Cstr(j)+".MakeCompatibleTo("+NonNumReference+")"+vbNewLine
+				End If
+			Next
+			' Put together the VBA command line:
+			' Remove (Arity-1) items from stack and use operator, put result on top of stack
+			FullCommand = FullCommand + "Dim TmpResult_"+Cstr(i)+" As Object" + vbNewLine
+			FullCommand = FullCommand + "Set TmpResult_"+Cstr(i)+" = " + Stack(UBound(Stack)-Arity+1) + ".Copy()" + vbNewLine
+			If Is1DCOperator(ParsedItem) Then
+				FullCommand = FullCommand + "TmpResult_"+Cstr(i) + "." + ParsedCommand + "("
+				For j = 2 To Arity
+					FullCommand = FullCommand + IIf(j>2,",","") + Stack(UBound(Stack)-Arity+j)
+				Next
+				FullCommand = FullCommand + ")" + vbNewLine
+			Else ' it's a function
+				FullCommand = FullCommand + ParsedCommand + "(TmpResult_"+Cstr(i)
+				For j = 2 To Arity
+					FullCommand = FullCommand + "," + Stack(UBound(Stack)-Arity+j)
+				Next
+				FullCommand = FullCommand + ")" + vbNewLine
+			End If
+			' command line for one operation complete
+			Stack(UBound(Stack)-Arity+1) = "TmpResult_"+Cstr(i)
+			PostfixToVBA_1DC = PostfixToVBA_1DC + FullCommand
+			Stack(UBound(Stack)-Arity+1) = "TmpResult_"+Cstr(i)
+			ReDim Preserve Stack(UBound(Stack)-Arity+1)
+		ElseIf (Is1DCVariable(ParsedItem) Or Is1DCNumeric(ParsedItem)) Then
+			ReDim Preserve Stack(UBound(Stack)+1)
+			Stack(UBound(Stack))=ParsedItem
+		ElseIf (Is1DCConstant(ParsedItem)) Then
+			ReDim Preserve Stack(UBound(Stack)+1)
+			Stack(UBound(Stack))=MapConstantNameToValue(ParsedItem)
+		ElseIf (Is1DCParameter(ParsedItem)) Then
+			ReDim Preserve Stack(UBound(Stack)+1)
+			' Newer template versions might store parameter values for a given run ID. If those exist, use them. Otherwise, use current parameter value
+			sTemp = GetScriptSetting("Para_" & ParsedItem, "VOID")
+			' fsr 10/20/2011: Evaluate returns commas for some locales, make sure to replace these with full stops
+			Stack(UBound(Stack))=Replace(Evaluate(IIf(sTemp = "VOID", ParsedItem, sTemp)),",",".")
+		Else ' unknown parameter/variable
+			ReportError("Cannot find parameter '"+ParsedItem+"', please check expression!")
+			Stack(UBound(Stack))=CStr(0)
+		End If
+		i = i+ParsedItemLength
+	Next
+	If Is1DCNumeric(Stack(UBound(Stack))) Then ' happens if no operator has been entered
+		'callingApp is used to determine if MWS or DS is used
+		PostfixToVBA_1DC = PostfixToVBA_1DC + "Set TmpResult_Final = GetRes1DComplexFrom1DCNumeric(" + IIf(Stack(UBound(Stack))="j","0,1",Stack(UBound(Stack))+",0")+",callingApp)"+ vbNewLine
+	Else
+		PostfixToVBA_1DC = PostfixToVBA_1DC + "Set TmpResult_Final = " + Stack(UBound(Stack)) + vbNewLine
+	End If
+
+End Function
+
+Function PostfixToVBA_3D(Postfix As String) As String
+
+	Dim ParsedItem As String, sTempItem As String
+	Dim ParsedItemLength As Integer
+	Dim Arity As Integer, ParsedCommand As String, FullCommand As String
+	Dim NonNumReference As String, Operand As String
+	Dim i As Integer, j As Integer
+	Dim Stack() As String
+	Dim sTemp As String
+	ReDim Stack(0)
+
+	If Postfix = "" Then
+		PostfixToVBA_3D = ""
+		Exit Function
+	End If
+	NonNumReference = "GetRes1DComplexFrom1DCNumeric(0,0)" ' a 1DC reference object
+
+	For i = 1 To Len(Postfix)
+		FullCommand = ""
+		ParsedItemLength = GetNextItemLength(Postfix, i)
+		If (ParsedItemLength = -1) Then ' Something went wrong
+			PostfixToVBA_3D = PostfixToVBA_3D + " error"
+			Exit Function
+		End If
+		ParsedItem = GetNextItem(Postfix,i)
+		If (IsPostfixToVBAOperator(ParsedItem, "3D") Or IsPostfixToVBAFunction(ParsedItem, "3D")) Then ' parsed item is an operator or a function
+			ParsedCommand = IIf(IsPostfixToVBAOperator(ParsedItem, "3D"),MapOperatorToCommand(ParsedItem, "3D"),MapFunctionToCommand(ParsedItem, "3D"))
+			Arity = IIf(IsPostfixToVBAOperator(ParsedItem, "3D"),GetOperatorArity(ParsedItem, "3D"),GetFunctionArity(ParsedItem, "3D"))
+			'Check if any of the operands involved are numeric. If so, create corresponding double variable
+			For j = 1 To Arity
+				' check order of operands for scalar mult and div
+				If (UBound(Stack)>0) Then
+					If ((ParsedCommand = "ScalarMult") And IsPostfixToVBANumeric(Stack(UBound(Stack)-1), "3D") And (Not IsPostfixToVBANumeric(Stack(UBound(Stack)), "3D"))) Then
+						' swap such that 2nd operand in scalar mult is numeric
+						sTempItem = Stack(UBound(Stack)-1)
+						Stack(UBound(Stack)-1) = Stack(UBound(Stack))
+						Stack(UBound(Stack)) = sTempItem
+					ElseIf ((ParsedCommand = "ScalarDiv") And IsPostfixToVBANumeric(Stack(UBound(Stack)-1), "3D") And (Not IsPostfixToVBANumeric(Stack(UBound(Stack)), "3D"))) Then
+						ReportError("Mix 3D Fields: Division currently does not support 3D fields or functions in denominator, please check expression. In case of multiple factors in the denominator, rewrite in form of multiple divisions.")
+					End If
+				End If
+				Operand = Stack(UBound(Stack)-Arity+j)
+				If IsPostfixToVBANumeric(Operand, "3D") Then
+					FullCommand = FullCommand + "Dim NumObject_"+Cstr(i)+"_"+Cstr(j)+" As Object" + vbNewLine
+					FullCommand = FullCommand + "Set NumObject_"+Cstr(i)+"_"+Cstr(j)+" = GetRes1DComplexFrom1DCNumeric("+IIf(Operand="j","0,1",Operand+",0")+",callingApp)" + vbNewLine
+					Stack(UBound(Stack)-Arity+j) = "NumObject_"+Cstr(i)+"_"+Cstr(j)
+					FullCommand = FullCommand + "NumObject_"+Cstr(i)+"_"+Cstr(j)+".MakeCompatibleTo("+NonNumReference+")"+vbNewLine
+				End If
+			Next
+			' Put together the VBA command line:
+			' Remove (Arity-1) items from stack and use operator, put result on top of stack
+			FullCommand = FullCommand + "Dim TmpResult_" & Cstr(i) & " As Object" & vbNewLine
+			FullCommand = FullCommand + "Set TmpResult_" & CStr(i) & " = " & Stack(UBound(Stack)-Arity+1) & ".Copy()" & vbNewLine'
+			If IsPostfixToVBAOperator(ParsedItem, "3D") Then
+				' Special handling of scalar mult and power, make it complex!
+				If (ParsedCommand = "ScalarMult") Then
+					FullCommand = FullCommand & "ComplexScalarMult3D(TmpResult_"+Cstr(i) & "," & Stack(UBound(Stack)) & ")" & vbNewLine
+				ElseIf (ParsedCommand = "ScalarDiv") Then
+					FullCommand = FullCommand & "ComplexScalarDiv3D(TmpResult_"+Cstr(i) & "," & Stack(UBound(Stack)) & ")" & vbNewLine
+				ElseIf (ParsedCommand = "Pow") Then
+					FullCommand = FullCommand & "ComplexPower3D(TmpResult_"+Cstr(i) & "," & Stack(UBound(Stack)) & ")" & vbNewLine
+				Else
+					If ((ParsedCommand = "Add") Or (ParsedCommand = "Subtract")) Then
+						' When trying to add/subtract a constant numeric value to/from field, upgrade numeric value to constant field
+						' This is not needed in 1DC version where all variables are upgraded to highest complexity (1DC) from the start, which is not feasible for fields
+						' Only valid for constant (complex) scalar fields
+						FullCommand = FullCommand & "If ((TmpResult_" & Cstr(i) & ".GetResultObjectType() = ""1DC"") And (" & Stack(UBound(Stack)) & ".GetResultObjectType() = ""3D"")) Then" & vbNewLine
+						FullCommand = FullCommand & vbTab & "Set TmpResult_" & Cstr(i) & " = ConstScalarField3D(" & Stack(UBound(Stack)) & ".Copy(), TmpResult_" & Cstr(i) & ")" & vbNewLine
+						FullCommand = FullCommand & "ElseIf ((TmpResult_" & Cstr(i) & ".GetResultObjectType() = ""3D"") And (" & Stack(UBound(Stack)) & ".GetResultObjectType() = ""1DC"")) Then" & vbNewLine
+						FullCommand = FullCommand & vbTab & "Set " & Stack(UBound(Stack)) & " = ConstScalarField3D(TmpResult_" & Cstr(i) & ".Copy(), " & Stack(UBound(Stack)) & ")" & vbNewLine
+						FullCommand = FullCommand & "End If" & vbNewLine
+					End If
+					FullCommand = FullCommand & "TmpResult_" & Cstr(i) & "." + ParsedCommand & "("
+					For j = 2 To Arity
+						FullCommand = FullCommand + IIf(j>2,",","") + Stack(UBound(Stack)-Arity+j)
+					Next
+					FullCommand = FullCommand + ")" + vbNewLine
+				End If
+			Else ' it's a function
+				FullCommand = FullCommand + ParsedCommand + "(TmpResult_"+Cstr(i)
+				For j = 2 To Arity
+					FullCommand = FullCommand + "," + Stack(UBound(Stack)-Arity+j)
+				Next
+				FullCommand = FullCommand + ")" + vbNewLine
+			End If
+			' command line for one operation complete
+			Stack(UBound(Stack)-Arity+1) = "TmpResult_"+Cstr(i)
+			PostfixToVBA_3D = PostfixToVBA_3D + FullCommand
+			Stack(UBound(Stack)-Arity+1) = "TmpResult_"+Cstr(i)
+			ReDim Preserve Stack(UBound(Stack)-Arity+1)
+		ElseIf (IsPostfixToVBAVariable(ParsedItem, "3D") Or IsPostfixToVBANumeric(ParsedItem, "3D")) Then
+			ReDim Preserve Stack(UBound(Stack)+1)
+			Stack(UBound(Stack))=ParsedItem
+		ElseIf (IsPostfixToVBAConstant(ParsedItem, "3D")) Then
+			ReDim Preserve Stack(UBound(Stack)+1)
+			Stack(UBound(Stack))=MapConstantNameToValue(ParsedItem)
+		ElseIf (IsPostfixToVBAParameter(ParsedItem, "3D")) Then
+			ReDim Preserve Stack(UBound(Stack)+1)
+			' Newer template versions might store parameter values for a given run ID. If those exist, use them. Otherwise, use current parameter value
+			sTemp = GetScriptSetting("Para_" & ParsedItem, "VOID") ' Not active for Mix 3D as of 10/28/2019, should return empty string and thus go into regular branch
+			' fsr 10/20/2011: Evaluate returns commas for some locales, make sure to replace these with full stops
+			Stack(UBound(Stack))=Replace(Evaluate(IIf(sTemp = "VOID", ParsedItem, sTemp)),",",".")
+		Else ' unknown parameter/variable
+			ReportError("Cannot find parameter '"+ParsedItem+"', please check expression!")
+			Stack(UBound(Stack))=CStr(0)
+		End If
+		i = i+ParsedItemLength
+	Next
+'	If IsPostfixToVBANumeric(Stack(UBound(Stack)), "3D") Then ' happens if no operator has been entered
+'		ReportError("PostfixToVBA_3D: Numeric operand found, not yet implemented.")
+'		'callingApp is used to determine if MWS or DS is used
+'		PostfixToVBA_3D = PostfixToVBA_3D + "Set TmpResult_Final = GetRes1DComplexFrom1DCNumeric(" + IIf(Stack(UBound(Stack))="j","0,1",Stack(UBound(Stack))+",0")+",callingApp)"+ vbNewLine
+'	Else
+		PostfixToVBA_3D = PostfixToVBA_3D + "Set TmpResult_Final = " + Stack(UBound(Stack)) + vbNewLine
+'	End If
+
+End Function
+
+Function Priority(Operator As String, Optional sDataType As String) As Integer
+
+	Dim i As Integer, sOperatorSet As Variant
+
+	If (sDataType = "" Or sDataType = "1DC") Then
+		sOperatorSet = OperatorSet1DC
+	ElseIf (sDataType = "3D") Then
+		sOperatorSet = OperatorSet3D
+	End If
+
+	Priority = -1 ' Default: Operator not found in set
+	If (Operator <> "") Then
+		If IsPostfixToVBAFunction(Operator, sDataType) Then
+			Priority = UBound(sOperatorSet)+1 ' highest priority
+		Else
+			For i = 0 To UBound(sOperatorSet)
+				If (Split(sOperatorSet(i),"|")(0) = Operator) Then
+					Priority = i+1
+					Exit Function
+				End If
+			Next i
+		End If
+	End If
+
+End Function
+
+Function MapOperatorToCommand(Operator As String, Optional sDataType As String) As String
+
+	Dim i As Integer, sOperatorSet As Variant
+
+	If (sDataType = "" Or sDataType = "1DC") Then
+		sOperatorSet = OperatorSet1DC
+	ElseIf (sDataType = "3D") Then
+		sOperatorSet = OperatorSet3D
+	End If
+
+	MapOperatorToCommand = "invalidOperator"
+	If (Operator <> "") Then
+		For i = 0 To UBound(sOperatorSet)
+			If (Split(sOperatorSet(i),"|")(0) = Operator) Then
+				MapOperatorToCommand = Split(sOperatorSet(i),"|")(1)
+				Exit Function
+			End If
+		Next i
+	End If
+
+End Function
+
+Function MapFunctionToCommand(Query As String, Optional sDataType As String) As String
+
+	Dim i As Integer, sFunctionSet As Variant
+
+	If (sDataType = "" Or sDataType = "1DC") Then
+		sFunctionSet = FunctionSet1DC
+	ElseIf (sDataType = "3D") Then
+		sFunctionSet = FunctionSet3D
+	End If
+
+	MapFunctionToCommand = "invalidOperator"
+	If (Query <> "") Then
+		For i = 0 To UBound(sFunctionSet)
+			If (LCase(Split(sFunctionSet(i),"|")(0)) = LCase(Query)) Then
+				MapFunctionToCommand = Split(sFunctionSet(i),"|")(1)
+				Exit Function
+			End If
+		Next i
+	End If
+
+End Function
+
+Function MapConstantNameToValue(Query As String) As String
+
+	Dim i As Integer
+
+	MapConstantNameToValue = "ivalidConstant"
+	If (Query <> "") Then
+		For i = 0 To UBound(ConstantSet)
+			If (LCase(Split(ConstantSet(i),"|")(0)) = LCase(Query)) Then
+				MapConstantNameToValue = Replace(Evaluate(Split(ConstantSet(i),"|")(1)),",",".")
+				Exit Function
+			End If
+		Next i
+	End If
+
+End Function
+
+Function GetOperatorArity(Operator As String, Optional sDataType As String) As Integer
+
+	Dim i As Integer, sOperatorSet As Variant
+
+	If (sDataType = "" Or sDataType = "1DC") Then
+		sOperatorSet = OperatorSet1DC
+	ElseIf (sDataType = "3D") Then
+		sOperatorSet = OperatorSet3D
+	End If
+
+	GetOperatorArity = -1
+	If (Operator <> "") Then
+		For i = 0 To UBound(sOperatorSet)
+			If (Split(sOperatorSet(i),"|")(0) = Operator) Then
+				GetOperatorArity = Evaluate(Split(sOperatorSet(i),"|")(2))
+				Exit Function
+			End If
+		Next i
+	End If
+
+End Function
+
+Function GetArity_LIB(Query As String, sDataType As String) As Integer
+
+	If IsPostfixToVBAFunction(Query, sDataType) Then
+		GetArity_LIB = GetFunctionArity(Query, sDataType)
+	ElseIf IsPostfixToVBAOperator(Query, sDataType) Then
+		GetArity_LIB = GetOperatorArity(Query, sDataType)
+	Else
+		ReportError("infix_postfix:GetArity: Query is neither a function nor an operator")
+	End If
+
+End Function
+
+Function GetFunctionArity(Query As String, Optional sDataType As String) As Integer
+
+	Dim i As Integer, sFunctionSet As Variant
+
+	If (sDataType = "" Or sDataType = "1DC") Then
+		sFunctionSet = FunctionSet1DC
+	ElseIf (sDataType = "3D") Then
+		sFunctionSet = FunctionSet3D
+	End If
+
+	GetFunctionArity = -1
+	If (Query <> "") Then
+		For i = 0 To UBound(sFunctionSet)
+			If (LCase(Split(sFunctionSet(i),"|")(0)) = LCase(Query)) Then
+				GetFunctionArity = Evaluate(Split(sFunctionSet(i),"|")(2))
+				Exit Function
+			End If
+		Next i
+	End If
+
+End Function
+
+Function Is1DCNumeric(Query As String) As Boolean
+	Is1DCNumeric = IsPostfixToVBANumeric(Query, "1DC") ' bwc
+End Function
+
+Function IsPostfixToVBANumeric(Query As String, sDataType As String) As Boolean
+
+	' fsr 04-oct-2010: the line should remain removed, parameters should not be treated as numeric until further down in the conversion process
+	' uncommenting this line causes problems with "ABCDEF" or parameter names that contain other parameter names
+	'If (GetParameterIndex(Query)>-1) Then Query=Evaluate(Query)
+
+	' fsr 11-jul-2014: Run test for IsNumeric always in US environment, reset before exiting function
+	Dim iCurrentLocale As Long
+	iCurrentLocale = GetLocale
+	SetLocale(Val("&H0409"))
+
+	If (Query="" Or InStr(Query, sParaSep_LIB)>0) Then
+		IsPostfixToVBANumeric = False
+	ElseIf ((IsNumeric(Query) And (Not IsPostfixToVBAOperator(Right$(Query,1), sDataType))) _
+		Or Query="j" _
+		Or (Left$(Query,1)="j" And IsNumeric(Right$(Query,Len(Query)-1))) _
+		Or (Right$(Query,1)="j" And IsNumeric(Left$(Query,Len(Query)-1))) _
+		Or Query="." _
+		Or (Right$(Query,1)="e" And IsNumeric(Left$(Query,Len(Query)-1))) _
+		Or (Right$(Query,1)="E" And IsNumeric(Left$(Query,Len(Query)-1))))Then
+		IsPostfixToVBANumeric = True
+	ElseIf (Len(Query)>2) Then
+		If ((Right$(Query,2)="e-" And IsNumeric(Left$(Query,Len(Query)-2))) _
+		Or (Right$(Query,2)="e+" And IsNumeric(Left$(Query,Len(Query)-2))) _
+		Or (Right$(Query,2)="E-" And IsNumeric(Left$(Query,Len(Query)-2))) _
+		Or (Right$(Query,2)="E+" And IsNumeric(Left$(Query,Len(Query)-2)))) Then
+			IsPostfixToVBANumeric = True
+		End If
+	Else
+		IsPostfixToVBANumeric = False
+	End If
+
+	' Reset locale
+	SetLocale(iCurrentLocale)
+
+End Function
+
+Function GetParameterIndex(ParameterName As String) As Integer
+
+	' Returns the index of the parameter "ParameterName", in particular it returns -1 if "ParameterName" does not exist
+	Dim i As Long
+
+	GetParameterIndex = -1
+	For i = 0 To GetNumberOfParameters-1
+		If (GetParameterName(i)=ParameterName) Then
+			GetParameterIndex = i
+			Exit Function
+		End If
+	Next
+
+End Function
+
+Function Is1DCOperator(Query As String) As Boolean
+	Is1DCOperator = IsPostfixToVBAOperator(Query, "1DC")
+End Function
+
+Function IsPostfixToVBAOperator(Query As String, sDataType As String) As Boolean
+
+	Dim i As Integer, sOperatorSet As Variant
+
+	Select Case sDataType
+		Case "", "1DC"
+			sOperatorSet = OperatorSet1DC
+		Case "3D"
+			sOperatorSet = OperatorSet3D
+	End Select
+
+	IsPostfixToVBAOperator = False
+	If (Query <> "") Then
+		For i = 0 To UBound(sOperatorSet)
+			If (Split(sOperatorSet(i),"|")(0) = Query) Then
+				IsPostfixToVBAOperator = True
+				Exit Function
+			End If
+		Next i
+	End If
+
+End Function
+
+Function Is1DCFunction(Query As String) As Boolean
+	Is1DCFunction = IsPostfixToVBAFunction(Query, "1DC")
+End Function
+
+Function IsPostfixToVBAFunction(Query As String, sDataType As String) As Boolean
+
+	Dim i As Integer, sFunctionSet As Variant
+
+	Select Case sDataType
+		Case "", "1DC"
+			sFunctionSet = FunctionSet1DC
+		Case "3D"
+			sFunctionSet = FunctionSet3D
+	End Select
+
+	IsPostfixToVBAFunction = False
+	If (Query <> "") Then
+		For i = 0 To UBound(sFunctionSet)
+			' Ignore case when comparing with function set
+			If (LCase(Split(sFunctionSet(i),"|")(0)) = LCase(Query)) Then
+				IsPostfixToVBAFunction = True
+				Exit Function
+			End If
+		Next i
+	End If
+
+End Function
+
+Function Is1DCConstant(Query As String) As Boolean
+	Is1DCConstant = IsPostfixToVBAConstant(Query, "1DC")
+End Function
+
+Function IsPostfixToVBAConstant(Query As String, sDataType As String) As Boolean
+
+	' Returns the number where the constant is found in ConstantSet
+	' If not found, return -1
+	Dim i As Integer
+
+	IsPostfixToVBAConstant = False
+	If (Query <> "") Then
+		For i = 0 To UBound(ConstantSet)
+			' Ignore case when comparing with function set
+			If (LCase(Split(ConstantSet(i),"|")(0)) = LCase(Query)) Then
+				IsPostfixToVBAConstant = True
+				Exit Function
+			End If
+		Next i
+	End If
+
+End Function
+
+Function Is1DCParameter(Query As String) As Boolean
+	Is1DCParameter = IsPostfixToVBAParameter(Query, "1DC")
+End Function
+
+Function IsPostfixToVBAParameter(Query As String, sDataType As String) As Boolean
+	IsPostfixToVBAParameter = IIf(GetParameterIndex(Query)>-1, True, False)
+End Function
+
+Function Is1DCVariable(Query As String) As Boolean
+	Is1DCVariable = IsPostfixToVBAVariable(Query, "1DC")
+End Function
+
+Function IsPostfixToVBAVariable(Query As String, sDataType As String) As Boolean
+
+	IsPostfixToVBAVariable = IIf(Mid(Query,2) = "_cst_tmp", True, False)
+
+	'OLD:
+	' If last char is no operator, no function, not numeric, and does not contain "(",")", or "|", it is a variable
+	'Is1DCVariable = IIf(Not(Is1DCNumeric(Query) _
+	'						Or Is1DCOperator(Mid(Query,Len(Query),1)) _
+	'						Or Is1DCFunction(Query) _
+	'						Or Is1DCParameter(Query) _
+	'						Or (InStr(Query,"(")>0) _
+	'						Or (InStr(Query,")")>0) _
+	'						Or (InStr(Query,"|")>0)),True,False)
+
+End Function
+
+Function GetNextItem(FullExpression As String, StartPosition As Integer) As String
+	Dim NextItemLength As Long
+	NextItemLength = GetNextItemLength(FullExpression, StartPosition)
+	If (NextItemLength <> -1) Then
+		GetNextItem = Mid(FullExpression,StartPosition,NextItemLength)
+	Else
+		GetNextItem = ""
+	End If
+End Function
+
+Function GetNextItemLength(FullExpression As String, StartPosition As Integer, Optional sDataType As String) As Integer
+
+	' Returns the length of the next item within FullExpression, starting at StartPosition
+	Dim n As Integer
+	Dim FirstCharacter As String
+
+	If (sDataType = "") Then sDataType = "1DC" ' bwc
+
+	n = 1
+	FirstCharacter = Mid(FullExpression,StartPosition,1)
+
+	If (FirstCharacter = "") Then ' something went wrong
+		GetNextItemLength = -1
+		Exit Function
+	ElseIf ((FirstCharacter = "(") Or (FirstCharacter = ")") Or (FirstCharacter = sParaSep_LIB)) Then
+		GetNextItemLength = 1
+		Exit Function
+	ElseIf (IsPostfixToVBANumeric(FirstCharacter, sDataType)) Then
+		While (IsPostfixToVBANumeric(Mid(FullExpression,StartPosition,n), sDataType) And (n+StartPosition <= Len(FullExpression)+1))
+			n = n+1
+		Wend
+		GetNextItemLength = n-1
+		Exit Function
+	ElseIf (IsPostfixToVBAOperator(FirstCharacter, sDataType)) Then
+		While (IsPostfixToVBAOperator(Mid(FullExpression,StartPosition,n), sDataType) And (n+StartPosition <= Len(FullExpression)+1))
+			n = n+1
+		Wend
+		GetNextItemLength = n-1
+		Exit Function
+	Else
+		While ((Not IsPostfixToVBAOperator(Mid(FullExpression,StartPosition+n,1), sDataType)) And (InStr("()|"+sParaSep_LIB,Mid(FullExpression,StartPosition+n,1))=0) And (n+StartPosition <= Len(FullExpression)+1))
+		'While ((Is1DCVariable(Mid(FullExpression,StartPosition,n)) Or Is1DCParameter(Mid(FullExpression,StartPosition,n))) And (n+StartPosition <= Len(FullExpression)+1)) ' OLD
+			n = n+1
+		Wend
+		' Could be a function
+	'	If (Is1DCFunction(Mid(FullExpression,StartPosition,n))) Then
+			GetNextItemLength = n
+			Exit Function
+	'	End If
+	'	GetNextItemLength = n-1
+	'	Exit Function
+	End If
+
+End Function
+
+Function GetRes1DComplexFrom1DCNumeric(RealPart As Variant, ImagPart As Variant, Optional appName As String) As Object
+
+	If (Not IsNumeric(RealPart)) Then RealPart = Evaluate(RealPart)
+	If (Not IsNumeric(ImagPart)) Then ImagPart = Evaluate(ImagPart)
+
+	If (Left(appName,2)="DS") Then
+		'MsgBox("DS")
+		Set GetRes1DComplexFrom1DCNumeric = DS.Result1DComplex("")
+	Else
+		'MsgBox("MWS")
+		Set GetRes1DComplexFrom1DCNumeric = Result1DComplex("")
+	End If
+	' Object needs at least 3 points so that .MakeCompatibleTo can be used
+	GetRes1DComplexFrom1DCNumeric.AppendXY(lib_rundef,RealPart,ImagPart)
+	GetRes1DComplexFrom1DCNumeric.AppendXY(0,RealPart,ImagPart)
+	GetRes1DComplexFrom1DCNumeric.AppendXY(-lib_rundef,RealPart,ImagPart)
+
+End Function
+
+Function Convert1DCToDbl(InputObject As Variant) As Double
+
+	If IsObject(InputObject) Then
+		Convert1DCToDbl = InputObject.GetYRe(0)
+	Else
+		Convert1DCToDbl = InputObject
+	End If
+
+End Function
+
+Function Sin1DC(Operand As Object) As Object
+	' Calculate sin(z), z in rad
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = zsin(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Sin1DC = Operand
+End Function
+
+Function SinD1DC(Operand As Object) As Object
+	' Calculate sin(z), z in deg
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)*Pi/180
+		z.im = dYImValues(i)*Pi/180
+		z = zsin(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set SinD1DC = Operand
+End Function
+
+Function ASin1DC(Operand As Object) As Object
+	' Calculate asin(z), result in rad
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = zasin(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set ASin1DC = Operand
+End Function
+
+Function ASinD1DC(Operand As Object) As Object
+	' Calculate asin(z), result in deg
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = zasin(z)
+		dYReValues(i) = z.re/Pi*180
+		dYImValues(i) = z.im/Pi*180
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set ASinD1DC = Operand
+End Function
+
+Function Cos1DC(Operand As Object) As Object
+	' Calculate cos(z), z in rad
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = zcos(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Cos1DC = Operand
+End Function
+
+Function CosD1DC(Operand As Object) As Object
+	' Calculate cos(z), z in deg
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)*Pi/180
+		z.im = dYImValues(i)*Pi/180
+		z = zcos(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set CosD1DC = Operand
+End Function
+
+Function ACos1DC(Operand As Object) As Object
+	' Calculate acos(z), result in rad
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = zacos(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set ACos1DC = Operand
+End Function
+
+Function ACosD1DC(Operand As Object) As Object
+	' Calculate acos(z), result in deg
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = zacos(z)
+		dYReValues(i) = z.re/Pi*180
+		dYImValues(i) = z.im/Pi*180
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set ACosD1DC = Operand
+End Function
+
+Function Tan1DC(Operand As Object) As Object
+	' Calculate tan(z), z in rad
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = ztan(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Tan1DC = Operand
+End Function
+
+Function TanD1DC(Operand As Object) As Object
+	' Calculate tan(z), z in deg
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)*Pi/180
+		z.im = dYImValues(i)*Pi/180
+		z = ztan(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set TanD1DC = Operand
+End Function
+
+Function Atn1DC(Operand As Object) As Object
+	' Calculate atan(z), result in rad
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = zatn(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Atn1DC = Operand
+End Function
+
+Function AtnD1DC(Operand As Object) As Object
+	' Calculate atan(z), result in deg
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = zatn(z)
+		dYReValues(i) = z.re/Pi*180
+		dYImValues(i) = z.im/Pi*180
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set AtnD1DC = Operand
+End Function
+
+Function Atn21DC(Operand1 As Object, Operand2 As Object) As Object
+	' Calculate atan2(z1, z2), result in rad
+	Dim i As Long
+	Dim z As Complex, z1 As Complex, z2 As Complex
+	Dim dYReValues1() As Double, dYImValues1() As Double
+	Dim dYReValues2() As Double, dYImValues2() As Double
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+	dYReValues2 = Operand2.GetArray("yre")
+	dYImValues2 = Operand2.GetArray("yim")
+	For i = 0 To Operand1.GetN-1
+		z1.re = dYReValues1(i)
+		z1.im = dYImValues1(i)
+		z2.re = dYReValues2(i)
+		z2.im = dYImValues2(i)
+		z = zatn2(z1, z2)
+		dYReValues1(i) = z.re
+		dYImValues1(i) = z.im
+	Next
+	Operand1.SetArray(dYReValues1, "yre")
+	Operand1.SetArray(dYImValues1, "yim")
+	Set Atn21DC = Operand1
+End Function
+
+Function Atn2D1DC(Operand1 As Object, Operand2 As Object) As Object
+	' Calculate atan2(z1, z2), result in deg
+	Dim i As Long
+	Dim z As Complex, z1 As Complex, z2 As Complex
+	Dim dYReValues1() As Double, dYImValues1() As Double
+	Dim dYReValues2() As Double, dYImValues2() As Double
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+	dYReValues2 = Operand2.GetArray("yre")
+	dYImValues2 = Operand2.GetArray("yim")
+	For i = 0 To Operand1.GetN-1
+		z1.re = dYReValues1(i)
+		z1.im = dYImValues1(i)
+		z2.re = dYReValues2(i)
+		z2.im = dYImValues2(i)
+		z = zatn2(z1, z2)
+		dYReValues1(i) = z.re/Pi*180
+		dYImValues1(i) = z.im/Pi*180
+	Next
+	Operand1.SetArray(dYReValues1, "yre")
+	Operand1.SetArray(dYImValues1, "yim")
+	Set Atn2D1DC = Operand1
+End Function
+
+Function Re1DC(Operand As Object) As Object
+	' Return re(z)
+	Dim dXValues() As Double, dYReValues() As Double
+	dXValues = Operand.GetArray("x")
+	dYReValues = Operand.GetArray("yre")
+	Operand.Initialize(UBound(dXValues)+1)
+	Operand.SetArray(dXValues, "x")
+	Operand.SetArray(dYReValues, "yre")
+	Set Re1DC = Operand
+End Function
+
+Function Im1DC(Operand As Object) As Object
+	' Return im(z)
+	Dim dXValues() As Double, dYImValues() As Double
+	dXValues = Operand.GetArray("x")
+	dYImValues = Operand.GetArray("yim")
+	Operand.Initialize(UBound(dXValues)+1)
+	Operand.SetArray(dXValues, "x")
+	Operand.SetArray(dYImValues, "yre")
+	Set Im1DC = Operand
+End Function
+
+Function Abs1DC(Operand As Object) As Object
+	' Return abs(z)
+	Dim i As Long
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		dYReValues(i) = Sqr(dYReValues(i)^2+dYImValues(i)^2)
+		dYImValues(i) = 0
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Abs1DC = Operand
+End Function
+
+Function MagdB101DC(Operand As Object) As Object
+	' Return magnitude of z in dB, Factor 10
+	Dim i As Long
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		dYReValues(i) = 10*Log(Sqr(dYReValues(i)^2+dYImValues(i)^2))/Log(10)
+		dYImValues(i) = 0
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set MagdB101DC = Operand
+End Function
+
+Function MagdB201DC(Operand As Object) As Object
+	' Return magnitude of z in dB, Factor 20
+	MagdB101DC(Operand)
+	Operand.ScalarMultReIm(2,0)
+	Set MagdB201DC = Operand
+End Function
+
+Function Arc1DC(Operand As Object) As Object
+	' Return wrapped phase/arc of z in rad
+	Dim i As Long
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		dYReValues(i) = ATn2(dYImValues(i),dYReValues(i))
+		dYImValues(i) = 0
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Arc1DC = Operand
+End Function
+
+Function ArcD1DC(Operand As Object) As Object
+	' Return wrapped phase/arc of z in deg
+	Dim i As Long
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		dYReValues(i) = ATn2D(dYImValues(i),dYReValues(i))
+		dYImValues(i) = 0
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set ArcD1DC = Operand
+End Function
+
+Function UArc1DC(Operand As Object, oWrapTolerance As Object) As Object
+
+	' Return unwrapped phase/arc of z in rad, dWrapTolerance also in rad
+
+	Dim i As Long, dWrapTolerance As Double, dCurrentOffset As Double
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+
+	dWrapTolerance = oWrapTolerance.GetYRe(0)
+	dCurrentOffset = 0 ' store current offset for increased performance, no need to start the while loops at 0 every time
+
+	dYReValues(0) = ATn2(dYImValues(0),dYReValues(0))
+	dYImValues(0) = 0
+	For i = 1 To Operand.GetN-1
+		dYReValues(i) = ATn2(dYImValues(i),dYReValues(i))+dCurrentOffset
+		' Unwrap downwards
+		While((dYReValues(i)-dYReValues(i-1) > dWrapTolerance) And Not GetTemplateAborted())
+			dCurrentOffset = dCurrentOffset - 2*Pi
+			dYReValues(i) = dYReValues(i) - 2*Pi
+		Wend
+		' Unwrap upwards
+		While((dYReValues(i)-dYReValues(i-1)< -dWrapTolerance) And Not GetTemplateAborted())
+			dCurrentOffset = dCurrentOffset + 2*Pi
+			dYReValues(i) = dYReValues(i) + 2*Pi
+		Wend
+		dYImValues(i) = 0
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set UArc1DC = Operand
+End Function
+
+Function UArcD1DC(Operand As Object, oWrapTolerance As Object) As Object
+
+	' Return unwrapped phase/arc of z in deg, dWrapTolerance also in deg
+
+	Dim i As Long, dWrapTolerance As Double, dCurrentOffset As Double
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+
+	dWrapTolerance = oWrapTolerance.GetYRe(0)
+	dCurrentOffset = 0 ' store current offset for increased performance, no need to start the while loops at 0 every time
+
+	dYReValues(0) = ATn2D(dYImValues(0),dYReValues(0))
+	dYImValues(0) = 0
+	For i = 1 To Operand.GetN-1
+		dYReValues(i) = ATn2D(dYImValues(i),dYReValues(i))+dCurrentOffset
+		' Unwrap downwards
+		While((dYReValues(i)-dYReValues(i-1) > dWrapTolerance) And Not GetTemplateAborted())
+			dCurrentOffset = dCurrentOffset - 2*180
+			dYReValues(i) = dYReValues(i) - 2*180
+		Wend
+		' Unwrap upwards
+		While((dYReValues(i)-dYReValues(i-1)< -dWrapTolerance) And Not GetTemplateAborted())
+			dCurrentOffset = dCurrentOffset + 2*180
+			dYReValues(i) = dYReValues(i) + 2*180
+		Wend
+		dYImValues(i) = 0
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set UArcD1DC = Operand
+End Function
+
+Function Log1DC(Operand As Object) As Object
+	' Calculate log_e(z)
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = zlog(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Log1DC = Operand
+End Function
+
+Function Log101DC(Operand As Object) As Object
+	' Calculate log_10(z)
+	Log1DC(Operand)
+	Operand.ScalarMultReIm(1/Log(10),0)
+	Set Log101DC = Operand
+End Function
+
+Function Exp1DC(Operand As Object) As Object
+	' Calculate exp(z)
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = zexp(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Exp1DC = Operand
+End Function
+
+Function Sqr1DC(Operand As Object) As Object
+	' Calculate sqrt(z)
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = ComplexSqrt(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Sqr1DC = Operand
+End Function
+
+Function Min1DC(Operand As Object) As Object
+	' Return minimum of re(z), result is a real value
+	Dim i As Long
+
+	Dim MinValue As Double
+	Dim dYReValues() As Double, dYImValues() As Double
+
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+
+	MinValue = dYReValues(0)
+	For i = 1 To Operand.GetN-1
+		If dYReValues(i) < MinValue Then MinValue = dYReValues(i)
+	Next
+	For i = 0 To Operand.GetN-1
+		dYReValues(i) = MinValue
+		dYImValues(i) = 0
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Min1DC = Operand
+End Function
+
+Function Max1DC(Operand As Object) As Object
+	' Return maximum of re(z), result is a real value
+	Dim i As Long
+
+	Dim MaxValue As Double
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+
+	MaxValue = dYReValues(0)
+
+	For i = 1 To Operand.GetN-1
+
+		If dYReValues(i) > MaxValue Then MaxValue = dYReValues(i)
+	Next
+	For i = 0 To Operand.GetN-1
+		dYReValues(i) = MaxValue
+		dYImValues(i) = 0
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Max1DC = Operand
+End Function
+
+Function Mean1DC(Operand As Object) As Object
+	' Calculate mean value of re(z), result is a real value
+	Dim i As Long, nSamples As Long
+	Dim dYReValues() As Double, dYImValues() As Double
+
+	nSamples = Operand.GetN()
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+
+	If (nSamples>0) Then
+		Dim MeanValue As Double
+		MeanValue = 0
+		For i = 0 To nSamples-1
+			 MeanValue = MeanValue + dYReValues(i)
+		Next
+		MeanValue = MeanValue/nSamples
+	Else
+		ReportWarning("Mean1DC: Input object contains no data, cannot calculate mean.")
+		MeanValue = lib_rundef
+	End If
+	For i = 0 To nSamples-1
+		dYReValues(i) = MeanValue
+		dYImValues(i) = 0
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Mean1DC = Operand
+End Function
+
+Function MinMag1DC(Operand As Object) As Object
+	' Return minimum of abs(z), result is a real value
+	Dim i As Long
+
+	Dim MinValue As Double, dCurrentAbs As Double
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+
+	MinValue = Sqr(dYReValues(0)^2+Operand.GetYIm(0)^2)
+	For i = 1 To Operand.GetN-1
+		dCurrentAbs = Sqr(dYReValues(i)^2+dYImValues(i)^2)
+		If dCurrentAbs < MinValue Then MinValue = dCurrentAbs
+	Next
+	For i = 0 To Operand.GetN-1
+		dYReValues(i) = MinValue
+		dYImValues(i) = 0
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set MinMag1DC = Operand
+End Function
+
+Function MaxMag1DC(Operand As Object) As Object
+	' Return maximum of abs(z), result is a real value
+	Dim i As Long
+
+	Dim MaxValue As Double, dCurrentAbs As Double
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+
+	MaxValue = Sqr(dYReValues(0)^2+Operand.GetYIm(0)^2)
+	For i = 1 To Operand.GetN-1
+		dCurrentAbs = Sqr(dYReValues(i)^2+dYImValues(i)^2)
+		If dCurrentAbs > MaxValue Then MaxValue = dCurrentAbs
+	Next
+	For i = 0 To Operand.GetN-1
+		dYReValues(i) = MaxValue
+		dYImValues(i) = 0
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set MaxMag1DC = Operand
+End Function
+
+Function MeanMag1DC(Operand As Object) As Object
+	' Calculate mean of abs(z), result is a real value
+	Dim i As Long
+
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+
+	If (Operand.GetN()>0) Then
+		Dim MeanValue As Double
+		MeanValue = 0
+		For i = 0 To Operand.GetN-1
+			 MeanValue = MeanValue + Sqr(dYReValues(i)^2+dYImValues(i)^2)
+		Next
+		MeanValue = MeanValue/Operand.GetN()
+	Else
+		ReportWarning("Mean1DC: Input object contains no data, cannot calculate mean.")
+		MeanValue = lib_rundef
+	End If
+	For i = 0 To Operand.GetN-1
+		dYReValues(i) = MeanValue
+		dYImValues(i) = 0
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set MeanMag1DC = Operand
+End Function
+
+Function Abscissa1DC(Operand As Object) As Object
+	' Return the x-axis of a 1DC curve
+	Dim dXValues() As Double
+	dXValues = Operand.GetArray("x")
+	Operand.Initialize(UBound(dXValues)+1)
+	Operand.SetArray(dXValues, "x")
+	Operand.SetArray(dXValues, "yre")
+	Set Abscissa1DC = Operand
+End Function
+
+Function Sgn1DC(Operand As Object) As Object
+	' Calculate signum(z)
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		If absolute(z) <> 0 Then
+			z = divsc(z, absolute(z))
+		End If
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Sgn1DC = Operand
+End Function
+
+Function UnitStep1DC(Operand As Object) As Object
+	' Calculate Heaviside step function(z)
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		' No unique definition exists for complex argument. Used here: Discard imaginary part
+		z.re = dYReValues(i)
+		If z.re < 0 Then
+			z.re=0
+		ElseIf z.re = 0 Then
+			z.re = 1/2
+		Else
+			z.re=1
+		End If
+		dYReValues(i) = z.re
+		dYImValues(i) = 0
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set UnitStep1DC = Operand
+End Function
+
+Function Sinh1DC(Operand As Object) As Object
+	' Calculate Sinh(z), z in rad
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = zsinh(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Sinh1DC = Operand
+End Function
+
+Function Asinh1DC(Operand As Object) As Object
+	' Calculate Asinh(z), z in rad
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = zasinh(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Asinh1DC = Operand
+End Function
+
+Function Cosh1DC(Operand As Object) As Object
+	' Calculate Cosh(z), z in rad
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = zcosh(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Cosh1DC = Operand
+End Function
+
+Function Acosh1DC(Operand As Object) As Object
+	' Calculate Acosh(z), z in rad
+	Dim i As Long
+	Dim z As Complex
+	Dim dYReValues() As Double, dYImValues() As Double
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	For i = 0 To Operand.GetN-1
+		z.re = dYReValues(i)
+		z.im = dYImValues(i)
+		z = zacosh(z)
+		dYReValues(i) = z.re
+		dYImValues(i) = z.im
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Acosh1DC = Operand
+End Function
+
+Function Derivative1DC(Operand As Object, Order As Object) As Object
+	' Calculate the derivative with respect to x iteratively until Order=0
+	Dim i As Long, nSamples As Long
+	Dim nOrder As Long, oNextOrder As Object
+	Dim dXValues() As Double, dYReValues() As Double, dYImValues() As Double
+	Dim dYReValues1() As Double, dYImValues1() As Double
+
+	nSamples = Operand.GetN()
+	nOrder = Order.GetYRe(0)
+	If nOrder = 0 Then
+		Set Derivative1DC = Operand
+		Exit Function
+	End If
+	dXValues = Operand.GetArray("x")
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	ReDim dYReValues1(UBound(dYReValues))
+	ReDim dYImValues1(UBound(dYImValues))
+
+	dYReValues1(0) = (dYReValues(1)-dYReValues(0))/(dXValues(1)-dXValues(0))
+	dYImValues1(0) = (dYImValues(1)-dYImValues(0))/(dXValues(1)-dXValues(0))
+	For i = 1 To nSamples-2
+		dYReValues1(i) = (dYReValues(i+1)-dYReValues(i-1))/(dXValues(i+1)-dXValues(i-1))
+		dYImValues1(i) = (dYImValues(i+1)-dYImValues(i-1))/(dXValues(i+1)-dXValues(i-1))
+	Next
+	dYReValues1(nSamples-1) = (dYReValues(nSamples-1)-dYReValues(nSamples-2))/(dXValues(nSamples-1)-dXValues(nSamples-2))
+	dYImValues1(nSamples-1) = (dYImValues(nSamples-1)-dYImValues(nSamples-2))/(dXValues(nSamples-1)-dXValues(nSamples-2))
+
+	Operand.SetArray(dXValues, "x")
+	Operand.SetArray(dYReValues1, "yre")
+	Operand.SetArray(dYImValues1, "yim")
+
+	If (nOrder > 1) Then
+		nOrder = nOrder - 1
+		Set oNextOrder = Result1DComplex("")
+		oNextOrder.AppendXYDouble(0, nOrder, 0)
+		Set Operand = Derivative1DC(Operand, oNextOrder)
+	End If
+
+	Set Derivative1DC = Operand
+End Function
+
+Function Integral1DC(Operand As Object) As Object
+	' Calculate the integral dx of Operand (result is a single number)
+	Dim dYReValues() As Double, dYImValues() As Double
+	Dim i As Long, nSamples As Long, dIntegralRe As Double, dIntegralIm As Double
+
+	Set Operand = CumulativeIntegral1DC(Operand)
+	nSamples = Operand.GetN()
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	dIntegralRe = dYReValues(nSamples-1)
+	dIntegralIm = dYImValues(nSamples-1)
+	For i = 0 To nSamples-1
+		dYReValues(i) = dIntegralRe
+		dYImValues(i) = dIntegralIm
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Integral1DC = Operand
+End Function
+
+Function CumulativeIntegral1DC(Operand As Object) As Object
+	' Calculate the integral dx of Operand (result is a function of x)
+
+	Dim i As Long, nSamples As Long
+	Dim dXValues() As Double, dYReValues() As Double, dYImValues() As Double
+	Dim dIntegralRe() As Double, dIntegralIm() As Double
+	Dim dAverageStep As Double, bIsEquidistant As Boolean
+
+	nSamples = Operand.GetN()
+	If (nSamples < 2) Then
+		Set CumulativeIntegral1DC = Operand
+		For i = 0 To nSamples-1
+			CumulativeIntegral1DC.SetYRe(i) = 0
+			CumulativeIntegral1DC.SetYim(i) = 0
+		Next
+		Exit Function
+	End If
+	dXValues = Operand.GetArray("x")
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+
+	bIsEquidistant = True
+	' Check if equidistant
+	dAverageStep = (dXValues(nSamples-1)-dXValues(0))/(nSamples-1)
+	For i = 0 To nSamples-2
+		If Abs(dXValues(i+1)-dXValues(i)-dAverageStep) > 1e-6 Then
+			bIsEquidistant = False
+			Exit For
+		End If
+	Next
+
+	ReDim dIntegralRe(nSamples-1)
+	ReDim dIntegralIm(nSamples-1)
+	dIntegralRe(0) = 0
+	dIntegralIm(0) = 0
+	If bIsEquidistant Then ' use Simpson's rule
+		For i = 2 To nSamples-1 STEP 2
+			dIntegralRe(i) = dIntegralRe(i-2) + (dXValues(i)-dXValues(i-2))/6*(dYReValues(i)+4*dYReValues(i-1)+dYReValues(i-2))
+			dIntegralRe(i-1) = (dIntegralRe(i) + dIntegralRe(i-2))/2
+			dIntegralIm(i) = dIntegralIm(i-2) + (dXValues(i)-dXValues(i-2))/6*(dYImValues(i)+4*dYImValues(i-1)+dYImValues(i-2))
+			dIntegralIm(i-1) = (dIntegralIm(i) + dIntegralIm(i-2))/2
+		Next
+		If ((nSamples Mod 2) = 0) Then ' add last point using trapezoidal rule
+			dIntegralRe(nSamples-1) = dIntegralRe(nSamples-2) + (dXValues(nSamples-1)-dXValues(nSamples-2))*(dYReValues(nSamples-1)+dYReValues(nSamples-2))/2
+			dIntegralIm(nSamples-1) = dIntegralIm(nSamples-2) + (dXValues(nSamples-1)-dXValues(nSamples-2))*(dYImValues(nSamples-1)+dYImValues(nSamples-2))/2
+		End If
+	Else ' use trapezoidal rule
+		For i = 1 To nSamples-1
+			dIntegralRe(i) = dIntegralRe(i-1) + (dXValues(i)-dXValues(i-1))*(dYReValues(i)+dYReValues(i-1))/2
+			dIntegralIm(i) = dIntegralIm(i-1) + (dXValues(i)-dXValues(i-1))*(dYImValues(i)+dYImValues(i-1))/2
+		Next
+	End If
+
+	Operand.SetArray(dIntegralRe, "yre")
+	Operand.SetArray(dIntegralIm, "yim")
+	Set CumulativeIntegral1DC = Operand
+
+End Function
+
+Function Sum1DC(Operand As Object) As Object
+	' Calculate the unweighted sum of all y values (result is a single number)
+	Dim dYReValues() As Double, dYImValues() As Double
+	Dim i As Long, nSamples As Long, dSumRe As Double, dSumIm As Double
+
+	nSamples = Operand.GetN()
+	ReDim dYReValues(nSamples - 1)
+	ReDim dYImValues(nSamples - 1)
+
+	Set Operand = CumulativeSum1DC(Operand)
+	dSumRe = Operand.GetYRe(Operand.GetN() - 1)
+	dSumIm = Operand.GetYIm(Operand.GetN() - 1)
+
+	For i = 0 To nSamples-1
+		dYReValues(i) = dSumRe
+		dYImValues(i) = dSumIm
+	Next
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Set Sum1DC = Operand
+End Function
+
+Function CumulativeSum1DC(Operand As Object) As Object
+	' Calculate the unweighted cumulative sum of all y values
+
+	Dim i As Long, nSamples As Long
+	Dim dXValues() As Double, dYReValues() As Double, dYImValues() As Double
+	Dim dSumRe() As Double, dSumIm() As Double
+
+	nSamples = Operand.GetN()
+	dXValues = Operand.GetArray("x")
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+
+	ReDim dSumRe(nSamples - 1)
+	ReDim dSumIm(nSamples - 1)
+	dSumRe(0) = dYReValues(0)
+	dSumIm(0) = dYImValues(0)
+	For i = 1 To nSamples - 1
+		dSumRe(i) = dSumRe(i - 1) + dYReValues(i)
+		dSumIm(i) = dSumIm(i - 1) + dYImValues(i)
+	Next
+
+	Operand.SetArray(dSumRe, "yre")
+	Operand.SetArray(dSumIm, "yim")
+	Set CumulativeSum1DC = Operand
+
+End Function
+
+Function BooleanNot1DC(Operand1 As Object) As Object
+
+	' Assume that Operand1 represents a Boolean where Im=0 and Re>0.5 represents TRUE, Re<=0.5 represents FALSE
+	Dim dXValues1() As Double, dYReValues1() As Double, dYImValues1() As Double
+	Dim i As Long
+
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+
+	For i = 0 To UBound(dYReValues1)
+		dYReValues1(i) = IIf(dYReValues1(i) > 0.5, 0, 1)
+		dYImValues1(i) = 0
+	Next
+
+	Operand1.SetArray(dYReValues1, "yre")
+	Operand1.SetArray(dYImValues1, "yim")
+	Set BooleanNot1DC = Operand1
+
+End Function
+
+Function Equal1DC(Operand1 As Object, Operand2 As Object) As Object
+
+	' Return '1' wherever Operand1 = Operand2, '0' elsewhere
+	Dim oTolerance As Object
+	Dim dXValues1() As Double, dYReValues1() As Double, dYImValues1() As Double
+	Dim i As Long
+
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+
+	For i = 0 To UBound(dYReValues1)
+		' allow 1e-9 for real and imag as tolerance to compensate for numerical error; equivalent to circle of radius 1.41e-9
+		dYReValues1(i) = 1e-9
+		dYImValues1(i) = 1e-9
+	Next
+
+	Set oTolerance = Result1DComplex("")
+	oTolerance.Initialize(UBound(dYReValues1) + 1)
+
+	oTolerance.SetArray(dYReValues1, "yre")
+	oTolerance.SetArray(dYImValues1, "yim")
+
+	Set Equal1DC = EqualWithTolerance1DC(Operand1, Operand2, oTolerance)
+
+End Function
+
+Function EqualWithTolerance1DC(Operand1 As Object, Operand2 As Object, Operand3 As Object) As Object
+
+	' Return '1' wherever Operand1 = Operand2, '0' elsewhere
+	' Operand3 serves as a tolerance threshold. If Operand1 is within a circle of radius Abs(Operand3) around Operand2, equality is satisfied
+	Dim dXValues1() As Double, dYReValues1() As Double, dYImValues1() As Double
+	Dim dXValues2() As Double, dYReValues2() As Double, dYImValues2() As Double
+	Dim dXValues3() As Double, dYReValues3() As Double, dYImValues3() As Double
+	Dim i As Long
+	Dim dDistance As Double, dRadius As Double, dLength1 As Double, dLength2 As Double, dMaxLength As Double
+
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+	dYReValues2 = Operand2.GetArray("yre")
+	dYImValues2 = Operand2.GetArray("yim")
+	dYReValues3 = Operand3.GetArray("yre")
+	dYImValues3 = Operand3.GetArray("yim")
+
+	For i = 0 To UBound(dYReValues1)
+		' determine max length of the two vectors
+		dLength1 = Sqr(dYReValues1(i)^2 + dYImValues1(i)^2)
+		dLength2 = Sqr(dYReValues2(i)^2 + dYImValues2(i)^2)
+		dMaxLength = IIf(dLength1 > dLength2, dLength1, dLength2)
+		dDistance = Sqr((dYReValues2(i) - dYReValues1(i))^2 + (dYImValues2(i) - dYImValues2(i))^2)
+		dRadius = Sqr(dYReValues3(i)^2 + dYImValues3(i)^2)
+		' radius to be used as a relative quantity
+		dYReValues1(i) = IIf(dDistance/dMaxLength <= dRadius, 1, 0)
+		dYImValues1(i) = 0
+	Next
+
+	Operand1.SetArray(dYReValues1, "yre")
+	Operand1.SetArray(dYImValues1, "yim")
+	Set EqualWithTolerance1DC = Operand1
+
+End Function
+
+Function NotEqual1DC(Operand1 As Object, Operand2 As Object) As Object
+
+	' A shortcut for !=
+	Set NotEqual1DC = BooleanNot1DC(Equal1DC(Operand1, Operand2))
+
+End Function
+
+Function Greater1DC(Operand1 As Object, Operand2 As Object) As Object
+
+	' Return '1' wherever Operand1 > Operand2, '0' elsewhere; use Abs() for complex numbers
+	Dim dXValues1() As Double, dYReValues1() As Double, dYImValues1() As Double
+	Dim dXValues2() As Double, dYReValues2() As Double, dYImValues2() As Double
+	Dim i As Long
+	Dim bIsComplex As Boolean
+	Dim dAbs1 As Double, dAbs2 As Double
+
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+	dYReValues2 = Operand2.GetArray("yre")
+	dYImValues2 = Operand2.GetArray("yim")
+
+	' Check if input values are complex
+	bIsComplex = False
+	For i = 0 To UBound(dYReValues1)
+		If (dYReValues1(i) = 0) Then
+			If (dYImValues1(i) > 1e-9) Then
+				' ReportInformation("Re1 = 0 and Im1 > 1e-9")
+				bIsComplex = True
+				Exit For
+			End If
+		ElseIf (dYImValues1(i)/dYReValues1(i) > 1e-6) Then
+			' ReportInformation("Re1 <> 0 and Im1/Re1 > 1e-6")
+			bIsComplex = True
+			Exit For
+		End If
+		If (dYReValues2(i) = 0) Then
+			If (dYImValues2(i) > 1e-9) Then
+				' ReportInformation("Re2 = 0 and Im2 > 1e-9")
+				bIsComplex = True
+				Exit For
+			End If
+		ElseIf (dYImValues2(i)/dYReValues2(i) > 1e-6) Then
+			' ReportInformation("Re2 <> 0 and Im2/Re2 > 1e-6")
+			bIsComplex = True
+			Exit For
+		End If
+	Next
+
+	For i = 0 To UBound(dYReValues1)
+		If bIsComplex Then
+			dAbs1 = Sqr(dYReValues1(i)^2 + dYImValues1(i)^2)
+			dAbs2 = Sqr(dYReValues2(i)^2 + dYImValues2(i)^2)
+		Else
+			dAbs1 = dYReValues1(i)
+			dAbs2 = dYReValues2(i)
+		End If
+		dYReValues1(i) = IIf(dAbs1 > dAbs2, 1, 0)
+		dYImValues1(i) = 0
+	Next
+
+	Operand1.SetArray(dYReValues1, "yre")
+	Operand1.SetArray(dYImValues1, "yim")
+	Set Greater1DC = Operand1
+
+End Function
+
+Function GreaterOrEqual1DC(Operand1 As Object, Operand2 As Object) As Object
+
+	' Return '1' wherever Operand1 >= Operand2, '0' elsewhere; use Abs() for complex numbers
+	Dim dXValues1() As Double, dYReValues1() As Double, dYImValues1() As Double
+	Dim dXValues2() As Double, dYReValues2() As Double, dYImValues2() As Double
+	Dim i As Long
+	Dim bIsComplex As Boolean
+	Dim dAbs1 As Double, dAbs2 As Double
+
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+	dYReValues2 = Operand2.GetArray("yre")
+	dYImValues2 = Operand2.GetArray("yim")
+
+	' Check if input values are complex
+	bIsComplex = False
+	For i = 0 To UBound(dYReValues1)
+		If (dYReValues1(i) = 0) Then
+			If (dYImValues1(i) > 1e-9) Then
+				bIsComplex = True
+				Exit For
+			End If
+		ElseIf (dYImValues1(i)/dYReValues1(i) > 1e-6) Then
+			bIsComplex = True
+			Exit For
+		End If
+		If (dYReValues2(i) = 0) Then
+			If (dYImValues2(i) > 1e-9) Then
+				bIsComplex = True
+				Exit For
+			End If
+		ElseIf (dYImValues2(i)/dYReValues2(i) > 1e-6) Then
+			bIsComplex = True
+			Exit For
+		End If
+	Next
+
+	For i = 0 To UBound(dYReValues1)
+		If bIsComplex Then
+			dAbs1 = Sqr(dYReValues1(i)^2 + dYImValues1(i)^2)
+			dAbs2 = Sqr(dYReValues2(i)^2 + dYImValues2(i)^2)
+		Else
+			dAbs1 = dYReValues1(i)
+			dAbs2 = dYReValues2(i)
+		End If
+		dYReValues1(i) = IIf(dAbs1 >= dAbs2, 1, 0)
+		dYImValues1(i) = 0
+	Next
+
+	Operand1.SetArray(dYReValues1, "yre")
+	Operand1.SetArray(dYImValues1, "yim")
+	Set GreaterOrEqual1DC = Operand1
+
+End Function
+
+Function Less1DC(Operand1 As Object, Operand2 As Object) As Object
+
+	' Return '1' wherever Operand1 < Operand2, '0' elsewhere; use Abs() for complex numbers
+	Dim dXValues1() As Double, dYReValues1() As Double, dYImValues1() As Double
+	Dim dXValues2() As Double, dYReValues2() As Double, dYImValues2() As Double
+	Dim i As Long
+	Dim bIsComplex As Boolean
+	Dim dAbs1 As Double, dAbs2 As Double
+
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+	dYReValues2 = Operand2.GetArray("yre")
+	dYImValues2 = Operand2.GetArray("yim")
+
+	' Check if input values are complex
+	bIsComplex = False
+	For i = 0 To UBound(dYReValues1)
+		If (dYReValues1(i) = 0) Then
+			If (dYImValues1(i) > 1e-9) Then
+				bIsComplex = True
+				Exit For
+			End If
+		ElseIf (dYImValues1(i)/dYReValues1(i) > 1e-6) Then
+			bIsComplex = True
+			Exit For
+		End If
+		If (dYReValues2(i) = 0) Then
+			If (dYImValues2(i) > 1e-9) Then
+				bIsComplex = True
+				Exit For
+			End If
+		ElseIf (dYImValues2(i)/dYReValues2(i) > 1e-6) Then
+			bIsComplex = True
+			Exit For
+		End If
+	Next
+
+	For i = 0 To UBound(dYReValues1)
+		If bIsComplex Then
+			dAbs1 = Sqr(dYReValues1(i)^2 + dYImValues1(i)^2)
+			dAbs2 = Sqr(dYReValues2(i)^2 + dYImValues2(i)^2)
+		Else
+			dAbs1 = dYReValues1(i)
+			dAbs2 = dYReValues2(i)
+		End If
+		dYReValues1(i) = IIf(dAbs1 < dAbs2, 1, 0)
+		dYImValues1(i) = 0
+	Next
+
+	Operand1.SetArray(dYReValues1, "yre")
+	Operand1.SetArray(dYImValues1, "yim")
+	Set Less1DC = Operand1
+
+End Function
+
+Function LessOrEqual1DC(Operand1 As Object, Operand2 As Object) As Object
+
+	' Return '1' wherever Operand1 <= Operand2, '0' elsewhere; use Abs() for complex numbers
+	Dim dXValues1() As Double, dYReValues1() As Double, dYImValues1() As Double
+	Dim dXValues2() As Double, dYReValues2() As Double, dYImValues2() As Double
+	Dim i As Long
+	Dim bIsComplex As Boolean
+	Dim dAbs1 As Double, dAbs2 As Double
+
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+	dYReValues2 = Operand2.GetArray("yre")
+	dYImValues2 = Operand2.GetArray("yim")
+
+	' Check if input values are complex
+	bIsComplex = False
+	For i = 0 To UBound(dYReValues1)
+		If (dYReValues1(i) = 0) Then
+			If (dYImValues1(i) > 1e-9) Then
+				bIsComplex = True
+				Exit For
+			End If
+		ElseIf (dYImValues1(i)/dYReValues1(i) > 1e-6) Then
+			bIsComplex = True
+			Exit For
+		End If
+		If (dYReValues2(i) = 0) Then
+			If (dYImValues2(i) > 1e-9) Then
+				bIsComplex = True
+				Exit For
+			End If
+		ElseIf (dYImValues2(i)/dYReValues2(i) > 1e-6) Then
+			bIsComplex = True
+			Exit For
+		End If
+	Next
+
+	For i = 0 To UBound(dYReValues1)
+		If bIsComplex Then
+			dAbs1 = Sqr(dYReValues1(i)^2 + dYImValues1(i)^2)
+			dAbs2 = Sqr(dYReValues2(i)^2 + dYImValues2(i)^2)
+		Else
+			dAbs1 = dYReValues1(i)
+			dAbs2 = dYReValues2(i)
+		End If
+		dYReValues1(i) = IIf(dAbs1 <= dAbs2, 1, 0)
+		dYImValues1(i) = 0
+	Next
+
+	Operand1.SetArray(dYReValues1, "yre")
+	Operand1.SetArray(dYImValues1, "yim")
+	Set LessOrEqual1DC = Operand1
+
+End Function
+
+Function IIF1DC(Operand1 As Object, Operand2 As Object, Operand3 As Object) As Object
+
+	' Operand1 represents a Boolean object with values > 0.5 representing True and <= representing False (ideally 1 and 0)
+	' Depending upon the value of Operand1, return either value of Operand2 or Operand3
+	Dim dXValues1() As Double, dYReValues1() As Double, dYImValues1() As Double
+	Dim dXValues2() As Double, dYReValues2() As Double, dYImValues2() As Double
+	Dim dXValues3() As Double, dYReValues3() As Double, dYImValues3() As Double
+	Dim i As Long
+
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+	dYReValues2 = Operand2.GetArray("yre")
+	dYImValues2 = Operand2.GetArray("yim")
+	dYReValues3 = Operand3.GetArray("yre")
+	dYImValues3 = Operand3.GetArray("yim")
+
+	For i = 0 To UBound(dYReValues1)
+		dYReValues1(i) = IIf(dYReValues1(i) > 0.5, dYReValues2(i), dYReValues3(i))
+		dYImValues1(i) = IIf(dYReValues1(i) > 0.5, dYImValues2(i), dYImValues3(i))
+	Next
+
+	Operand1.SetArray(dYReValues1, "yre")
+	Operand1.SetArray(dYImValues1, "yim")
+	Set IIF1DC = Operand1
+
+End Function
+
+Function Modulo1DC(Operand1 As Object, Operand2 As Object) As Object
+	' Calculate Operand1 Mod Operand2. For complex numbers, Operand1/Operand2 is calculated in a complex manner.
+	' Then, mod is calculated for real and imaginary parts separately
+	Dim i As Long
+	Dim z As Complex, z1 As Complex, z2 As Complex
+	Dim dYReValues1() As Double, dYImValues1() As Double
+	Dim dYReValues2() As Double, dYImValues2() As Double
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+	dYReValues2 = Operand2.GetArray("yre")
+	dYImValues2 = Operand2.GetArray("yim")
+	' r = a - b.*floor(a./b)
+	For i = 0 To Operand1.GetN-1
+		z1.re = dYReValues1(i)
+		z1.im = dYImValues1(i)
+		z2.re = dYReValues2(i)
+		z2.im = dYImValues2(i)
+		If ((z2.re = 0) And (z2.im = 0)) Then
+			z.re = z.re
+			z.im = z.im
+		Else
+			z = div(z1, z2)
+			z.re = Int(z.re)
+			z.im = Int(z.im)
+			z = minus(z1, mult(z2, z))
+		End If
+		dYReValues1(i) = z.re
+		dYImValues1(i) = z.im
+	Next
+	Operand1.SetArray(dYReValues1, "yre")
+	Operand1.SetArray(dYImValues1, "yim")
+	Set Modulo1DC = Operand1
+End Function
+
+Function Remainder1DC(Operand1 As Object, Operand2 As Object) As Object
+	' Calculate Operand1 Rem Operand2. For complex numbers, Operand1/Operand2 is calculated in a complex manner.
+	' Then, rem is calculated for real and imaginary parts separately
+	Dim i As Long
+	Dim z As Complex, z1 As Complex, z2 As Complex
+	Dim dYReValues1() As Double, dYImValues1() As Double
+	Dim dYReValues2() As Double, dYImValues2() As Double
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+	dYReValues2 = Operand2.GetArray("yre")
+	dYImValues2 = Operand2.GetArray("yim")
+	' r = a - b.*fix(a./b)
+	For i = 0 To Operand1.GetN-1
+		z1.re = dYReValues1(i)
+		z1.im = dYImValues1(i)
+		z2.re = dYReValues2(i)
+		z2.im = dYImValues2(i)
+		If ((z2.re = 0) And (z2.im = 0)) Then
+			z.re = -lib_rundef
+			z.im = -lib_rundef
+		Else
+			z = div(z1, z2)
+			z.re = Fix(z.re)
+			z.im = Fix(z.im)
+			z = minus(z1, mult(z2, z))
+		End If
+		dYReValues1(i) = z.re
+		dYImValues1(i) = z.im
+	Next
+	Operand1.SetArray(dYReValues1, "yre")
+	Operand1.SetArray(dYImValues1, "yim")
+	Set Remainder1DC = Operand1
+End Function
+
+Function Round1DC(Operand1 As Object, Operand2 As Object) As Object
+	' Round re and im of Operand1 to the number of digits specified by the real part of Operand2
+	Dim i As Long
+	Dim z As Complex, z1 As Complex, z2 As Complex
+	Dim dYReValues1() As Double, dYImValues1() As Double
+	Dim dYReValues2() As Double, dYImValues2() As Double
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+	dYReValues2 = Operand2.GetArray("yre")
+	' dYImValues2 = Operand2.GetArray("yim")
+	For i = 0 To Operand1.GetN-1
+		z1.re = dYReValues1(i)
+		z1.im = dYImValues1(i)
+		z2.re = dYReValues2(i)
+		' z2.im = dYImValues2(i)
+		If (z2.re < 0) Then ReportWarningToWindow("Mix Template Results: Second argument of Round(#,#) needs to be larger than zero. Please check your settings.") ' Only report as warning to make sure it will be displayed in message box. Otherwise, error might get caught by wrap-around VBA engine and not displayed to user
+		z.re = Round(z1.re, z2.re)
+		z.im = Round(z1.im, z2.re)
+		dYReValues1(i) = z.re
+		dYImValues1(i) = z.im
+	Next
+	Operand1.SetArray(dYReValues1, "yre")
+	Operand1.SetArray(dYImValues1, "yim")
+	Set Round1DC = Operand1
+End Function
+
+Function Floor1DC(Operand1 As Object) As Object
+	' Round re and im of Operand1 to the number of digits specified by the real part of Operand2
+	Dim i As Long
+	Dim z As Complex, z1 As Complex, z2 As Complex
+	Dim dYReValues1() As Double, dYImValues1() As Double
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+	For i = 0 To Operand1.GetN-1
+		z1.re = dYReValues1(i)
+		z1.im = dYImValues1(i)
+		z.re = Int(z1.re)
+		z.im = Int(z1.im)
+		dYReValues1(i) = z.re
+		dYImValues1(i) = z.im
+	Next
+	Operand1.SetArray(dYReValues1, "yre")
+	Operand1.SetArray(dYImValues1, "yim")
+	Set Floor1DC = Operand1
+End Function
+
+Function Ceiling1DC(Operand1 As Object) As Object
+	' Round re and im of Operand1 to the number of digits specified by the real part of Operand2
+	Dim i As Long
+	Dim z As Complex, z1 As Complex, z2 As Complex
+	Dim dYReValues1() As Double, dYImValues1() As Double
+	dYReValues1 = Operand1.GetArray("yre")
+	dYImValues1 = Operand1.GetArray("yim")
+	For i = 0 To Operand1.GetN-1
+		z1.re = dYReValues1(i)
+		z1.im = dYImValues1(i)
+		z.re = Int(z1.re) + 1
+		z.im = Int(z1.im) + 1
+		dYReValues1(i) = z.re
+		dYImValues1(i) = z.im
+	Next
+	Operand1.SetArray(dYReValues1, "yre")
+	Operand1.SetArray(dYImValues1, "yim")
+	Set Ceiling1DC = Operand1
+End Function
+
+' --- 3D Functions start here ---
+
+Function DotProduct3D(Operand1 As Object, Operand2 As Object) As Object
+
+	Dim dRealSum As Double, dImagSum As Double
+
+	Operand1.DotProduct(Operand2, dRealSum, dImagSum)
+	Set DotProduct3D = Operand1
+
+End Function
+
+Function VectorProduct3D(Operand1 As Object, Operand2 As Object) As Object
+
+	Operand1.VectorProd(Operand2)
+	Set VectorProduct3D = Operand1
+
+End Function
+
+Function ComponentProduct3D(Operand1 As Object, Operand2 As Object) As Object
+
+	' Multiplies each component in Operand1 with each corresponding component in Operand2
+	Dim i As Long, iMax As Long
+	Dim oResult As Object, oInput1 As Object, oInput2 As Object
+	Dim dX1Re() As Double, dX1Im() As Double, dY1Re() As Double, dY1Im() As Double, dZ1Re() As Double, dZ1Im() As Double
+	Dim dX2Re() As Double, dX2Im() As Double, dY2Re() As Double, dY2Im() As Double, dZ2Re() As Double, dZ2Im() As Double
+	Dim dXRe() As Double, dXIm() As Double, dYRe() As Double, dYIm() As Double, dZRe() As Double, dZIm() As Double
+
+	If (Operand1.IsScalar And Operand2.IsScalar) Then
+		Set oResult = Operand1
+		dX1Re = Operand1.GetArray("xre")
+		dX2Re = Operand2.GetArray("xre")
+		iMax = UBound(dX1Re)
+		If iMax <> UBound(dX2Re) Then ReportError("Error during field component multiplication. Input fields need to be of identical size.")
+		dXRe = dX1Re
+
+		If Operand1.IsComplex Then
+			dX1Im = Operand1.GetArray("xim")
+			dXIm = dX1Im
+			If Operand2.IsComplex Then
+				dX2Im = Operand2.GetArray("xim")
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) * dX2Re(i) - dX1Im(i) * dX2Im(i)
+					dXIm(i) = dX1Im(i) * dX2Re(i) + dX1Re(i) * dX2Im(i)
+				Next
+			Else
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) * dX2Re(i)
+					dXIm(i) = dX1Im(i) * dX2Re(i)
+				Next
+			End If
+			oResult.SetArray(dXRe, "xre")
+			oResult.SetArray(dXIm, "xim")
+		Else
+			If Operand2.IsComplex Then
+				dX2Im = Operand2.GetArray("xim")
+				dXIm = dX2Im
+				For i = 0 To iMax
+					dXRe(i) = dX2Re(i) * dX1Re(i)
+					dXIm(i) = dX2Im(i) * dX1Re(i)
+				Next
+				oResult.SetArray(dXRe, "xre")
+				oResult.SetArray(dXIm, "xim")
+			Else
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) * dX2Re(i)
+				Next
+				oResult.SetArray(dXRe, "xre")
+			End If
+		End If
+	ElseIf (Not(Operand1.IsScalar) And Not(Operand2.IsScalar)) Then
+		' Both are vectors
+		Set oResult = Operand1
+		dX1Re = Operand1.GetArray("xre")
+		dX2Re = Operand2.GetArray("xre")
+		dY1Re = Operand1.GetArray("yre")
+		dY2Re = Operand2.GetArray("yre")
+		dZ1Re = Operand1.GetArray("zre")
+		dZ2Re = Operand2.GetArray("zre")
+		iMax = UBound(dX1Re)
+		If iMax <> UBound(dX2Re) Then ReportError("Error during field component multiplication. Input fields need to be of identical size.")
+		dXRe = dX1Re
+		dYRe = dY1Re
+		dZRe = dZ1Re
+
+		If Operand1.IsComplex Then
+			dX1Im = Operand1.GetArray("xim")
+			dY1Im = Operand1.GetArray("yim")
+			dZ1Im = Operand1.GetArray("zim")
+			dXIm = dX1Im
+			dYIm = dY1Im
+			dZIm = dZ1Im
+			If Operand2.IsComplex Then
+				dX2Im = Operand2.GetArray("xim")
+				dY2Im = Operand2.GetArray("yim")
+				dZ2Im = Operand2.GetArray("zim")
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) * dX2Re(i) - dX1Im(i) * dX2Im(i)
+					dXIm(i) = dX1Im(i) * dX2Re(i) + dX1Re(i) * dX2Im(i)
+					dYRe(i) = dY1Re(i) * dY2Re(i) - dY1Im(i) * dY2Im(i)
+					dYIm(i) = dY1Im(i) * dY2Re(i) + dY1Re(i) * dY2Im(i)
+					dZRe(i) = dZ1Re(i) * dZ2Re(i) - dZ1Im(i) * dZ2Im(i)
+					dZIm(i) = dZ1Im(i) * dZ2Re(i) + dZ1Re(i) * dZ2Im(i)
+				Next
+			Else
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) * dX2Re(i)
+					dXIm(i) = dX1Im(i) * dX2Re(i)
+					dYRe(i) = dY1Re(i) * dY2Re(i)
+					dYIm(i) = dY1Im(i) * dY2Re(i)
+					dZRe(i) = dZ1Re(i) * dZ2Re(i)
+					dZIm(i) = dZ1Im(i) * dZ2Re(i)
+				Next
+			End If
+			oResult.SetArray(dXRe, "xre")
+			oResult.SetArray(dXIm, "xim")
+			oResult.SetArray(dYRe, "yre")
+			oResult.SetArray(dYIm, "yim")
+			oResult.SetArray(dZRe, "zre")
+			oResult.SetArray(dZIm, "zim")
+		Else
+			If Operand2.IsComplex Then
+				dX2Im = Operand2.GetArray("xim")
+				dY2Im = Operand2.GetArray("yim")
+				dZ2Im = Operand2.GetArray("zim")
+				dXIm = dX2Im
+				dYIm = dY2Im
+				dZIm = dZ2Im
+				For i = 0 To iMax
+					dXRe(i) = dX2Re(i) * dX1Re(i)
+					dXIm(i) = dX2Im(i) * dX1Re(i)
+					dYRe(i) = dY2Re(i) * dY1Re(i)
+					dYIm(i) = dY2Im(i) * dY1Re(i)
+					dZRe(i) = dZ2Re(i) * dZ1Re(i)
+					dZIm(i) = dZ2Im(i) * dZ1Re(i)
+				Next
+				oResult.SetArray(dXRe, "xre")
+				oResult.SetArray(dXIm, "xim")
+				oResult.SetArray(dYRe, "yre")
+				oResult.SetArray(dYIm, "yim")
+				oResult.SetArray(dZRe, "zre")
+				oResult.SetArray(dZIm, "zim")
+			Else
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) * dX2Re(i)
+					dYRe(i) = dY1Re(i) * dY2Re(i)
+					dZRe(i) = dZ1Re(i) * dZ2Re(i)
+				Next
+				oResult.SetArray(dXRe, "xre")
+				oResult.SetArray(dYRe, "yre")
+				oResult.SetArray(dZRe, "zre")
+			End If
+		End If
+	Else ' One is scalar, one is vector - make oInput1 the vector
+		If Operand1.IsScalar Then
+			Set oInput1 = Operand2
+			Set oInput2 = Operand1
+		Else
+			Set oInput1 = Operand1
+			Set oInput2 = Operand2
+		End If
+		Set oResult = oInput1
+
+		dX1Re = oInput1.GetArray("xre")
+		dY1Re = oInput1.GetArray("yre")
+		dZ1Re = oInput1.GetArray("zre")
+		dX2Re = oInput2.GetArray("xre")
+		iMax = UBound(dX1Re)
+		If iMax <> UBound(dX2Re) Then ReportError("Error during field component multiplication. Input fields need to be of identical size.")
+		dXRe = dX1Re
+		dYRe = dY1Re
+		dZRe = dZ1Re
+
+		If oInput1.IsComplex Then
+			dX1Im = oInput1.GetArray("xim")
+			dY1Im = oInput1.GetArray("yim")
+			dZ1Im = oInput1.GetArray("zim")
+			dXIm = dX1Im
+			dYIm = dY1Im
+			dZIm = dZ1Im
+			If oInput2.IsComplex Then
+				dX2Im = oInput2.GetArray("xim")
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) * dX2Re(i) - dX1Im(i) * dX2Im(i)
+					dXIm(i) = dX1Im(i) * dX2Re(i) + dX1Re(i) * dX2Im(i)
+					dYRe(i) = dY1Re(i) * dX2Re(i) - dY1Im(i) * dX2Im(i)
+					dYIm(i) = dY1Im(i) * dX2Re(i) + dY1Re(i) * dX2Im(i)
+					dZRe(i) = dZ1Re(i) * dX2Re(i) - dZ1Im(i) * dX2Im(i)
+					dZIm(i) = dZ1Im(i) * dX2Re(i) + dZ1Re(i) * dX2Im(i)
+				Next
+			Else
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) * dX2Re(i)
+					dXIm(i) = dX1Im(i) * dX2Re(i)
+					dYRe(i) = dY1Re(i) * dX2Re(i)
+					dYIm(i) = dY1Im(i) * dX2Re(i)
+					dZRe(i) = dZ1Re(i) * dX2Re(i)
+					dZIm(i) = dZ1Im(i) * dX2Re(i)
+				Next
+			End If
+			oResult.SetArray(dXRe, "xre")
+			oResult.SetArray(dXIm, "xim")
+			oResult.SetArray(dYRe, "yre")
+			oResult.SetArray(dYIm, "yim")
+			oResult.SetArray(dZRe, "zre")
+			oResult.SetArray(dZIm, "zim")
+		Else
+			If oInput2.IsComplex Then
+				dX2Im = oInput2.GetArray("xim")
+				dXIm = dX2Im
+				dYIm = dX2Im
+				dZIm = dX2Im
+				For i = 0 To iMax
+					dXRe(i) = dX2Re(i) * dX1Re(i)
+					dXIm(i) = dX2Im(i) * dX1Re(i)
+					dYRe(i) = dX2Re(i) * dY1Re(i)
+					dYIm(i) = dX2Im(i) * dY1Re(i)
+					dZRe(i) = dX2Re(i) * dZ1Re(i)
+					dZIm(i) = dX2Im(i) * dZ1Re(i)
+				Next
+				oResult.SetArray(dXRe, "xre")
+				oResult.SetArray(dXIm, "xim")
+				oResult.SetArray(dYRe, "yre")
+				oResult.SetArray(dYIm, "yim")
+				oResult.SetArray(dZRe, "zre")
+				oResult.SetArray(dZIm, "zim")
+			Else
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) * dX2Re(i)
+					dYRe(i) = dY1Re(i) * dX2Re(i)
+					dZRe(i) = dZ1Re(i) * dX2Re(i)
+				Next
+				oResult.SetArray(dXRe, "xre")
+				oResult.SetArray(dYRe, "yre")
+				oResult.SetArray(dZRe, "zre")
+			End If
+		End If
+	End If
+
+
+End Function
+
+Function ComponentDivision3D(Operand1 As Object, Operand2 As Object) As Object
+
+	' Divide each component in Operand1 by each corresponding component in Operand2
+	' To-Do: How to resolve division by 0, especially locally, for example in PEC areas
+
+	Dim i As Long, iMax As Long
+	Dim oResult As Object, oInput1 As Object, oInput2 As Object
+	Dim dX1Re() As Double, dX1Im() As Double, dY1Re() As Double, dY1Im() As Double, dZ1Re() As Double, dZ1Im() As Double
+	Dim dX2Re() As Double, dX2Im() As Double, dY2Re() As Double, dY2Im() As Double, dZ2Re() As Double, dZ2Im() As Double
+	Dim dXRe() As Double, dXIm() As Double, dYRe() As Double, dYIm() As Double, dZRe() As Double, dZIm() As Double
+	Dim dXAbs As Double, dYAbs As Double, dZAbs As Double
+
+	If (Operand1.IsScalar And Operand2.IsScalar) Then
+		Set oResult = Operand1
+		dX1Re = Operand1.GetArray("xre")
+		dX2Re = Operand2.GetArray("xre")
+		iMax = UBound(dX1Re)
+		If iMax <> UBound(dX2Re) Then ReportError("Error during field component multiplication. Input fields need to be of identical size.")
+		dXRe = dX1Re
+
+		If Operand1.IsComplex Then
+			dX1Im = Operand1.GetArray("xim")
+			dXIm = dX1Im
+			If Operand2.IsComplex Then
+				dX2Im = Operand2.GetArray("xim")
+				For i = 0 To iMax
+					dXAbs = dX2Re(i)^2 + dX2Im(i)^2
+					dXRe(i) = (dX1Re(i) * dX2Re(i) + dX1Im(i) * dX2Im(i)) / dXAbs
+					dXIm(i) = (dX1Im(i) * dX2Re(i) - dX1Re(i) * dX2Im(i)) / dXAbs
+				Next
+			Else
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) / dX2Re(i)
+					dXIm(i) = dX1Im(i) / dX2Re(i)
+				Next
+			End If
+			oResult.SetArray(dXRe, "xre")
+			oResult.SetArray(dXIm, "xim")
+		Else
+			If Operand2.IsComplex Then
+				dX2Im = Operand2.GetArray("xim")
+				dXIm = dX2Im
+				For i = 0 To iMax
+					dXAbs = dX2Re(i)^2 + dX2Im(i)^2
+					dXRe(i) = dX1Re(i) * dX2Re(i) / dXAbs
+					dXIm(i) = - dX1Re(i) * dX2Im(i) / dXAbs
+				Next
+				oResult.SetArray(dXRe, "xre")
+				oResult.SetArray(dXIm, "xim")
+			Else
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) / dX2Re(i)
+				Next
+				oResult.SetArray(dXRe, "xre")
+			End If
+		End If
+	ElseIf (Not(Operand1.IsScalar) And Not(Operand2.IsScalar)) Then
+		' Both are vectors
+		Set oResult = Operand1
+		dX1Re = Operand1.GetArray("xre")
+		dX2Re = Operand2.GetArray("xre")
+		dY1Re = Operand1.GetArray("yre")
+		dY2Re = Operand2.GetArray("yre")
+		dZ1Re = Operand1.GetArray("zre")
+		dZ2Re = Operand2.GetArray("zre")
+		iMax = UBound(dX1Re)
+		If iMax <> UBound(dX2Re) Then ReportError("Error during field component multiplication. Input fields need to be of identical size.")
+		dXRe = dX1Re
+		dYRe = dY1Re
+		dZRe = dZ1Re
+
+		If Operand1.IsComplex Then
+			dX1Im = Operand1.GetArray("xim")
+			dY1Im = Operand1.GetArray("yim")
+			dZ1Im = Operand1.GetArray("zim")
+			dXIm = dX1Im
+			dYIm = dY1Im
+			dZIm = dZ1Im
+			If Operand2.IsComplex Then
+				dX2Im = Operand2.GetArray("xim")
+				dY2Im = Operand2.GetArray("yim")
+				dZ2Im = Operand2.GetArray("zim")
+				For i = 0 To iMax
+					dXAbs = dX2Re(i)^2 + dX2Im(i)^2
+					dXRe(i) = (dX1Re(i) * dX2Re(i) + dX1Im(i) * dX2Im(i)) / dXAbs
+					dXIm(i) = (dX1Im(i) * dX2Re(i) - dX1Re(i) * dX2Im(i)) / dXAbs
+					dYAbs = dY2Re(i)^2 + dY2Im(i)^2
+					dYRe(i) = (dY1Re(i) * dY2Re(i) + dY1Im(i) * dY2Im(i)) / dYAbs
+					dYIm(i) = (dY1Im(i) * dY2Re(i) - dY1Re(i) * dY2Im(i)) / dYAbs
+					dZAbs = dZ2Re(i)^2 + dZ2Im(i)^2
+					dZRe(i) = (dZ1Re(i) * dZ2Re(i) + dZ1Im(i) * dZ2Im(i)) / dZAbs
+					dZIm(i) = (dZ1Im(i) * dZ2Re(i) - dZ1Re(i) * dZ2Im(i)) / dZAbs
+				Next
+			Else
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) / dX2Re(i)
+					dXIm(i) = dX1Im(i) / dX2Re(i)
+					dYRe(i) = dY1Re(i) / dY2Re(i)
+					dYIm(i) = dY1Im(i) / dY2Re(i)
+					dZRe(i) = dZ1Re(i) / dZ2Re(i)
+					dZIm(i) = dZ1Im(i) / dZ2Re(i)
+				Next
+			End If
+			oResult.SetArray(dXRe, "xre")
+			oResult.SetArray(dXIm, "xim")
+			oResult.SetArray(dYRe, "yre")
+			oResult.SetArray(dYIm, "yim")
+			oResult.SetArray(dZRe, "zre")
+			oResult.SetArray(dZIm, "zim")
+		Else
+			If Operand2.IsComplex Then
+				dX2Im = Operand2.GetArray("xim")
+				dY2Im = Operand2.GetArray("yim")
+				dZ2Im = Operand2.GetArray("zim")
+				dXIm = dX2Im
+				dYIm = dY2Im
+				dZIm = dZ2Im
+				For i = 0 To iMax
+					dXAbs = dX2Re(i)^2 + dX2Im(i)^2
+					dXRe(i) = dX1Re(i) * dX2Re(i) / dXAbs
+					dXIm(i) = - dX1Re(i) * dX2Im(i) / dXAbs
+					dYAbs = dY2Re(i)^2 + dY2Im(i)^2
+					dYRe(i) = dY1Re(i) * dY2Re(i) / dYAbs
+					dYIm(i) = - dY1Re(i) * dY2Im(i) / dYAbs
+					dZAbs = dZ2Re(i)^2 + dZ2Im(i)^2
+					dZRe(i) = dZ1Re(i) * dZ2Re(i) / dZAbs
+					dZIm(i) = - dZ1Re(i) * dZ2Im(i) / dZAbs
+				Next
+				oResult.SetArray(dXRe, "xre")
+				oResult.SetArray(dXIm, "xim")
+				oResult.SetArray(dYRe, "yre")
+				oResult.SetArray(dYIm, "yim")
+				oResult.SetArray(dZRe, "zre")
+				oResult.SetArray(dZIm, "zim")
+			Else
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) / dX2Re(i)
+					dYRe(i) = dY1Re(i) / dY2Re(i)
+					dZRe(i) = dZ1Re(i) / dZ2Re(i)
+				Next
+				oResult.SetArray(dXRe, "xre")
+				oResult.SetArray(dYRe, "yre")
+				oResult.SetArray(dZRe, "zre")
+			End If
+		End If
+	ElseIf Operand1.IsScalar Then ' Only division of vector/scalar makes sense
+		ReportError("Error during field division. Division of scalar by vector is not defined.")
+	Else
+		Set oResult = Operand1
+
+		dX1Re = Operand1.GetArray("xre")
+		dY1Re = Operand1.GetArray("yre")
+		dZ1Re = Operand1.GetArray("zre")
+		dX2Re = Operand2.GetArray("xre")
+		iMax = UBound(dX1Re)
+		If iMax <> UBound(dX2Re) Then ReportError("Error during field component multiplication. Input fields need to be of identical size.")
+		dXRe = dX1Re
+		dYRe = dY1Re
+		dZRe = dZ1Re
+
+		If Operand1.IsComplex Then
+			dX1Im = Operand1.GetArray("xim")
+			dY1Im = Operand1.GetArray("yim")
+			dZ1Im = Operand1.GetArray("zim")
+			dXIm = dX1Im
+			dYIm = dY1Im
+			dZIm = dZ1Im
+			If Operand2.IsComplex Then
+				dX2Im = Operand2.GetArray("xim")
+				For i = 0 To iMax
+					dXAbs = dX2Re(i)^2 + dX2Im(i)^2
+					dXRe(i) = (dX1Re(i) * dX2Re(i) + dX1Im(i) * dX2Im(i)) / dXAbs
+					dXIm(i) = (dX1Im(i) * dX2Re(i) - dX1Re(i) * dX2Im(i)) / dXAbs
+					dYRe(i) = (dY1Re(i) * dX2Re(i) + dY1Im(i) * dX2Im(i)) / dXAbs
+					dYIm(i) = (dY1Im(i) * dX2Re(i) - dY1Re(i) * dX2Im(i)) / dXAbs
+					dZRe(i) = (dZ1Re(i) * dX2Re(i) + dZ1Im(i) * dX2Im(i)) / dXAbs
+					dZIm(i) = (dZ1Im(i) * dX2Re(i) - dZ1Re(i) * dX2Im(i)) / dXAbs
+				Next
+			Else
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) / dX2Re(i)
+					dXIm(i) = dX1Im(i) / dX2Re(i)
+					dYRe(i) = dY1Re(i) / dX2Re(i)
+					dYIm(i) = dY1Im(i) / dX2Re(i)
+					dZRe(i) = dZ1Re(i) / dX2Re(i)
+					dZIm(i) = dZ1Im(i) / dX2Re(i)
+				Next
+			End If
+			oResult.SetArray(dXRe, "xre")
+			oResult.SetArray(dXIm, "xim")
+			oResult.SetArray(dYRe, "yre")
+			oResult.SetArray(dYIm, "yim")
+			oResult.SetArray(dZRe, "zre")
+			oResult.SetArray(dZIm, "zim")
+		Else
+			If Operand2.IsComplex Then
+				dX2Im = Operand2.GetArray("xim")
+				dXIm = dX2Im
+				dYIm = dX2Im
+				dZIm = dX2Im
+				For i = 0 To iMax
+					dXAbs = dX2Re(i)^2 + dX2Im(i)^2
+					dXRe(i) = (dX1Re(i) * dX2Re(i)) / dXAbs
+					dXIm(i) = (- dX1Re(i) * dX2Im(i)) / dXAbs
+					dYRe(i) = (dY1Re(i) * dX2Re(i)) / dXAbs
+					dYIm(i) = (- dY1Re(i) * dX2Im(i)) / dXAbs
+					dZRe(i) = (dZ1Re(i) * dX2Re(i)) / dXAbs
+					dZIm(i) = (- dZ1Re(i) * dX2Im(i)) / dXAbs
+				Next
+				oResult.SetArray(dXRe, "xre")
+				oResult.SetArray(dXIm, "xim")
+				oResult.SetArray(dYRe, "yre")
+				oResult.SetArray(dYIm, "yim")
+				oResult.SetArray(dZRe, "zre")
+				oResult.SetArray(dZIm, "zim")
+			Else
+				For i = 0 To iMax
+					dXRe(i) = dX1Re(i) / dX2Re(i)
+					dYRe(i) = dY1Re(i) / dX2Re(i)
+					dZRe(i) = dZ1Re(i) / dX2Re(i)
+				Next
+				oResult.SetArray(dXRe, "xre")
+				oResult.SetArray(dYRe, "yre")
+				oResult.SetArray(dZRe, "zre")
+			End If
+		End If
+	End If
+
+End Function
+
+Function ComplexPower3D(Operand1 As Object, Operand2 As Object) As Object
+
+	' Raise Operand1 to the complex power of Operand2
+	' Operand1 expected to be Result3D or R1DC, Operand2 of Type Result1DComplex
+	Dim sObjectType As String
+
+	sObjectType = Operand1.GetResultObjectType
+
+	Select Case sObjectType
+		Case "1DC"
+			Operand1.ZthPower(Operand2)
+		Case "3D"
+			If (Operand2.GetYIm(0) <> 0) Then ReportWarning("Mix 3D: Complex powers not yet implemented. Imaginary part will be ignored.")
+			Operand1.Pow(Operand2.GetYRe(0))
+	End Select
+
+	Set ComplexPower3D = Operand1
+
+End Function
+
+Function ComplexScalarDiv3D(Operand1 As Object, Operand2 As Object) As Object
+
+	' Divide Operand1 by Operand2
+	' Operand1 expected to be Result3D or R1DC, Operand2 of Type Result1DComplex
+	Dim oTempObject As Object
+	Dim sObjectType As String
+
+	sObjectType = Operand1.GetResultObjectType
+
+	Select Case sObjectType
+		Case "1DC"
+			Operand1.ComponentDiv(Operand2)
+		Case "3D"
+			Set oTempObject = GetRes1DComplexFrom1DCNumeric(1,0)
+			oTempObject.ComponentDiv(Operand2)
+			ComplexScalarMult3D(Operand1, oTempObject)
+	End Select
+
+	Set ComplexScalarDiv3D = Operand1
+
+End Function
+
+Function ComplexScalarMult3D(Operand1 As Object, Operand2 As Object) As Object
+
+	' Complex scalar multiplication; Operand1 should be the 3D field or R1DC, Operand2 a complex number, type Result1DComplex
+	Dim oTempObject As Object
+	Dim sOperand1Type As String, sOperand2Type As String
+	Dim localOperand1 As Object, localOperand2 As Object
+
+	sOperand1Type = Operand1.GetResultObjectType
+	sOperand2Type = Operand2.GetResultObjectType
+
+	' If one of the two operands is of type 3D, it should be first
+	If ((sOperand1Type = "3D") And (sOperand2Type = "3D")) Then
+		ReportError("ComplexScalarMult3D: Operands must not be both of type 3D. Please contact support.")
+	ElseIf (sOperand2Type = "3D") Then
+		Set localOperand1 = Operand2
+		sOperand2Type = sOperand1Type
+		Set localOperand2 = Operand1
+		sOperand1Type = "3D"
+	Else
+		Set localOperand1 = Operand1
+		Set localOperand2 = Operand2
+	End If
+
+	Select Case sOperand1Type
+		Case "1DC"
+			localOperand1.ComponentMult(localOperand2)
+		Case "3D"
+			If (Abs(localOperand2.GetYIm(0)) <= 1e-12 * (Abs(localOperand2.GetYRe(0)) + Abs(localOperand2.GetYIm(0)))) Then
+				localOperand1.ScalarMult(localOperand2.GetYRe(0))
+			ElseIf (localOperand2.GetYRe(0) = 0) Then
+				If localOperand1.IsScalar() Then
+					ReportError("ComplexScalarMult3D: Multiplication of a scalar field with a complex number is currently not supported. Please contact support.")
+				End If
+				Set oTempObject = localOperand1.Copy()
+				localOperand1.ScalarMult3(0,0,0)
+				' real part becomes imaginary part
+				localOperand1.Combine(oTempObject, localOperand2.GetYIm(0), 3, 0)
+				localOperand1.Combine(oTempObject, localOperand2.GetYIm(0), 4, 1)
+				localOperand1.Combine(oTempObject, localOperand2.GetYIm(0), 5, 2)
+				' imaginary part becomes -real part
+				localOperand1.Combine(oTempObject, -localOperand2.GetYIm(0), 0, 3)
+				localOperand1.Combine(oTempObject, -localOperand2.GetYIm(0), 1, 4)
+				localOperand1.Combine(oTempObject, -localOperand2.GetYIm(0), 2, 5)
+			Else
+				If localOperand1.IsScalar() Then
+					ReportError("ComplexScalarMult3D: Multiplication of a scalar field with a complex number is currently not supported. Please contact support.")
+				End If
+				Set oTempObject = localOperand1.Copy()
+				localOperand1.ScalarMult3(0,0,0)
+				' Product of two complex numbers: Re1*Re2 + Im1*Im2 + j * (Re1+Im2 - Im1*Re2)
+				' real part stays real part
+				localOperand1.Combine(oTempObject, localOperand2.GetYRe(0), 0, 0)
+				localOperand1.Combine(oTempObject, localOperand2.GetYRe(0), 1, 1)
+				localOperand1.Combine(oTempObject, localOperand2.GetYRe(0), 2, 2)
+				' imaginary part stays imaginary part
+				localOperand1.Combine(oTempObject, localOperand2.GetYRe(0), 3, 3)
+				localOperand1.Combine(oTempObject, localOperand2.GetYRe(0), 4, 4)
+				localOperand1.Combine(oTempObject, localOperand2.GetYRe(0), 5, 5)
+				' real part becomes imaginary part
+				localOperand1.Combine(oTempObject, localOperand2.GetYIm(0), 3, 0)
+				localOperand1.Combine(oTempObject, localOperand2.GetYIm(0), 4, 1)
+				localOperand1.Combine(oTempObject, localOperand2.GetYIm(0), 5, 2)
+				' imaginary part becomes -real part
+				localOperand1.Combine(oTempObject, -localOperand2.GetYIm(0), 0, 3)
+				localOperand1.Combine(oTempObject, -localOperand2.GetYIm(0), 1, 4)
+				localOperand1.Combine(oTempObject, -localOperand2.GetYIm(0), 2, 5)
+			End If
+	End Select
+
+	' Set Operand1 to localOperand1, then set the function return value
+	Set Operand1 = localOperand1
+	Set ComplexScalarMult3D = Operand1
+
+End Function
+
+Function ComplexScalarMultByComp3D(Operand1 As Object, Operand2 As Object, Operand3 As Object, Operand4 As Object) As Object
+
+	' Complex scalar multiplication by component; Operand1 should be the 3D field, Operand2-4 are complex numbers, type Result1DComplex
+	Dim oTempObject As Object
+
+	If ((Operand2.GetYIm(0) = 0) And (Operand3.GetYIm(0) = 0) And (Operand4.GetYIm(0) = 0)) Then
+		Operand1.ScalarMult3(Operand2.GetYRe(0), Operand3.GetYRe(0), Operand4.GetYRe(0))
+	Else
+		Set oTempObject = Operand1.Copy()
+		Operand1.ScalarMult3(0,0,0)
+		' real part stays real part
+		If (Operand2.GetYRe(0) <> 0) Then Operand1.Combine(oTempObject, Operand2.GetYRe(0), 0, 0)
+		If (Operand3.GetYRe(0) <> 0) Then Operand1.Combine(oTempObject, Operand3.GetYRe(0), 1, 1)
+		If (Operand4.GetYRe(0) <> 0) Then Operand1.Combine(oTempObject, Operand4.GetYRe(0), 2, 2)
+		' imaginary part stays imaginary part
+		If (Operand2.GetYRe(0) <> 0) Then Operand1.Combine(oTempObject, Operand2.GetYRe(0), 3, 3)
+		If (Operand3.GetYRe(0) <> 0) Then Operand1.Combine(oTempObject, Operand3.GetYRe(0), 4, 4)
+		If (Operand4.GetYRe(0) <> 0) Then Operand1.Combine(oTempObject, Operand4.GetYRe(0), 5, 5)
+		' real part becomes imaginary part
+		If (Operand2.GetYIm(0) <> 0) Then Operand1.Combine(oTempObject, Operand2.GetYIm(0), 3, 0)
+		If (Operand3.GetYIm(0) <> 0) Then Operand1.Combine(oTempObject, Operand3.GetYIm(0), 4, 1)
+		If (Operand4.GetYIm(0) <> 0) Then Operand1.Combine(oTempObject, Operand4.GetYIm(0), 5, 2)
+		' imaginary part becomes -real part
+		If (Operand2.GetYIm(0) <> 0) Then Operand1.Combine(oTempObject, -Operand2.GetYIm(0), 0, 3)
+		If (Operand3.GetYIm(0) <> 0) Then Operand1.Combine(oTempObject, -Operand3.GetYIm(0), 1, 4)
+		If (Operand4.GetYIm(0) <> 0) Then Operand1.Combine(oTempObject, -Operand4.GetYIm(0), 2, 5)
+	End If
+	Set ComplexScalarMultByComp3D = Operand1
+
+End Function
+
+Function Real3D(Operand As Object) As Object
+
+	Dim oTempObject As Object, i As Long
+
+	' Initialize empty object
+	Set oTempObject = Operand.Copy()
+
+	Operand.ScalarMult3(0, 0, 0)
+	' Copy x/y/z real to real
+	For i = 0 To 2
+		Operand.Combine(oTempObject, 1, i, i)
+	Next
+
+	Set Real3D = Operand
+
+End Function
+
+Function Imag3D(Operand As Object) As Object
+
+	Dim oTempObject As Object, i As Long
+
+	Set oTempObject = Operand.Copy()
+
+	Operand.ScalarMult3(0, 0, 0)
+	' Copy x/y/z imag to real
+	For i = 0 To 2
+		Operand.Combine(oTempObject, 1, i, i+3)
+	Next
+
+	Set Imag3D = Operand
+
+End Function
+
+Function ExtractX3D(Operand As Object) As Object
+
+	Dim oTempObject As Object
+
+	Set oTempObject = Operand.Copy()
+
+    Operand.ScalarMult3 0,0,0 'Set all to 0
+	Operand.Combine(oTempObject, 1, 0, 0)
+	Operand.Combine(oTempObject, 1, 3, 3)
+
+	Set ExtractX3D = Operand
+
+End Function
+
+Function ExtractY3D(Operand As Object) As Object
+
+	Dim oTempObject As Object
+
+	Set oTempObject = Operand.Copy()
+
+    Operand.ScalarMult3 0,0,0 'Set all to 0
+	Operand.Combine(oTempObject, 1, 1, 1)
+	Operand.Combine(oTempObject, 1, 4, 4)
+
+	Set ExtractY3D = Operand
+
+End Function
+
+Function ExtractZ3D(Operand As Object) As Object
+
+	Dim oTempObject As Object
+
+	Set oTempObject = Operand.Copy()
+
+    Operand.ScalarMult3 0,0,0 'Set all to 0
+	Operand.Combine(oTempObject, 1, 2, 2)
+	Operand.Combine(oTempObject, 1, 5, 5)
+
+	Set ExtractZ3D = Operand
+
+End Function
+
+Function ConstVectorField3D(Operand As Object, dXConst As Object, dYConst As Object, dZConst As Object) As Object
+
+	' Create a constant vector field with x/y/z components
+	' Operand is a reference object to determine dimension of return field
+
+	Dim i As Long
+	Dim dXReValues() As Double, dXImValues() As Double, dYReValues() As Double, dYImValues() As Double, dZReValues() As Double, dZImValues() As Double
+
+	dXReValues = Operand.GetArray("xre")
+	dXImValues = Operand.GetArray("xim")
+	dYReValues = Operand.GetArray("yre")
+	dYImValues = Operand.GetArray("yim")
+	dZReValues = Operand.GetArray("zre")
+	dZImValues = Operand.GetArray("zim")
+
+    For i = 0 To Operand.GetLength() - 1
+		dXReValues(i) =  dXConst.GetYRe(0)
+		dXImValues(i) =  dXConst.GetYIm(0)
+		dYReValues(i) =  dYConst.GetYRe(0)
+		dYImValues(i) =  dYConst.GetYIm(0)
+		dZReValues(i) =  dZConst.GetYRe(0)
+		dZImValues(i) =  dZConst.GetYIm(0)
+    Next
+
+	Operand.SetArray(dXReValues, "xre")
+	Operand.SetArray(dXImValues, "xim")
+	Operand.SetArray(dYReValues, "yre")
+	Operand.SetArray(dYImValues, "yim")
+	Operand.SetArray(dZReValues, "zre")
+	Operand.SetArray(dZImValues, "zim")
+
+	Set ConstVectorField3D = Operand
+
+End Function
+
+Function ConstScalarField3D(Operand As Object, dConst As Object) As Object
+
+	' Create a constant complex scalar field
+	' Operand is a reference object to determine dimension of return field
+
+	Dim i As Long
+	Dim dReValues() As Double, dImValues() As Double
+
+	dReValues = Operand.GetArray("xre")
+    For i = 0 To Operand.GetLength() - 1
+		dReValues(i) =  dConst.GetYRe(0)
+    Next
+	Operand.SetArray(dReValues, "xre")
+
+	If (Operand.IsComplex()) Then
+	   	dImValues = Operand.GetArray("xim")
+	    For i = 0 To Operand.GetLength() - 1
+			dImValues(i) =  dConst.GetYIm(0)
+	    Next
+		Operand.SetArray(dImValues, "xim")
+	End If
+
+	Set ConstScalarField3D = Operand
+
+End Function
+
+Function Sqr3D(Operand As Object) As Object
+
+	Dim dTempXObject As Object, dTempYObject As Object, dTempZObject As Object
+	Dim dTempArrayXRe() As Double, dTempArrayXIm() As Double, dTempArrayYRe() As Double, dTempArrayYIm() As Double, dTempArrayZRe() As Double, dTempArrayZIm() As Double
+
+	If (Operand.GetResultObjectType() = "3D") Then
+		Operand.Pow(0.5)
+		Set Sqr3D = Operand
+	ElseIf (Operand.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set Sqr3D = Sqr1DC(Operand)
+	Else
+		ReportError("Sqr3D: Unknown operand type " & Operand.GetResultObjectType() & ". Please contact support.")
+	End If
+
+End Function
+
+Function MagnitudeByComponent3D(Operand As Object) As Object
+
+	Dim oTempObject As Object, nLength As Long, i As Long, nX As Long, nY As Long, nZ As Long
+	Dim dX1Re As Double, dY1Re As Double, dZ1Re As Double, dX1Im As Double, dY1Im As Double, dZ1Im As Double
+	Dim dAmpX As Double, dAmpY As Double, dAmpZ As Double
+
+	nLength = Operand.GetLength()
+	For i =  0 To nLength-1
+		Operand.GetDataFromIndex i, dX1Re, dY1Re, dZ1Re, dX1Im, dY1Im, dZ1Im
+
+		dAmpX = Sqr((dX1Re^2 + dX1Im^2))
+		dAmpY = Sqr((dY1Re^2 + dY1Im^2))
+		dAmpZ = Sqr((dZ1Re^2 + dZ1Im^2))
+
+		Operand.SetXRe i, dAmpX
+		Operand.SetYRe i, dAmpY
+		Operand.SetZRe i, dAmpZ
+		Operand.SetXIm i, 0
+		Operand.SetYIm i, 0
+		Operand.SetZIm i, 0
+	Next
+
+	Set MagnitudeByComponent3D = Operand
+
+End Function
+
+Function Sin3D(Operand As Object) As Object
+	' Calculate sin(z), z in rad
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim dXReValues() As Double, dXImValues() As Double, dYReValues() As Double, dYImValues() As Double, dZReValues() As Double, dZImValues() As Double
+
+	If (Operand.GetResultObjectType() = "3D") Then
+		dXReValues = Operand.GetArray("xre")
+		dXImValues = Operand.GetArray("xim")
+		dYReValues = Operand.GetArray("yre")
+		dYImValues = Operand.GetArray("yim")
+		dZReValues = Operand.GetArray("zre")
+		dZImValues = Operand.GetArray("zim")
+
+	    For i = 0 To Operand.GetLength() - 1
+	    	zx.re = dXReValues(i)
+			zx.im = dXImValues(i)
+	    	zy.re = dYReValues(i)
+			zy.im = dYImValues(i)
+	    	zz.re = dZReValues(i)
+			zz.im = dZImValues(i)
+
+			zx = zsin(zx)
+			zy = zsin(zy)
+			zz = zsin(zz)
+
+			dXReValues(i) =  zx.re
+			dXImValues(i) =  zx.im
+			dYReValues(i) =  zy.re
+			dYImValues(i) =  zy.im
+			dZReValues(i) =  zz.re
+			dZImValues(i) =  zz.im
+	    Next
+
+		Operand.SetArray(dXReValues, "xre")
+		Operand.SetArray(dXImValues, "xim")
+		Operand.SetArray(dYReValues, "yre")
+		Operand.SetArray(dYImValues, "yim")
+		Operand.SetArray(dZReValues, "zre")
+		Operand.SetArray(dZImValues, "zim")
+	ElseIf (Operand.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set Sin3D = Sin1DC(Operand)
+	Else
+		ReportError("Sin3D: Unknown operand type " & Operand.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set Sin3D = Operand
+End Function
+
+Function SinD3D(Operand As Object) As Object
+	' Calculate sin(z), z in deg
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim dXReValues() As Double, dXImValues() As Double, dYReValues() As Double, dYImValues() As Double, dZReValues() As Double, dZImValues() As Double
+
+	If (Operand.GetResultObjectType() = "3D") Then
+		dXReValues = Operand.GetArray("xre")
+		dXImValues = Operand.GetArray("xim")
+		dYReValues = Operand.GetArray("yre")
+		dYImValues = Operand.GetArray("yim")
+		dZReValues = Operand.GetArray("zre")
+		dZImValues = Operand.GetArray("zim")
+
+	    For i = 0 To Operand.GetLength() - 1
+	    	zx.re = dXReValues(i)*Pi/180
+			zx.im = dXImValues(i)*Pi/180
+	    	zy.re = dYReValues(i)*Pi/180
+			zy.im = dYImValues(i)*Pi/180
+	    	zz.re = dZReValues(i)*Pi/180
+			zz.im = dZImValues(i)*Pi/180
+
+			zx = zsin(zx)
+			zy = zsin(zy)
+			zz = zsin(zz)
+
+			dXReValues(i) =  zx.re
+			dXImValues(i) =  zx.im
+			dYReValues(i) =  zy.re
+			dYImValues(i) =  zy.im
+			dZReValues(i) =  zz.re
+			dZImValues(i) =  zz.im
+	    Next
+
+		Operand.SetArray(dXReValues, "xre")
+		Operand.SetArray(dXImValues, "xim")
+		Operand.SetArray(dYReValues, "yre")
+		Operand.SetArray(dYImValues, "yim")
+		Operand.SetArray(dZReValues, "zre")
+		Operand.SetArray(dZImValues, "zim")
+	ElseIf (Operand.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set SinD3D = SinD1DC(Operand)
+	Else
+		ReportError("SinD3D: Unknown operand type " & Operand.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set SinD3D = Operand
+End Function
+
+Function ASin3D(Operand As Object) As Object
+	' Calculate asin(z), result in rad
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim dXReValues() As Double, dXImValues() As Double, dYReValues() As Double, dYImValues() As Double, dZReValues() As Double, dZImValues() As Double
+
+	If (Operand.GetResultObjectType() = "3D") Then
+		dXReValues = Operand.GetArray("xre")
+		dXImValues = Operand.GetArray("xim")
+		dYReValues = Operand.GetArray("yre")
+		dYImValues = Operand.GetArray("yim")
+		dZReValues = Operand.GetArray("zre")
+		dZImValues = Operand.GetArray("zim")
+
+	    For i = 0 To Operand.GetLength() - 1
+	    	zx.re = dXReValues(i)
+			zx.im = dXImValues(i)
+	    	zy.re = dYReValues(i)
+			zy.im = dYImValues(i)
+	    	zz.re = dZReValues(i)
+			zz.im = dZImValues(i)
+
+			zx = zasin(zx)
+			zy = zasin(zy)
+			zz = zasin(zz)
+
+			dXReValues(i) =  zx.re
+			dXImValues(i) =  zx.im
+			dYReValues(i) =  zy.re
+			dYImValues(i) =  zy.im
+			dZReValues(i) =  zz.re
+			dZImValues(i) =  zz.im
+	    Next
+
+		Operand.SetArray(dXReValues, "xre")
+		Operand.SetArray(dXImValues, "xim")
+		Operand.SetArray(dYReValues, "yre")
+		Operand.SetArray(dYImValues, "yim")
+		Operand.SetArray(dZReValues, "zre")
+		Operand.SetArray(dZImValues, "zim")
+	ElseIf (Operand.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set ASin3D = ASin1DC(Operand)
+	Else
+		ReportError("ASin3D: Unknown operand type " & Operand.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set ASin3D = Operand
+End Function
+
+Function ASinD3D(Operand As Object) As Object
+	' Calculate asin(z), result in deg
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim dXReValues() As Double, dXImValues() As Double, dYReValues() As Double, dYImValues() As Double, dZReValues() As Double, dZImValues() As Double
+
+	If (Operand.GetResultObjectType() = "3D") Then
+		dXReValues = Operand.GetArray("xre")
+		dXImValues = Operand.GetArray("xim")
+		dYReValues = Operand.GetArray("yre")
+		dYImValues = Operand.GetArray("yim")
+		dZReValues = Operand.GetArray("zre")
+		dZImValues = Operand.GetArray("zim")
+
+	    For i = 0 To Operand.GetLength() - 1
+	    	zx.re = dXReValues(i)
+			zx.im = dXImValues(i)
+	    	zy.re = dYReValues(i)
+			zy.im = dYImValues(i)
+	    	zz.re = dZReValues(i)
+			zz.im = dZImValues(i)
+
+			zx = zasin(zx)
+			zy = zasin(zy)
+			zz = zasin(zz)
+
+			dXReValues(i) =  zx.re/Pi*180
+			dXImValues(i) =  zx.im/Pi*180
+			dYReValues(i) =  zy.re/Pi*180
+			dYImValues(i) =  zy.im/Pi*180
+			dZReValues(i) =  zz.re/Pi*180
+			dZImValues(i) =  zz.im/Pi*180
+	    Next
+
+		Operand.SetArray(dXReValues, "xre")
+		Operand.SetArray(dXImValues, "xim")
+		Operand.SetArray(dYReValues, "yre")
+		Operand.SetArray(dYImValues, "yim")
+		Operand.SetArray(dZReValues, "zre")
+		Operand.SetArray(dZImValues, "zim")
+	ElseIf (Operand.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set ASinD3D = ASinD1DC(Operand)
+	Else
+		ReportError("ASinD3D: Unknown operand type " & Operand.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set ASinD3D = Operand
+End Function
+
+Function Cos3D(Operand As Object) As Object
+	' Calculate cos(z), z in rad
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim dXReValues() As Double, dXImValues() As Double, dYReValues() As Double, dYImValues() As Double, dZReValues() As Double, dZImValues() As Double
+
+	If (Operand.GetResultObjectType() = "3D") Then
+		dXReValues = Operand.GetArray("xre")
+		dXImValues = Operand.GetArray("xim")
+		dYReValues = Operand.GetArray("yre")
+		dYImValues = Operand.GetArray("yim")
+		dZReValues = Operand.GetArray("zre")
+		dZImValues = Operand.GetArray("zim")
+
+	    For i = 0 To Operand.GetLength() - 1
+	    	zx.re = dXReValues(i)
+			zx.im = dXImValues(i)
+	    	zy.re = dYReValues(i)
+			zy.im = dYImValues(i)
+	    	zz.re = dZReValues(i)
+			zz.im = dZImValues(i)
+
+			zx = zcos(zx)
+			zy = zcos(zy)
+			zz = zcos(zz)
+
+			dXReValues(i) =  zx.re
+			dXImValues(i) =  zx.im
+			dYReValues(i) =  zy.re
+			dYImValues(i) =  zy.im
+			dZReValues(i) =  zz.re
+			dZImValues(i) =  zz.im
+	    Next
+
+		Operand.SetArray(dXReValues, "xre")
+		Operand.SetArray(dXImValues, "xim")
+		Operand.SetArray(dYReValues, "yre")
+		Operand.SetArray(dYImValues, "yim")
+		Operand.SetArray(dZReValues, "zre")
+		Operand.SetArray(dZImValues, "zim")
+	ElseIf (Operand.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set Cos3D = Cos1DC(Operand)
+	Else
+		ReportError("Cos3D: Unknown operand type " & Operand.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set Cos3D = Operand
+End Function
+
+Function CosD3D(Operand As Object) As Object
+	' Calculate cos(z), z in deg
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim dXReValues() As Double, dXImValues() As Double, dYReValues() As Double, dYImValues() As Double, dZReValues() As Double, dZImValues() As Double
+
+	If (Operand.GetResultObjectType() = "3D") Then
+		dXReValues = Operand.GetArray("xre")
+		dXImValues = Operand.GetArray("xim")
+		dYReValues = Operand.GetArray("yre")
+		dYImValues = Operand.GetArray("yim")
+		dZReValues = Operand.GetArray("zre")
+		dZImValues = Operand.GetArray("zim")
+
+	    For i = 0 To Operand.GetLength() - 1
+	    	zx.re = dXReValues(i)*Pi/180
+			zx.im = dXImValues(i)*Pi/180
+	    	zy.re = dYReValues(i)*Pi/180
+			zy.im = dYImValues(i)*Pi/180
+	    	zz.re = dZReValues(i)*Pi/180
+			zz.im = dZImValues(i)*Pi/180
+
+			zx = zcos(zx)
+			zy = zcos(zy)
+			zz = zcos(zz)
+
+			dXReValues(i) =  zx.re
+			dXImValues(i) =  zx.im
+			dYReValues(i) =  zy.re
+			dYImValues(i) =  zy.im
+			dZReValues(i) =  zz.re
+			dZImValues(i) =  zz.im
+	    Next
+
+		Operand.SetArray(dXReValues, "xre")
+		Operand.SetArray(dXImValues, "xim")
+		Operand.SetArray(dYReValues, "yre")
+		Operand.SetArray(dYImValues, "yim")
+		Operand.SetArray(dZReValues, "zre")
+		Operand.SetArray(dZImValues, "zim")
+	ElseIf (Operand.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set CosD3D = CosD1DC(Operand)
+	Else
+		ReportError("CosD3D: Unknown operand type " & Operand.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set CosD3D = Operand
+End Function
+
+Function ACos3D(Operand As Object) As Object
+	' Calculate acos(z), result in rad
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim dXReValues() As Double, dXImValues() As Double, dYReValues() As Double, dYImValues() As Double, dZReValues() As Double, dZImValues() As Double
+
+	If (Operand.GetResultObjectType() = "3D") Then
+		dXReValues = Operand.GetArray("xre")
+		dXImValues = Operand.GetArray("xim")
+		dYReValues = Operand.GetArray("yre")
+		dYImValues = Operand.GetArray("yim")
+		dZReValues = Operand.GetArray("zre")
+		dZImValues = Operand.GetArray("zim")
+
+	    For i = 0 To Operand.GetLength() - 1
+	    	zx.re = dXReValues(i)
+			zx.im = dXImValues(i)
+	    	zy.re = dYReValues(i)
+			zy.im = dYImValues(i)
+	    	zz.re = dZReValues(i)
+			zz.im = dZImValues(i)
+
+			zx = zacos(zx)
+			zy = zacos(zy)
+			zz = zacos(zz)
+
+			dXReValues(i) =  zx.re
+			dXImValues(i) =  zx.im
+			dYReValues(i) =  zy.re
+			dYImValues(i) =  zy.im
+			dZReValues(i) =  zz.re
+			dZImValues(i) =  zz.im
+	    Next
+
+		Operand.SetArray(dXReValues, "xre")
+		Operand.SetArray(dXImValues, "xim")
+		Operand.SetArray(dYReValues, "yre")
+		Operand.SetArray(dYImValues, "yim")
+		Operand.SetArray(dZReValues, "zre")
+		Operand.SetArray(dZImValues, "zim")
+	ElseIf (Operand.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set ACos3D = ACos1DC(Operand)
+	Else
+		ReportError("ACos3D: Unknown operand type " & Operand.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set ACos3D = Operand
+End Function
+
+Function ACosD3D(Operand As Object) As Object
+	' Calculate acos(z), result in deg
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim dXReValues() As Double, dXImValues() As Double, dYReValues() As Double, dYImValues() As Double, dZReValues() As Double, dZImValues() As Double
+
+	If (Operand.GetResultObjectType() = "3D") Then
+		dXReValues = Operand.GetArray("xre")
+		dXImValues = Operand.GetArray("xim")
+		dYReValues = Operand.GetArray("yre")
+		dYImValues = Operand.GetArray("yim")
+		dZReValues = Operand.GetArray("zre")
+		dZImValues = Operand.GetArray("zim")
+
+	    For i = 0 To Operand.GetLength() - 1
+	    	zx.re = dXReValues(i)
+			zx.im = dXImValues(i)
+	    	zy.re = dYReValues(i)
+			zy.im = dYImValues(i)
+	    	zz.re = dZReValues(i)
+			zz.im = dZImValues(i)
+
+			zx = zacos(zx)
+			zy = zacos(zy)
+			zz = zacos(zz)
+
+			dXReValues(i) =  zx.re/Pi*180
+			dXImValues(i) =  zx.im/Pi*180
+			dYReValues(i) =  zy.re/Pi*180
+			dYImValues(i) =  zy.im/Pi*180
+			dZReValues(i) =  zz.re/Pi*180
+			dZImValues(i) =  zz.im/Pi*180
+	    Next
+
+		Operand.SetArray(dXReValues, "xre")
+		Operand.SetArray(dXImValues, "xim")
+		Operand.SetArray(dYReValues, "yre")
+		Operand.SetArray(dYImValues, "yim")
+		Operand.SetArray(dZReValues, "zre")
+		Operand.SetArray(dZImValues, "zim")
+	ElseIf (Operand.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set ACosD3D = ACosD1DC(Operand)
+	Else
+		ReportError("ACosD3D: Unknown operand type " & Operand.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set ACosD3D = Operand
+End Function
+
+Function Tan3D(Operand As Object) As Object
+	' Calculate tan(z), z in rad
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim dXReValues() As Double, dXImValues() As Double, dYReValues() As Double, dYImValues() As Double, dZReValues() As Double, dZImValues() As Double
+
+	If (Operand.GetResultObjectType() = "3D") Then
+		dXReValues = Operand.GetArray("xre")
+		dXImValues = Operand.GetArray("xim")
+		dYReValues = Operand.GetArray("yre")
+		dYImValues = Operand.GetArray("yim")
+		dZReValues = Operand.GetArray("zre")
+		dZImValues = Operand.GetArray("zim")
+
+	    For i = 0 To Operand.GetLength() - 1
+	    	zx.re = dXReValues(i)
+			zx.im = dXImValues(i)
+	    	zy.re = dYReValues(i)
+			zy.im = dYImValues(i)
+	    	zz.re = dZReValues(i)
+			zz.im = dZImValues(i)
+
+			zx = ztan(zx)
+			zy = ztan(zy)
+			zz = ztan(zz)
+
+			dXReValues(i) =  zx.re
+			dXImValues(i) =  zx.im
+			dYReValues(i) =  zy.re
+			dYImValues(i) =  zy.im
+			dZReValues(i) =  zz.re
+			dZImValues(i) =  zz.im
+	    Next
+
+		Operand.SetArray(dXReValues, "xre")
+		Operand.SetArray(dXImValues, "xim")
+		Operand.SetArray(dYReValues, "yre")
+		Operand.SetArray(dYImValues, "yim")
+		Operand.SetArray(dZReValues, "zre")
+		Operand.SetArray(dZImValues, "zim")
+	ElseIf (Operand.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set Tan3D = Tan1DC(Operand)
+	Else
+		ReportError("Tan3D: Unknown operand type " & Operand.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set Tan3D = Operand
+End Function
+
+Function TanD3D(Operand As Object) As Object
+	' Calculate tan(z), z in deg
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim dXReValues() As Double, dXImValues() As Double, dYReValues() As Double, dYImValues() As Double, dZReValues() As Double, dZImValues() As Double
+
+	If (Operand.GetResultObjectType() = "3D") Then
+		dXReValues = Operand.GetArray("xre")
+		dXImValues = Operand.GetArray("xim")
+		dYReValues = Operand.GetArray("yre")
+		dYImValues = Operand.GetArray("yim")
+		dZReValues = Operand.GetArray("zre")
+		dZImValues = Operand.GetArray("zim")
+
+	    For i = 0 To Operand.GetLength() - 1
+	    	zx.re = dXReValues(i)*Pi/180
+			zx.im = dXImValues(i)*Pi/180
+	    	zy.re = dYReValues(i)*Pi/180
+			zy.im = dYImValues(i)*Pi/180
+	    	zz.re = dZReValues(i)*Pi/180
+			zz.im = dZImValues(i)*Pi/180
+
+			zx = ztan(zx)
+			zy = ztan(zy)
+			zz = ztan(zz)
+
+			dXReValues(i) =  zx.re
+			dXImValues(i) =  zx.im
+			dYReValues(i) =  zy.re
+			dYImValues(i) =  zy.im
+			dZReValues(i) =  zz.re
+			dZImValues(i) =  zz.im
+	    Next
+
+		Operand.SetArray(dXReValues, "xre")
+		Operand.SetArray(dXImValues, "xim")
+		Operand.SetArray(dYReValues, "yre")
+		Operand.SetArray(dYImValues, "yim")
+		Operand.SetArray(dZReValues, "zre")
+		Operand.SetArray(dZImValues, "zim")
+	ElseIf (Operand.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set TanD3D = TanD1DC(Operand)
+	Else
+		ReportError("TanD3D: Unknown operand type " & Operand.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set TanD3D = Operand
+End Function
+
+Function Atn3D(Operand As Object) As Object
+	' Calculate atan(z), result in rad
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim dXReValues() As Double, dXImValues() As Double, dYReValues() As Double, dYImValues() As Double, dZReValues() As Double, dZImValues() As Double
+
+	If (Operand.GetResultObjectType() = "3D") Then
+		dXReValues = Operand.GetArray("xre")
+		dXImValues = Operand.GetArray("xim")
+		dYReValues = Operand.GetArray("yre")
+		dYImValues = Operand.GetArray("yim")
+		dZReValues = Operand.GetArray("zre")
+		dZImValues = Operand.GetArray("zim")
+
+	    For i = 0 To Operand.GetLength() - 1
+	    	zx.re = dXReValues(i)
+			zx.im = dXImValues(i)
+	    	zy.re = dYReValues(i)
+			zy.im = dYImValues(i)
+	    	zz.re = dZReValues(i)
+			zz.im = dZImValues(i)
+
+			zx = zatn(zx)
+			zy = zatn(zy)
+			zz = zatn(zz)
+
+			dXReValues(i) =  zx.re
+			dXImValues(i) =  zx.im
+			dYReValues(i) =  zy.re
+			dYImValues(i) =  zy.im
+			dZReValues(i) =  zz.re
+			dZImValues(i) =  zz.im
+	    Next
+
+		Operand.SetArray(dXReValues, "xre")
+		Operand.SetArray(dXImValues, "xim")
+		Operand.SetArray(dYReValues, "yre")
+		Operand.SetArray(dYImValues, "yim")
+		Operand.SetArray(dZReValues, "zre")
+		Operand.SetArray(dZImValues, "zim")
+	ElseIf (Operand.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set Atn3D = Atn1DC(Operand)
+	Else
+		ReportError("ATn3D: Unknown operand type " & Operand.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set Atn3D = Operand
+End Function
+
+Function AtnD3D(Operand As Object) As Object
+	' Calculate atan(z), result in deg
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim dXReValues() As Double, dXImValues() As Double, dYReValues() As Double, dYImValues() As Double, dZReValues() As Double, dZImValues() As Double
+
+	If (Operand.GetResultObjectType() = "3D") Then
+		dXReValues = Operand.GetArray("xre")
+		dXImValues = Operand.GetArray("xim")
+		dYReValues = Operand.GetArray("yre")
+		dYImValues = Operand.GetArray("yim")
+		dZReValues = Operand.GetArray("zre")
+		dZImValues = Operand.GetArray("zim")
+
+	    For i = 0 To Operand.GetLength() - 1
+	    	zx.re = dXReValues(i)
+			zx.im = dXImValues(i)
+	    	zy.re = dYReValues(i)
+			zy.im = dYImValues(i)
+	    	zz.re = dZReValues(i)
+			zz.im = dZImValues(i)
+
+			zx = zatn(zx)
+			zy = zatn(zy)
+			zz = zatn(zz)
+
+			dXReValues(i) =  zx.re/Pi*180
+			dXImValues(i) =  zx.im/Pi*180
+			dYReValues(i) =  zy.re/Pi*180
+			dYImValues(i) =  zy.im/Pi*180
+			dZReValues(i) =  zz.re/Pi*180
+			dZImValues(i) =  zz.im/Pi*180
+	    Next
+
+		Operand.SetArray(dXReValues, "xre")
+		Operand.SetArray(dXImValues, "xim")
+		Operand.SetArray(dYReValues, "yre")
+		Operand.SetArray(dYImValues, "yim")
+		Operand.SetArray(dZReValues, "zre")
+		Operand.SetArray(dZImValues, "zim")
+	ElseIf (Operand.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set AtnD3D = AtnD1DC(Operand)
+	Else
+		ReportError("ATnD3D: Unknown operand type " & Operand.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set AtnD3D = Operand
+End Function
+
+Function Atn23D(Operand1 As Object, Operand2 As Object) As Object
+	' Calculate atan2(z1, z2), result in rad
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim zx1 As Complex, zy1 As Complex, zz1 As Complex ' complex vector components
+	Dim zx2 As Complex, zy2 As Complex, zz2 As Complex ' complex vector components
+	Dim dXReValues1() As Double, dXImValues1() As Double, dYReValues1() As Double, dYImValues1() As Double, dZReValues1() As Double, dZImValues1() As Double
+	Dim dXReValues2() As Double, dXImValues2() As Double, dYReValues2() As Double, dYImValues2() As Double, dZReValues2() As Double, dZImValues2() As Double
+
+	' Check this just in case. If needed, mixed combinations could be implemented later.
+	If (Operand1.GetResultObjectType() <> Operand2.GetResultObjectType()) Then
+		ReportError("Mix 3D Atn2: Both operands must be of the same type.")
+	End If
+
+	If (Operand1.GetResultObjectType() = "3D") Then
+		dXReValues1 = Operand1.GetArray("xre")
+		dXImValues1 = Operand1.GetArray("xim")
+		dYReValues1 = Operand1.GetArray("yre")
+		dYImValues1 = Operand1.GetArray("yim")
+		dZReValues1 = Operand1.GetArray("zre")
+		dZImValues1 = Operand1.GetArray("zim")
+
+		dXReValues2 = Operand2.GetArray("xre")
+		dXImValues2 = Operand2.GetArray("xim")
+		dYReValues2 = Operand2.GetArray("yre")
+		dYImValues2 = Operand2.GetArray("yim")
+		dZReValues2 = Operand2.GetArray("zre")
+		dZImValues2 = Operand2.GetArray("zim")
+
+	    For i = 0 To Operand1.GetLength() - 1
+	    	zx1.re = dXReValues1(i)
+			zx1.im = dXImValues1(i)
+	    	zy1.re = dYReValues1(i)
+			zy1.im = dYImValues1(i)
+	    	zz1.re = dZReValues1(i)
+			zz1.im = dZImValues1(i)
+
+	    	zx2.re = dXReValues2(i)
+			zx2.im = dXImValues2(i)
+	    	zy2.re = dYReValues2(i)
+			zy2.im = dYImValues2(i)
+	    	zz2.re = dZReValues2(i)
+			zz2.im = dZImValues2(i)
+
+			zx = zatn2(zx1, zx2)
+			zy = zatn2(zx1, zx2)
+			zz = zatn2(zx1, zx2)
+
+			dXReValues1(i) =  zx.re
+			dXImValues1(i) =  zx.im
+			dYReValues1(i) =  zy.re
+			dYImValues1(i) =  zy.im
+			dZReValues1(i) =  zz.re
+			dZImValues1(i) =  zz.im
+	    Next
+
+		Operand1.SetArray(dXReValues1, "xre")
+		Operand1.SetArray(dXImValues1, "xim")
+		Operand1.SetArray(dYReValues1, "yre")
+		Operand1.SetArray(dYImValues1, "yim")
+		Operand1.SetArray(dZReValues1, "zre")
+		Operand1.SetArray(dZImValues1, "zim")
+	ElseIf (Operand1.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set Atn23D = Atn21DC(Operand1, Operand2)
+	Else
+		ReportError("Atn23D: Unknown operand type " & Operand1.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set Atn23D = Operand1
+End Function
+
+Function Atn2D3D(Operand1 As Object, Operand2 As Object) As Object
+	' Calculate atan2(z1, z2), result in deg
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim zx1 As Complex, zy1 As Complex, zz1 As Complex ' complex vector components
+	Dim zx2 As Complex, zy2 As Complex, zz2 As Complex ' complex vector components
+	Dim dXReValues1() As Double, dXImValues1() As Double, dYReValues1() As Double, dYImValues1() As Double, dZReValues1() As Double, dZImValues1() As Double
+	Dim dXReValues2() As Double, dXImValues2() As Double, dYReValues2() As Double, dYImValues2() As Double, dZReValues2() As Double, dZImValues2() As Double
+
+	' Check this just in case. If needed, mixed combinations could be implemented later.
+	If (Operand1.GetResultObjectType() <> Operand2.GetResultObjectType()) Then
+		ReportError("Mix 3D Atn2: Both operands must be of the same type.")
+	End If
+
+	If (Operand1.GetResultObjectType() = "3D") Then
+		dXReValues1 = Operand1.GetArray("xre")
+		dXImValues1 = Operand1.GetArray("xim")
+		dYReValues1 = Operand1.GetArray("yre")
+		dYImValues1 = Operand1.GetArray("yim")
+		dZReValues1 = Operand1.GetArray("zre")
+		dZImValues1 = Operand1.GetArray("zim")
+
+		dXReValues2 = Operand2.GetArray("xre")
+		dXImValues2 = Operand2.GetArray("xim")
+		dYReValues2 = Operand2.GetArray("yre")
+		dYImValues2 = Operand2.GetArray("yim")
+		dZReValues2 = Operand2.GetArray("zre")
+		dZImValues2 = Operand2.GetArray("zim")
+
+	    For i = 0 To Operand1.GetLength() - 1
+	    	zx1.re = dXReValues1(i)
+			zx1.im = dXImValues1(i)
+	    	zy1.re = dYReValues1(i)
+			zy1.im = dYImValues1(i)
+	    	zz1.re = dZReValues1(i)
+			zz1.im = dZImValues1(i)
+
+	    	zx2.re = dXReValues2(i)
+			zx2.im = dXImValues2(i)
+	    	zy2.re = dYReValues2(i)
+			zy2.im = dYImValues2(i)
+	    	zz2.re = dZReValues2(i)
+			zz2.im = dZImValues2(i)
+
+			zx = zatn2(zx1, zx2)
+			zy = zatn2(zx1, zx2)
+			zz = zatn2(zx1, zx2)
+
+			dXReValues1(i) =  zx.re/Pi*180
+			dXImValues1(i) =  zx.im/Pi*180
+			dYReValues1(i) =  zy.re/Pi*180
+			dYImValues1(i) =  zy.im/Pi*180
+			dZReValues1(i) =  zz.re/Pi*180
+			dZImValues1(i) =  zz.im/Pi*180
+	    Next
+
+		Operand1.SetArray(dXReValues1, "xre")
+		Operand1.SetArray(dXImValues1, "xim")
+		Operand1.SetArray(dYReValues1, "yre")
+		Operand1.SetArray(dYImValues1, "yim")
+		Operand1.SetArray(dZReValues1, "zre")
+		Operand1.SetArray(dZImValues1, "zim")
+	ElseIf (Operand1.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set Atn2D3D = Atn2D1DC(Operand1, Operand2)
+	Else
+		ReportError("Atn2D3D: Unknown operand type " & Operand1.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set Atn2D3D = Operand1
+End Function
+
+Function Log3D(Operand As Object) As Object
+	' Calculate log(z) - natural log
+	Dim i As Long
+	Dim zx As Complex, zy As Complex, zz As Complex ' complex vector components
+	Dim dXReValues() As Double, dXImValues() As Double, dYReValues() As Double, dYImValues() As Double, dZReValues() As Double, dZImValues() As Double
+
+	If (Operand.GetResultObjectType() = "3D") Then
+		dXReValues = Operand.GetArray("xre")
+		dXImValues = Operand.GetArray("xim")
+		dYReValues = Operand.GetArray("yre")
+		dYImValues = Operand.GetArray("yim")
+		dZReValues = Operand.GetArray("zre")
+		dZImValues = Operand.GetArray("zim")
+
+	    For i = 0 To Operand.GetLength() - 1
+	    	zx.re = dXReValues(i)
+			zx.im = dXImValues(i)
+	    	zy.re = dYReValues(i)
+			zy.im = dYImValues(i)
+	    	zz.re = dZReValues(i)
+			zz.im = dZImValues(i)
+
+			zx = zlog(zx)
+			zy = zlog(zy)
+			zz = zlog(zz)
+
+			dXReValues(i) =  zx.re
+			dXImValues(i) =  zx.im
+			dYReValues(i) =  zy.re
+			dYImValues(i) =  zy.im
+			dZReValues(i) =  zz.re
+			dZImValues(i) =  zz.im
+	    Next
+
+		Operand.SetArray(dXReValues, "xre")
+		Operand.SetArray(dXImValues, "xim")
+		Operand.SetArray(dYReValues, "yre")
+		Operand.SetArray(dYImValues, "yim")
+		Operand.SetArray(dZReValues, "zre")
+		Operand.SetArray(dZImValues, "zim")
+	ElseIf (Operand.GetResultObjectType() = "1DC") Then
+		' 1DC Implementation
+		Set Log3D = Log1DC(Operand)
+	Else
+		ReportError("Log3D: Unknown operand type " & Operand.GetResultObjectType() & ". Please contact support.")
+	End If
+
+	Set Log3D = Operand
+End Function
+
+Function Log103D(Operand As Object) As Object
+	' Calculate log_10(z)
+	Dim oTmpObject As Object
+
+	Set oTmpObject = Result1DComplex("")
+	oTmpObject.AppendXY(0, 1/Log(10), 0)
+
+	Log3D(Operand)
+	ComplexScalarMult3D(Operand, oTmpObject)
+
+	Set Log103D = Operand
+End Function

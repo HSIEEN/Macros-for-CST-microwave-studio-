@@ -1,0 +1,584 @@
+
+' ================================================================================================================================================
+' Library: Farfield Calculator Functions
+'
+' Copyright 2021-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================================================================
+' History of Changes
+' ------------------------------------------------------------------------------------------------------------------------------------------------
+' 07-Sep-2021 set: Fix nearfield calculation for single direction for results which do not support H nearfields
+' 27-Jul-2021 set: Initial version
+' ------------------------------------------------------------------------------------------------------------------------------------------------
+
+Sub FFC_ConfigureFFCalculatorWithAllSettings  (oSelSP As Object, sGroupArrayType As String, nArrayNx As Long, nArrayNy As Long, nArrayNz As Long, _
+                      dArraySx As Double, dArraySy As Double, dArraySz As Double, dArrayPx As Double, dArrayPy As Double, dArrayPz As Double, _
+					  sArrayFile As String, dSlantAngle As Double, bInvAxialRatio As Boolean, bScaleLinear As Boolean, sDBUnit As String, _
+					  dLogRangeDB As Double, sOrigin As String, sOriginWCSName As String, sUsrOriginX As String, sUsrOriginY As String, _
+					  sUsrOriginZ as String, sAxesAlignment As String, sAxesAlignmentWCSName As String, sAlignmentThetaX As String, _
+					  sAlignmentThetaY As String, sAlignmentThetaZ As String, sAlignmentPhiX As String,  sAlignmentPhiY As String, _
+                      sAlignmentPhiZ As String)
+
+	Dim sArrayFileName As String, nArrayFileID As Integer
+	Dim sArrayTaskTagAndName As String, sArrayTaskName As String
+	Dim dLengthUnitFactor As Double
+	Dim bAlreadyDisplayedFormatWarning As Boolean
+
+	' Start with the current plot settings and modify them
+	oSelSP.FarfieldCalculator.ResetAsCurrentPlot()
+
+	With oSelSP.FarfieldCalculator
+		Select Case sGroupArrayType
+		Case "Current plot settings"
+			' sText = "Array factor from current plot"
+		Case "0", "None"
+			' sText = "Array factor not used"
+			.UseArray "FALSE"
+		Case "1", "Rectangular"
+			' sText = "Rectangular Array"
+			.UseArray "TRUE"
+			.Arraytype "rectangular"
+			.ArrayXSet nArrayNx,dArraySx,dArrayPx
+			.ArrayYSet nArrayNy,dArraySy,dArrayPy
+			.ArrayZSet nArrayNz,dArraySz,dArrayPz
+		Case Else
+			' sText = "Array setup through ASCII file"
+			.ArrayClearList
+			.UseArray "TRUE"
+			.Arraytype "Edit"
+
+			bAlreadyDisplayedFormatWarning = False
+
+			sArrayFileName = sArrayFile
+			If (InStr(sArrayFileName, "$$") > 0) Then
+				sArrayTaskTagAndName = Split(sArrayFileName, "$$")(1)
+				sArrayTaskName = Split(sArrayTaskTagAndName, ":")(1)
+				SimulationTask.Name(sArrayTaskName)
+				sArrayFileName = Replace(sArrayFileName, "$$" & sArrayTaskTagAndName & "$$", SimulationTask.GetModelFolder(True))
+			End If
+
+			If (Dir(sArrayFileName) = "") Then
+				sArrayFileName = GetProjectPath("Project") + sArrayFile ' bwc fallback
+			End If
+
+			If (Dir(sArrayFileName) = "") Then
+				ReportError("farfield.lib: PlotFarfieldWithAllSettings: Cannot find array tsv file.")
+			Else
+				nArrayFileID = FreeFile()
+			End If
+
+			Open sArrayFileName For Input As nArrayFileID
+				Dim sline As String, sLineContents() As String, csep As String, sUnitString As String
+				dLengthUnitFactor = 1 ' default
+				While Not EOF(nArrayFileID)
+					Line Input #nArrayFileID, sline
+					If (InStr(Replace(sline, " ", ""), "#unit:") > 0) Then
+						sUnitString = Split(Replace(sline, " ", ""), ":")(1)
+						sUnitString = Replace(Replace(sUnitString, " ", ""), vbTab, "") ' replace any possibly trailing or leading tabs and spaces
+						Select Case sUnitString
+							Case "km", "kilometer", "kilometers"
+								dLengthUnitFactor = 1000/Units.GetGeometryUnitToSI
+							Case "m", "meter", "meters"
+								dLengthUnitFactor = 1/Units.GetGeometryUnitToSI
+							Case "cm", "centimeter", "centimeters"
+								dLengthUnitFactor = 1e-2/Units.GetGeometryUnitToSI
+							Case "mm", "millimeter", "millimeters"
+								dLengthUnitFactor = 1e-3/Units.GetGeometryUnitToSI
+							Case "um", "micrometer", "micrometers", "microns"
+								dLengthUnitFactor = 1e-6/Units.GetGeometryUnitToSI
+							Case "nm", "nanometer", "nanometers"
+								dLengthUnitFactor = 1e-9/Units.GetGeometryUnitToSI
+							Case "in", "inch", "inches"
+								dLengthUnitFactor = 2.54e-2/Units.GetGeometryUnitToSI
+							Case "mil", "mils", "milliinches"
+								dLengthUnitFactor = 2.54e-5/Units.GetGeometryUnitToSI
+							Case Else
+								ReportError("farfield.lib: PlotFarfieldWithAllSettings: Unsupported unit '" & sUnitString & "' in tsv file '" & sArrayFileName & "'. Please contact support.")
+						End Select
+					End If
+					If Left(sline,1)<>"#" Then
+						sline = Trim(sline)
+						If InStr(sline, Chr(9)) <> 0 Then
+							csep=Chr(9)  ' TAB
+						Else
+							csep=" "
+						End If
+						sLineContents() = Split(sline, csep)
+						If ((Not bAlreadyDisplayedFormatWarning) And (UBound(sLineContents) > 5)) Then
+							ReportWarning("Farfield array import: TSV file '" & sArrayFileName & "' contains additional columns. Only the first 6 columns (element/x/y/z/mag/phase) will be considered.")
+							bAlreadyDisplayedFormatWarning = True
+						End If
+						.ArrayAddToList dLengthUnitFactor*Evaluate(sLineContents(1)), dLengthUnitFactor*Evaluate(sLineContents(2)), dLengthUnitFactor*Evaluate(sLineContents(3)), Evaluate(sLineContents(4)), Evaluate(sLineContents(5))
+					End If
+				Wend
+			Close nArrayFileID
+
+		End Select
+	End With
+
+	With oSelSP.FarfieldCalculator
+		.SlantAngle dSlantAngle
+
+		If bInvAxialRatio Then
+		     .SetInverseAxialRatio "True"
+		Else
+		     .SetInverseAxialRatio "False"
+		End If
+
+		If bScaleLinear Then
+			.SetScaleLinear  "True"  '  linear
+		Else
+			.SetScaleLinear  "False"  '  dB
+		End If
+		' always call the next two lines, even if linear scale is selected
+		.DBUnit    sDBUnit
+		.SetLogRange dLogRangeDB
+
+		' Origin and coordinate system settings
+		Dim dOriginX As Double, dOriginY As Double, dOriginZ As Double
+		Select Case sOrigin
+			Case "Current plot settings", "empty" ' key is missing, or user chose to take settings from GUI plot; the old default - do nothing
+				' do nothing here
+			Case "Center of bounding box"
+				.Origin("bbox")
+			Case "Global origin"
+				.Origin("zero")
+			Case "Stored WCS:"
+				.Origin("free")
+				If Not oSelSP.WCS.GetOrigin(sOriginWCSName, dOriginX, dOriginY, dOriginZ) Then
+					ReportError("Farfield template: Could not read origin from WCS '"+sOriginWCSName+"'. Please check your settings.")
+				End If
+				.Userorigin(dOriginX, dOriginY, dOriginZ)
+			Case "User defined"
+				.Origin("free")
+				.Userorigin(Evaluate(sUsrOriginX), Evaluate(sUsrOriginY), Evaluate(sUsrOriginZ))
+			Case Else
+				ReportError("Farfield template: Unknown origin option '"+sOrigin+". Please contact support.")
+		End Select
+
+		Dim dThetaX As Double, dThetaY As Double, dThetaZ As Double, dPhiX As Double, dPhiY As Double, dPhiZ As Double
+		Select Case sAxesAlignment
+			Case "Current plot settings" ' key is missing, or user chose to take settings from GUI plot; the old default - do nothing
+				' do nothing here
+			Case "Global XYZ coordinates"
+				.SetAxesType("xyz")
+			Case "Main lobe"
+				.SetAxesType("mainlobe")
+			Case "Stored WCS:"
+				.SetAxesType("user")
+				If Not oSelSP.WCS.GetNormal(sAxesAlignmentWCSName, dThetaX, dThetaY, dThetaZ) Then
+					ReportError("Farfield template: Could not read normal vector from WCS '"+sAxesAlignmentWCSName+"'. Please check your settings.")
+				End If
+				If Not oSelSP.WCS.GetUVector(sAxesAlignmentWCSName, dPhiX, dPhiY, dPhiZ) Then
+					ReportError("Farfield template: Could not read u vector from WCS '"+sAxesAlignmentWCSName+"'. Please check your settings.")
+				End If
+				.Thetastart(dThetaX, dThetaY, dThetaZ)
+				.PhiStart(dPhiX, dPhiY, dPhiZ)
+			Case "User defined"
+				.SetAxesType("user")
+				.Thetastart(Evaluate(sAlignmentThetaX), Evaluate(sAlignmentThetaY), Evaluate(sAlignmentThetaZ))
+				.Phistart(Evaluate(sAlignmentPhiX), Evaluate(sAlignmentPhiY), Evaluate(sAlignmentPhiZ))
+			Case Else
+				ReportError("Farfield template: Unknown axes type option '"+sAxesAlignment+". Please contact support.")
+		End Select
+	End With
+End Sub
+
+Function FFC_ValueSingleDir (oSelSP As Object, selected_ffname As String, tf_type As String, freq_time As Double, dtheta As Double, dphi As Double, sCoordSystem As String, bFFapprox As Boolean, dDistance As Double, sMode As String, sCompString As String) As Double
+	Dim sCalculationParameters As String
+	If (bFFapprox) Then
+		' Farfield
+		sCalculationParameters = "farfield"
+	ElseIf sMode <> "hfield" Then
+		' Nearfield
+		sCalculationParameters = "nearfield Eonly"
+	Else
+		sCalculationParameters = "nearfield"
+	End If
+
+	oSelSP.FarfieldCalculator.ClearList()
+	oSelSP.FarfieldCalculator.AddListEvaluationPoint(dtheta, dphi, dDistance, sCoordSystem, tf_type, freq_time)
+	oSelSP.FarfieldCalculator.CalculateList(selected_ffname, sCalculationParameters)
+	FFC_ValueSingleDir = oSelSP.FarfieldCalculator.GetListItem(0, sMode, sCompString)
+End Function
+
+Function FFC_RunFFListCalculation(oSelSP As Object, selected_ffname As String, tf_type As String, freq_time As Double, bFFapprox As Boolean, dDistance As Double, sCoordinateSystemType As String, dthetaStart As Double, dthetaEnd As Double, dphiStart As Double, dphiEnd As Double, dStepSize As Double, sCalculationParameters As String, n_theta As Long, n_phi As Long) As Long
+	Dim i As Long
+	Dim dTheta As Double, dPhi As Double
+	Dim nThetaTemp As Long, nPhiTemp As Long
+	' Dim dStartTime As Double
+	Dim sThetaArray() As String, sPhiArray() As String, sRadiusArray(0) As String, sCoordSystemTypeArray(0) As String, sTimeOrFreqArray(0) As String, sCurrentSampleValueArray(0) As String
+
+	n_theta = 0
+	n_phi = 0
+	
+    sRadiusArray(0) = CStr(dDistance)
+    sCoordSystemTypeArray(0) = sCoordinateSystemType
+    sTimeOrFreqArray(0) = tf_type
+    sCurrentSampleValueArray(0) = CStr(freq_time)
+
+	n_theta = Fix((dThetaEnd - dThetaStart) / dStepSize) + 1
+	n_phi = Fix((dPhiEnd - dPhiStart) / dStepSize) + 1
+
+    ReDim sThetaArray(n_theta * n_phi - 1)
+    ReDim sPhiArray(n_theta * n_phi - 1)
+
+    i = 0
+    nThetaTemp = 0
+    nPhiTemp = 0
+	For dTheta=dThetaStart To dThetaEnd+0.01*dStepSize STEP dStepSize
+		nThetaTemp = nThetaTemp + 1
+		For dPhi=dPhiStart To dPhiEnd+0.01*dStepSize STEP dStepSize
+			If (nThetaTemp = 1) Then nPhiTemp = nPhiTemp + 1
+			sThetaArray(i) = CStr(dTheta)
+			sPhiArray(i) = CStr(dPhi)
+			i = i + 1
+		Next dPhi
+		If GetTemplateAborted Then Exit All
+ 	Next dTheta
+
+ 	' Confirm that original calculation of nTheta and nPhi agrees with double for loop including potential rounding errors
+ 	Assert_LIB(n_theta = nThetaTemp)
+ 	Assert_LIB(n_phi = nPhiTemp)
+
+	' ReportInformationToWindow("List compiled after " & CStr(Timer() - dStartTime))
+	' dStartTime = Timer()
+
+	oSelSP.FarfieldCalculator.ClearList()
+	oSelSP.FarfieldCalculator.AddListEvaluationPoints(sThetaArray, sPhiArray, sRadiusArray, sCoordSystemTypeArray, sTimeOrFreqArray, sCurrentSampleValueArray) ' zero radius for farfield approximation
+	oSelSP.FarfieldCalculator.CalculateList(selected_ffname, sCalculationParameters)
+
+    FFC_RunFFListCalculation = n_phi * n_theta
+End Function
+
+Function FFC_Min_SubRange(oSelSP As Object, selected_ffname As String, tf_type As String, freq_time As Double, bFFapprox As Boolean, dDistance As Double, sCoordinateSystemType As String, nThetaOrPhiConst As Integer, dangStart As Double, dangEnd As Double, dangConst As Double, dStepSize As Double, sMode As String, sCompString As String, sCalculationParameters As String) As Double
+	Dim dListValues() As Double
+	Dim n_phi As Long, n_theta As Long
+	
+	Select Case nThetaOrPhiConst
+		Case 1 ' constant theta
+			' Check that EndAngle >= StartAngle+cst_degree
+			If (dangEnd-dangStart < dStepSize) Then
+				dangEnd = dangStart+dStepSize
+				ReportWarningToWindow("PhiEnd has been automatically increased to PhiStart+stepsize")
+			End If
+
+			If (FFC_RunFFListCalculation(oSelSP, selected_ffname, tf_type, freq_time, bFFapprox, _
+					dDistance, sCoordinateSystemType, dangConst, dangConst, dangStart, dangEnd, dStepSize, _
+					sCalculationParameters, n_theta, n_phi)  <= 0) Then
+				ReportError("Farfield result list contains no values. Please contact your local support team.")
+			End If
+		Case 2 ' constant phi
+			' Check that EndAngle >= StartAngle+cst_degree
+			If (dangEnd-dangStart < dStepSize) Then
+				dangEnd = dangStart+dStepSize
+				ReportWarningToWindow("ThetaEnd has been automatically increased to ThetaStart+stepsize")
+			End If
+
+			If (FFC_RunFFListCalculation(oSelSP, selected_ffname, tf_type, freq_time, bFFapprox, _
+					dDistance, sCoordinateSystemType, dangStart, dangEnd, dangConst, dangConst, dStepSize, _
+					sCalculationParameters, n_theta, n_phi)  <= 0) Then
+				ReportError("Farfield result list contains no values. Please contact your local support team.")
+			End If
+	End Select
+	dListValues = oSelSP.FarfieldCalculator.GetList(sMode, sCompString)
+
+	FFC_Min_SubRange = Min_Lib(dListValues)
+End Function
+
+Function FFC_Max_SubRange(oSelSP As Object, selected_ffname As String, tf_type As String, freq_time As Double, bFFapprox As Boolean, dDistance As Double, sCoordinateSystemType As String, nThetaOrPhiConst As Integer, dangStart As Double, dangEnd As Double, dangConst As Double, dStepSize As Double, sMode As String, sCompString As String, sCalculationParameters As String) As Double
+	Dim dListValues() As Double
+	Dim n_phi As Long, n_theta As Long
+	
+	Select Case nThetaOrPhiConst
+		Case 1 ' constant theta
+			' Check that EndAngle >= StartAngle+cst_degree
+			If (dangEnd-dangStart < dStepSize) Then
+				dangEnd = dangStart+dStepSize
+				ReportWarningToWindow("PhiEnd has been automatically increased to PhiStart+stepsize")
+			End If
+
+			If (FFC_RunFFListCalculation(oSelSP, selected_ffname, tf_type, freq_time, bFFapprox, _
+					dDistance, sCoordinateSystemType, dangConst, dangConst, dangStart, dangEnd, dStepSize, _
+					sCalculationParameters, n_theta, n_phi)  <= 0) Then
+				ReportError("Farfield result list contains no values. Please contact your local support team.")
+			End If
+		Case 2 ' constant phi
+			' Check that EndAngle >= StartAngle+cst_degree
+			If (dangEnd-dangStart < dStepSize) Then
+				dangEnd = dangStart+dStepSize
+				ReportWarningToWindow("ThetaEnd has been automatically increased to ThetaStart+stepsize")
+			End If
+
+			If (FFC_RunFFListCalculation(oSelSP, selected_ffname, tf_type, freq_time, bFFapprox, _
+					dDistance, sCoordinateSystemType, dangStart, dangEnd, dangConst, dangConst, dStepSize, _
+					sCalculationParameters, n_theta, n_phi)  <= 0) Then
+				ReportError("Farfield result list contains no values. Please contact your local support team.")
+			End If
+	End Select
+	dListValues = oSelSP.FarfieldCalculator.GetList(sMode, sCompString)
+
+	FFC_Max_SubRange = Max_Lib(dListValues)
+End Function
+
+Function FFC_Min_SolidAngle(oSelSP As Object, selected_ffname As String, tf_type As String, freq_time As Double, bFFapprox As Boolean, dDistance As Double, sCoordinateSystemType As String, dthetaStart As Double, dthetaEnd As Double, dphiStart As Double, dphiEnd As Double, dStepSize As Double, sMode As String, sCompString As String, sCalculationParameters As String) As Double
+	Dim dListValues() As Double
+	Dim n_phi As Long, n_theta As Long
+	
+	' Check that EndAngle >= StartAngle+cst_degree
+	If (dthetaEnd-dthetaStart < dStepSize) Then
+		dthetaEnd = dthetaStart+dStepSize
+		ReportWarningToWindow("ThetaEnd has been automatically increased to ThetaStart+stepsize")
+	End If
+	If (dphiEnd-dphiStart < dStepSize) Then
+		dphiEnd = dphiStart+dStepSize
+		ReportWarningToWindow("PhiEnd has been automatically increased to PhiStart+stepsize")
+	End If
+
+	If (FFC_RunFFListCalculation(oSelSP, selected_ffname, tf_type, freq_time, bFFapprox, _
+	      dDistance, sCoordinateSystemType, dthetaStart, dthetaEnd, dphiStart, dphiEnd, dStepSize, _
+		  sCalculationParameters, n_theta, n_phi)  <= 0) Then
+		ReportError("Farfield result list contains no values. Please contact your local support team.")
+	End If
+
+	dListValues = oSelSP.FarfieldCalculator.GetList(sMode, sCompString)
+
+	FFC_Min_SolidAngle = Min_Lib(dListValues)
+End Function
+
+Function FFC_Max_SolidAngle(oSelSP As Object, selected_ffname As String, tf_type As String, freq_time As Double, bFFapprox As Boolean, dDistance As Double, sCoordinateSystemType As String, dthetaStart As Double, dthetaEnd As Double, dphiStart As Double, dphiEnd As Double, dStepSize As Double, sMode As String, sCompString As String, sCalculationParameters As String) As Double
+	Dim dListValues() As Double
+	Dim n_phi As Long, n_theta As Long
+	
+	' Check that EndAngle >= StartAngle+cst_degree
+	If (dthetaEnd-dthetaStart < dStepSize) Then
+		dthetaEnd = dthetaStart+dStepSize
+		ReportWarningToWindow("ThetaEnd has been automatically increased to ThetaStart+stepsize")
+	End If
+	If (dphiEnd-dphiStart < dStepSize) Then
+		dphiEnd = dphiStart+dStepSize
+		ReportWarningToWindow("PhiEnd has been automatically increased to PhiStart+stepsize")
+	End If
+
+	If (FFC_RunFFListCalculation(oSelSP, selected_ffname, tf_type, freq_time, bFFapprox, _
+	      dDistance, sCoordinateSystemType, dthetaStart, dthetaEnd, dphiStart, dphiEnd, dStepSize, _
+		  sCalculationParameters, n_theta, n_phi)  <= 0) Then
+		ReportError("Farfield result list contains no values. Please contact your local support team.")
+	End If
+
+	dListValues = oSelSP.FarfieldCalculator.GetList(sMode, sCompString)
+
+	FFC_Max_SolidAngle = Max_Lib(dListValues)
+End Function
+
+Sub FFC_ComputePhaseCenter (oSelSP As Object, selected_ffname As String, dfrq_now As Double, bFFapprox As Boolean, dDistance As Double, sPhaseCenterComponent As String, sPhaseCenterPlane As String, sPhaseCenterAngularLimit As String)
+	Dim ff_distance As Double
+	If (bFFapprox) Then
+		' Farfield
+		ff_distance = 0
+	Else
+		' Nearfield
+		ff_distance = dDistance
+	End If
+	Dim ff_freq As Double
+	ff_freq = 0
+	If oSelSP.FarfieldCalculator.IsBroadbandMonitor(selected_ffname) Then
+		ff_freq = dfrq_now
+	End If
+	oSelSP.FarfieldCalculator.CalculatePhaseCenter(selected_ffname, sPhaseCenterComponent, sPhaseCenterPlane, sPhaseCenterAngularLimit, ff_distance, ff_freq)
+End Sub
+
+Sub FFC_ComputeMainLobe (oSelSP As Object, selected_ffname As String, tf_type As String, freq_time As Double, bFFapprox As Boolean, dDistance As Double)
+	Dim ff_distance As Double	
+	If (bFFapprox) Then
+		' Farfield
+		ff_distance = 0
+	Else
+		' Nearfield
+		ff_distance = dDistance
+	End If
+
+	oSelSP.FarfieldCalculator.CalculateMainlobe(selected_ffname, ff_distance, tf_type, freq_time)
+End Sub
+
+Function FFC_AverageValue (oSelSP As Object, selected_ffname As String, tf_type As String, freq_time As Double, bFFapprox As Boolean, dDistance As Double, sCoordinateSystemType As String, dthetaStart As Double, dthetaEnd As Double, dphiStart As Double, dphiEnd As Double, dStepSize As Double, sMode As String, sCompString As String, sCalculationParameters As String) As Double
+	' Check that EndAngle >= StartAngle+cst_degree
+	If (dthetaEnd-dthetaStart < dStepSize) Then
+		dthetaEnd = dthetaStart+2*dStepSize
+		ReportWarningToWindow("ThetaEnd has been automatically increased to ThetaStart+2*stepsize")
+	End If
+	If (dphiEnd-dphiStart < dStepSize) Then
+		dphiEnd = dphiStart+2*dStepSize
+		ReportWarningToWindow("PhiEnd has been automatically increased to PhiStart+2*stepsize")
+	End If
+
+	Dim dthetaValues() As Double, dphiValues() As Double, dyValues() As Double
+	Dim dthetaValues_full() As Double, dphiValues_full() As Double, dyValues_full() As Double
+	Dim componentSum As Double, solidAngleArea As Double
+	Dim sIntegrationMethod As String
+	sIntegrationMethod = "Boole"
+
+	Dim i As Long, j As Long, n_phi As Long, n_theta As Long
+
+	If (FFC_RunFFListCalculation(oSelSP, selected_ffname, tf_type, freq_time, bFFapprox, _
+	      dDistance, sCoordinateSystemType, dthetaStart, dthetaEnd, dphiStart, dphiEnd, dStepSize, _
+		  sCalculationParameters, n_theta, n_phi)  <= 0) Then
+		ReportError("Farfield result list contains no values. Please contact your local support team.")
+	End If
+
+	ReDim dthetaValues(n_theta-1)
+	ReDim dphiValues(n_phi-1)
+	ReDim dyValues(n_theta-1, n_phi-1)
+
+	dthetaValues_full = oSelSP.FarfieldCalculator.GetList(sMode, "Point_T")
+	dphiValues_full = oSelSP.FarfieldCalculator.GetList(sMode, "Point_P")
+	dyValues_full = oSelSP.FarfieldCalculator.GetList(sMode, sCompString)
+
+	For i = 0 To n_theta-1
+		dthetaValues(i) = dthetaValues_full(i*n_phi)*(Pi/180)
+	Next
+	For j = 0 To n_phi-1
+		dphiValues(j) = dphiValues_full(j)*(Pi/180)
+	Next
+	For i=0 To n_theta-1
+		For j = 0 To n_phi-1
+			dyValues(i,j) = dyValues_full(i*n_phi+j)*Sin(dthetaValues(i)) ' include Jacobian here
+		Next
+	Next i
+	componentSum = Integrate2D_LIB(dthetaValues(), dphiValues(), dyValues(), sIntegrationMethod)
+
+	For i=0 To n_theta-1
+		For j = 0 To n_phi-1
+			dyValues(i,j) = Sin(dthetaValues(i)) ' include Jacobian here
+		Next
+	Next i
+	solidAngleArea = Integrate2D_LIB(dthetaValues(), dphiValues(), dyValues(), sIntegrationMethod)
+	' ReportInformationToWindow(CStr(Timer()-dStartTime) & ": " & CStr(solidAngleArea))
+
+	FFC_AverageValue = componentSum/solidAngleArea
+End Function
+
+Function FFC_FFIntegral (oSelSP As Object, selected_ffname As String, tf_type As String, freq_time As Double, bFFapprox As Boolean, dDistance As Double, sCoordinateSystemType As String, dthetaStart As Double, dthetaEnd As Double, dphiStart As Double, dphiEnd As Double, dStepSize As Double, sMode As String, sCompString As String, sCalculationParameters As String) As Double
+	' Check that EndAngle >= StartAngle+cst_degree
+	If (dthetaEnd-dthetaStart < dStepSize) Then
+		dthetaEnd = dthetaStart+2*dStepSize
+		ReportWarningToWindow("ThetaEnd has been automatically increased to ThetaStart+2*stepsize")
+	End If
+	If (dphiEnd-dphiStart < dStepSize) Then
+		dphiEnd = dphiStart+2*dStepSize
+		ReportWarningToWindow("PhiEnd has been automatically increased to PhiStart+2*stepsize")
+	End If
+
+	Dim dthetaValues() As Double, dphiValues() As Double, dyValues() As Double
+	Dim dthetaValues_full() As Double, dphiValues_full() As Double, dyValues_full() As Double
+	Dim sIntegrationMethod As String
+	sIntegrationMethod = "Boole"
+
+	Dim i As Long, j As Long, n_phi As Long, n_theta As Long
+
+	If (FFC_RunFFListCalculation(oSelSP, selected_ffname, tf_type, freq_time, bFFapprox, _
+	      dDistance, sCoordinateSystemType, dthetaStart, dthetaEnd, dphiStart, dphiEnd, dStepSize, _
+		  sCalculationParameters, n_theta, n_phi)  <= 0) Then
+		ReportError("Farfield result list contains no values. Please contact your local support team.")
+	End If
+
+	ReDim dthetaValues(n_theta-1)
+	ReDim dphiValues(n_phi-1)
+	ReDim dyValues(n_theta-1, n_phi-1)
+
+	dthetaValues_full = oSelSP.FarfieldCalculator.GetList(sMode, "Point_T")
+	dphiValues_full = oSelSP.FarfieldCalculator.GetList(sMode, "Point_P")
+	dyValues_full = oSelSP.FarfieldCalculator.GetList(sMode, sCompString)
+
+	For i = 0 To n_theta-1
+		dthetaValues(i) = dthetaValues_full(i*n_phi)*(Pi/180)
+	Next
+	For j = 0 To n_phi-1
+		dphiValues(j) = dphiValues_full(j)*(Pi/180)
+	Next
+	For i=0 To n_theta-1
+		For j = 0 To n_phi-1
+			dyValues(i,j) = dyValues_full(i*n_phi+j)*Sin(dthetaValues(i)) ' include Jacobian here
+		Next
+	Next i
+
+	FFC_FFIntegral = Integrate2D_LIB(dthetaValues(), dphiValues(), dyValues(), sIntegrationMethod)
+End Function
+
+Function FFC_RadEfficiency(oSelSP As Object, selected_ffname As String, dfrq_now As Double, bDS As Boolean) As Double
+	Dim dFF_freq As Double
+	Dim dRadEff As Double, dSysRadEff As Double
+	dFF_freq = 0
+	If oSelSP.FarfieldCalculator.IsBroadbandMonitor(selected_ffname) Then
+		dFF_freq = dfrq_now
+	End If
+	dSysRadEff = oSelSP.FarfieldCalculator.GetSystemRadiationEfficiency(selected_ffname, dFF_freq)
+	dRadEff = oSelSP.FarfieldCalculator.GetRadiationEfficiency(selected_ffname, dFF_freq)
+	If (bDS) Then
+		FFC_RadEfficiency = dSysRadEff
+		If (FFC_RadEfficiency <= 0) Then
+			ReportWarning("Farfield Template: System efficiency is less than or equal to zero. As a fallback, efficiency will be calculated without system information.")
+			FFC_RadEfficiency = dRadEff
+		End If
+	Else
+		If ( dSysRadEff > 0) Then
+			ReportInformation("Farfield Template: System information exists but is not considered for efficiency calculation. Please define this template in the 'Schematic' tab to include system information.")
+		End If
+		FFC_RadEfficiency = dRadEff
+	End If
+End Function
+
+Function FFC_TotEfficiency(oSelSP As Object, selected_ffname As String, dfrq_now As Double, bDS As Boolean) As Double
+	Dim dFF_freq As Double
+	Dim dTotEff As Double, dSysTotEff As Double
+	dFF_freq = 0
+	If oSelSP.FarfieldCalculator.IsBroadbandMonitor(selected_ffname) Then
+		dFF_freq = dfrq_now
+	End If
+	dSysTotEff = oSelSP.FarfieldCalculator.GetSystemTotalEfficiency(selected_ffname, dFF_freq)
+	dTotEff = oSelSP.FarfieldCalculator.GetTotalEfficiency(selected_ffname, dFF_freq)
+	If (bDS) Then
+		FFC_TotEfficiency = dSysTotEff
+		If (FFC_TotEfficiency <= 0) Then
+			ReportWarning("Farfield Template: System efficiency is less than or equal to zero. As a fallback, efficiency will be calculated without system information.")
+			FFC_TotEfficiency = dTotEff
+		End If
+	Else
+		If ( dSysTotEff > 0) Then
+			ReportInformation("Farfield Template: System information exists but is not considered for efficiency calculation. Please define this template in the 'Schematic' tab to include system information.")
+		End If
+		FFC_TotEfficiency = dTotEff
+	End If
+End Function
+
+Function FFC_PowerRatioSolidAngle(oSelSP As Object, selected_ffname As String, tf_type As String, freq_time As Double, dDistance As Double, sCoordinateSystemType As String, dthetaStart As Double, dthetaEnd As Double, dphiStart As Double, dphiEnd As Double, dStepSize As Double, sCompString As String) As Double	
+	Dim dPowerInSolidAngle As Double, dTotalPower As Double
+	' Return "1" if full sphere and Abs component is requested
+	If ((Abs(dthetaEnd-dthetaStart-180)<1e-6) And (Abs(dphiEnd-dphiStart-360)<1e-6) And _
+			((sCompString = "Abs") Or _
+				((UBound(Split(sCompString, " ")) = 1) And (LCase(Right(sCompString, 4)) = " abs") ))) Then
+		FFC_PowerRatioSolidAngle = 1.
+	Else
+		oSelSP.FarfieldCalculator.SetScaleLinear(True)
+		dPowerInSolidAngle = FFC_FFIntegral(oSelSP, selected_ffname, tf_type, freq_time, True, dDistance, sCoordinateSystemType, dthetaStart, dthetaEnd, dphiStart, dphiEnd, dStepSize, "PField", sCompString, "farfield")
+		dTotalPower = FFC_FFIntegral(oSelSP, selected_ffname, tf_type, freq_time, True, dDistance, sCoordinateSystemType, 0., 180., 0., 360., dStepSize, "PField", sCoordinateSystemType & " abs", "farfield")
+		FFC_PowerRatioSolidAngle = dPowerInSolidAngle/dTotalPower
+	End If
+End Function
+
+Function FFC_TotalACS(oSelSP As Object, selected_ffname As String, dfrq_now As Double, sRCSUnit As String) As Double
+	Dim dFF_freq As Double
+	dFF_freq = 0
+	If oSelSP.FarfieldCalculator.IsBroadbandMonitor(selected_ffname) Then
+		dFF_freq = dfrq_now
+	End If
+	FFC_TotalACS = oSelSP.FarfieldCalculator.GetTotalACS(selected_ffname, dFF_freq, sRCSUnit)
+End Function
+
+Function FFC_TotalRCS(oSelSP As Object, selected_ffname As String, dfrq_now As Double, sRCSUnit As String) As Double
+	Dim dFF_freq As Double
+	dFF_freq = 0
+	If oSelSP.FarfieldCalculator.IsBroadbandMonitor(selected_ffname) Then
+		dFF_freq = dfrq_now
+	End If
+	FFC_TotalRCS = oSelSP.FarfieldCalculator.GetTotalRCS(selected_ffname, dFF_freq, sRCSUnit)
+End Function

@@ -1,0 +1,132 @@
+' ================================================================================================
+' Copyright 2006-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================
+' History of Changes
+' ------------------------------------------------------------------------------------------------
+' 31-Jan-2006 pth: First version
+' ================================================================================================
+
+Function Evaluate0D (lib_basfile As String) As Double
+
+	Evaluate0D = 0
+	On Error GoTo EndOf0D
+		RunScript GetMacroPath + "\..\Misc\VBA_userdefined\" + lib_basfile
+		Evaluate0D = Evaluate(RestoreGlobalDataValue("Macros\"+lib_basfile))
+	EndOf0D:
+
+End Function
+'-----------------------------------------------------------------------------------------------------------------------------
+Sub Evaluate1D (lib_basfile As String)
+
+	On Error GoTo EndOf1D
+		RunScript GetMacroPath + "\..\Misc\VBA_userdefined\" + lib_basfile
+		
+	EndOf1D:
+
+End Sub
+'-----------------------------------------------------------------------------------------------------------------------------
+Public sfilename_VBA As String
+Public sResultMacro(999) As String, iNResultMacros As Integer
+
+Sub SpecifyUserdefinedMacros () 
+
+Dim cst_source(999) As String, cst_target(999) As String
+Dim cst_sourcecount As Integer, cst_targetcount As Integer
+Dim cst_index As Integer, cst_button As Integer
+
+	Begin Dialog UserDialog 950,336,"Select Userdefined Results" ' %GRID:10,7,1,1
+		GroupBox 10,7,930,287,"Userdefined Postprocessing Macros (located in GLOBAL LIBRARY PATH \ Misc \ VBA_userdefined )",.GroupBox1
+		Text 70,28,120,14,"Unselected",.LabelSource
+		ComboBox 30,42,380,245,cst_source(),.Source
+		OKButton 20,308,100,21
+		CancelButton 140,308,100,21
+		PushButton 440,63,70,28,"=====>",.AddAll
+		PushButton 440,119,70,28,"----->",.Add
+		PushButton 440,175,70,28,"<-----",.Remove
+		PushButton 440,231,70,28,"<=====",.RemoveAll
+		Text 580,28,90,14,"Selected",.LabelTarget
+		ComboBox 540,42,380,245,cst_target(),.Target
+	End Dialog
+	Dim cst_dlg As UserDialog
+
+	cst_sourcecount = 0
+	
+    sfilename_VBA = FindFirstFile(GetMacroPath+"\..\Misc\VBA_userdefined", "0D-Result_*.*", False)
+    While (sfilename_VBA <> "")
+		cst_sourcecount = cst_sourcecount + 1
+		cst_source(cst_sourcecount) = sfilename_VBA
+        sfilename_VBA = FindNextFile
+    Wend
+
+    sfilename_VBA = FindFirstFile(GetMacroPath+"\..\Misc\VBA_userdefined", "1D-Result_*.*", False)
+    While (sfilename_VBA <> "")
+		cst_sourcecount = cst_sourcecount + 1
+		cst_source(cst_sourcecount) = sfilename_VBA
+        sfilename_VBA = FindNextFile
+    Wend
+
+	cst_targetcount = 0
+	
+	Do
+		For cst_index = 1 To cst_sourcecount
+			If cst_dlg.Source = "" Then cst_dlg.Source = cst_source(cst_index)
+		Next
+		For cst_index = 1 To cst_targetcount
+			If cst_dlg.Target = "" Then cst_dlg.Target = cst_source(cst_index)
+		Next
+		cst_button = Dialog(cst_dlg)
+		Select Case cst_button
+			Case -1		' OK
+			Case 1		' ====>
+				For cst_index = 1 To cst_sourcecount
+					cst_targetcount = cst_targetcount + 1
+					cst_target(cst_targetcount) = cst_source(cst_index)
+					cst_source(cst_index) = ""
+				Next
+				cst_sourcecount = 0
+				cst_dlg.Source = ""
+			Case 2		' ---->
+				cst_targetcount = cst_targetcount + 1
+				cst_target(cst_targetcount) = cst_dlg.Source
+				For cst_index = 1 To cst_sourcecount
+					If (cst_source(cst_index) = cst_dlg.Source) Then
+						cst_source(cst_index) = ""
+						cst_dlg.Source = ""
+					ElseIf (cst_dlg.Source = "") Then
+						cst_dlg.Source = cst_source(cst_index)
+					End If
+				Next
+			Case 3		' <----
+				cst_sourcecount = cst_sourcecount + 1
+				cst_source(cst_sourcecount) = cst_dlg.Target
+				For cst_index = 1 To cst_targetcount
+					If (cst_target(cst_index) = cst_dlg.Target) Then
+						cst_target(cst_index) = ""
+						cst_dlg.Target = ""
+					ElseIf (cst_dlg.Target = "") Then
+						cst_dlg.Target = cst_target(cst_index)
+					End If
+				Next
+			Case 4		' <====
+				For cst_index = 1 To cst_targetcount
+					cst_sourcecount = cst_sourcecount + 1
+					cst_source(cst_sourcecount) = cst_target(cst_index)
+					cst_target(cst_index) = ""
+				Next
+				cst_targetcount = 0
+				cst_dlg.Target = ""
+			Case Else		' Cancel
+				Exit All
+		End Select
+	Loop Until (cst_button = -1)
+
+iNResultMacros = 0
+For cst_index = 1 To cst_targetcount
+	If (cst_target(cst_index) <> "") Then
+		iNResultMacros = iNResultMacros + 1
+		sResultMacro(iNResultMacros) =  cst_target(cst_index)
+	End If
+Next
+
+End Sub
+'-----------------------------------------------------------------------------------------------------------------------------

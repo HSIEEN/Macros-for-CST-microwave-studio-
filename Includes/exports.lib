@@ -1,0 +1,280 @@
+'
+' This library provides functions for exporting results
+'
+' Copyright 2015-2023 Dassault Systemes Deutschland GmbH
+' -------------------------------------------------------------------------------------------------------------------------------------------------------------
+' History of Changes
+' ------------------------------------------------------------------------------------------------
+' 10-Mar-2021 fsr: Actual bufferlength could vary substantially since initial implementation was based on lines, not chars. Fixed.
+' 09-Nov-2018 fsr: Added an error message if OpenBufferedFile tries to open a file path >240 chars. This is a bit below the actual limit, but copying files
+'					to a network drive can add characters to the path, so it is better to stay a bit below the actual limit to allow for that.
+' 16-Sep-2018 fsr: Skip export if result object is Nothing
+' 22-May-2017 fsr: Added write0DData_LIB
+' 07-Mar-2017 fsr: Output buffer reset had gone missing... fixed
+' 02-Mar-2017 fsr: Added check to make sure that file name for OpenBufferedFile_LIB is not empty
+' 19-Jan-2017 fsr: Added buffered file output functions; general performance improvements; enabled Abort mechanism
+' 25-Aug-2015 vgu: Modified write1DComplexData_LIB, write1DData_LIB to move the 'Print' statement inside the 'For' loop
+' 25-Aug-2015 ube: included optional sheader argument for write1DComplexData_LIB, write1DData_LIB (used by single ASCII-Export) 
+' 07-Aug-2015 vgu: Added functions write1DComplexData_LIB, write1DData_LIB 
+' -------------------------------------------------------------------------------------------------------------------------------------------------------------
+'
+' Please note: Newly added functions should always end with "_LIB" to indicate they are located in a library
+
+Function write1DComplexData_LIB( inobj As Object, ByVal outFilePath As String, ByVal xySeparatorString As String, outFormat As String, Optional sheader As String)
+
+	' FUNCTION NAME :  write1DComplexData_LIB
+	' This function can be used for exporting the values contained in 'Result 1D Complex' object to a text file
+	''''''''''''''
+	' inobj -> 'Result 1D Complex' object
+	' outFilePath -> complete path including name of the file where the data is to be written. eg: "C:\temp\filename.txt"
+	'             -> The function assumes that the output folder (c:\temp in the example above) already exists
+	'			  -> If filename.txt already exists, it is over-written
+	' xySeparatorString -> String used for separating different values within a line.
+	' outFormat ->  can be either of the following two options:
+	'           ->  "ReIm":  for exporting real and imaginary parts of the data values
+	'			->  "MagPh": for exporting magnitude and phase of the data values
+	' Presently, no error checking has been implemented
+	'''''''''''''
+
+	Dim asize As Long
+    Dim iter As Long
+    Dim dXValues() As Double, dYReValues() As Double, dYImValues() As Double, dYMagValues() As Double, dYPhValues() As Double
+	Dim outputString As String
+	Dim nOutputFileID As Integer
+
+	If inobj Is Nothing Then
+		' No results for this entry or RunID - skip
+		Exit Function
+	End If
+
+    asize = inobj.GetN
+
+	outputString = sheader
+	nOutputFileID = OpenBufferedFile_LIB(outFilePath, "Output")
+	If (outputString <> "")Then
+		BufferedFileWriteLine_LIB(nOutputFileID, outputString)
+	End If
+
+	dXValues = inobj.GetArray("x")
+	Select Case (outFormat)
+		Case "ReIm"
+			dYReValues = inobj.GetArray("yre")
+			dYImValues = inobj.GetArray("yim")
+			For iter = 0 To (asize-1)
+				outputString = getFormattedValue(dXValues(iter)) + xySeparatorString + getFormattedValue(dYReValues(iter)) + xySeparatorString + getFormattedValue(dYImValues(iter))
+				BufferedFileWriteLine_LIB(nOutputFileID, outputString)
+				If (iter Mod 100) Then
+					If GetTemplateAborted() Then
+						BufferedFileWriteLine_LIB(nOutputFileID, "Export aborted by user")
+						Exit For
+					End If
+				End If
+			Next
+		Case "MagPh"
+			dYMagValues = inobj.Magnitude.GetArray("y")
+			dYPhValues = inobj.Phase.GetArray("y")
+			For iter = 0 To (asize-1)
+				outputString = getFormattedValue(dXValues(iter)) + xySeparatorString + getFormattedValue(dYMagValues(iter)) + xySeparatorString + getFormattedValue(dYPhValues(iter))
+				BufferedFileWriteLine_LIB(nOutputFileID, outputString)
+				If (iter Mod 100) Then
+					If GetTemplateAborted()  Then
+						BufferedFileWriteLine_LIB(nOutputFileID, "Export aborted by user")
+						Exit For
+					End If
+				End If
+			Next
+	End Select
+	CloseBufferedFile_LIB(nOutputFileID)
+End Function
+
+Function write1DData_LIB( inobj As Variant, ByVal outFilePath As String, ByVal xySeparatorString, Optional sheader As String)
+
+	' FUNCTION NAME :  write1DData_LIB
+	' This function can be used for exporting the values contained in 'Result 1D' object to a text file
+	''''''''''''''
+	' inobj -> 'Result 1D' object
+	' outFilePath -> complete path including name of the file where the data is to be written. eg: "C:\temp\filename.txt"
+	'             -> The function assumes that the output folder (c:\temp in the example above) already exists
+	'             -> If filename.txt already exists, it is over-written
+	' xySeparatorString -> String used for separating different values within a line.
+	' Presently, no error checking has been implemented
+	'''''''''''''
+
+	Dim asize As Long
+	Dim iter As Long
+    Dim dXValues() As Double, dYValues() As Double
+	Dim outputString As String
+	Dim nOutputFileID As Integer
+
+	If inobj Is Nothing Then
+		' No results for this entry or RunID - skip
+		Exit Function
+	End If
+
+	asize = inobj.GetN
+
+	outputString = sheader
+	nOutputFileID = OpenBufferedFile_LIB(outFilePath, "Output")
+	If (outputString <> "")Then
+		BufferedFileWriteLine_LIB(nOutputFileID, outputString)
+	End If
+	dXValues = inobj.GetArray("x")
+	dYValues = inobj.GetArray("y")
+	For iter = 0 To (asize-1)
+		outputString = getFormattedValue( dXValues(iter) ) + xySeparatorString + getFormattedValue( dYValues(iter) )
+		BufferedFileWriteLine_LIB(nOutputFileID, outputString)
+		If (iter Mod 100) Then
+			If GetTemplateAborted()  Then
+				BufferedFileWriteLine_LIB(nOutputFileID, "Export aborted by user")
+				Exit For
+			End If
+		End If
+	Next
+	CloseBufferedFile_LIB(nOutputFileID)
+
+End Function
+
+Function write0DData_LIB( inobj As Variant, ByVal outFilePath As String, ByVal xySeparatorString, Optional sheader As String)
+
+	' FUNCTION NAME :  write0DData_LIB
+	' This function can be used for exporting the values contained in 'Result 1D' object to a text file
+	''''''''''''''
+	' inobj -> 'Result 0D' object or just a Double value
+	' outFilePath -> complete path including name of the file where the data is to be written. eg: "C:\temp\filename.txt"
+	'             -> The function assumes that the output folder (c:\temp in the example above) already exists
+	'             -> If filename.txt already exists, it is over-written
+	' xySeparatorString -> String used for separating different values within a line.
+	' Presently, no error checking has been implemented
+	'''''''''''''
+
+	Dim asize As Long
+	Dim iter As Long
+    Dim dYValue As Double
+	Dim outputString As String
+	Dim nOutputFileID As Integer
+
+	If IsObject(inobj) Then
+		If inobj Is Nothing Then
+			' No results for this entry or RunID - skip
+			Exit Function
+		Else
+			dYValue = inobj.GetData()
+		End If
+	Else
+		dYValue = inobj
+	End If
+
+	outputString = sheader
+	nOutputFileID = OpenBufferedFile_LIB(outFilePath, "Output")
+	If (outputString <> "")Then
+		BufferedFileWriteLine_LIB(nOutputFileID, outputString)
+	End If
+
+	outputString = getFormattedValue( dYValue )
+	BufferedFileWriteLine_LIB(nOutputFileID, outputString)
+	CloseBufferedFile_LIB(nOutputFileID)
+
+End Function
+
+Function getFormattedValue(ByVal value As Double) As String
+	' HELPER FUNCTION NAME : getFormattedValue
+	'This function returns the number value in a formatted string format
+	' getFormattedValue = PP15(value) 'PP15 is defined in 'vba_globals' library - fsr: PP15 is slow and should not be used
+	getFormattedValue = Replace(Format(value,IIf(value < 0, "0.0000000E+00", "+0.0000000E+00")),",",".")
+End Function
+
+
+' ---- Buffered file output functions start here ---
+
+Private sOutputBuffer_LIB As String
+Private bLockBuffer_LIB As Boolean
+
+Sub Main_WriteFile
+
+	' A test function for the buffered file access functions
+
+	Dim sInputData As String, sOutputData() As String
+	Dim i As Long, j As Long
+	Dim sInputFileName As String, nInputFileID As Integer
+	Dim sOutputFileName As String, nOutputFileID As Integer
+	Dim sTempString As String
+	Dim dStartTime As Double
+
+	sInputData = ""
+	sTempString = GetInstallPath
+	For i = 0 To 1000000
+		sInputData = sInputData & sTempString & CStr(Rnd) & vbNewLine
+	Next
+	sOutputData = Split(sInputData, vbNewLine)
+	ReportInformationToWindow("Input data loaded")
+
+	sOutputFileName = GetProjectPath("Temp") & "TestTemp.txt"
+
+	dStartTime = Timer()
+
+	nOutputFileID = OpenBufferedFile_LIB(sOutputFileName, "Output")
+	ReportInformationToWindow("File opened, starting write process")
+
+	For j = 0 To UBound(sOutputData)
+		BufferedFileWriteLine_LIB(nOutputFileID, sOutputData(j))
+	Next
+	CloseBufferedFile_LIB(nOutputFileID)
+
+	ReportInformationToWindow("Done after " & CStr(Timer() - dStartTime) & "secs.")
+
+End Sub
+
+Function OpenBufferedFile_LIB(sOutputFileName As String, sAccessMode As String) As Integer
+
+	' Opens a new file stream with the requested mode and returns the stream number
+	Dim nOutputFileID As Long
+
+	If (sOutputFileName = "") Then ReportError("File name must not be empty.")
+	If (Len(sOutputFileName) > 240) Then ReportError("The specified file path is too long by an estimated " & CStr(Len(sOutputFileName) - 240) & " characters. Please shorten the file path.")
+	If (bLockBuffer_LIB) Then ReportError("Only one buffered output stream is allowed to be open. Please close the currently used stream before opening another.")
+
+	nOutputFileID = FreeFile()
+	sOutputBuffer_LIB = "" ' Reset output buffer
+	Select Case sAccessMode
+		Case "Output"
+			Open sOutputFileName For Output As nOutputFileID
+		Case "Append"
+			Open sOutputFileName For Append As nOutputFileID
+		Case Else
+			ReportError("OpenBufferedFile: Unknown access mode.")
+	End Select
+	bLockBuffer_LIB = True
+	OpenBufferedFile_LIB = nOutputFileID
+
+End Function
+
+Function BufferedFileWriteLine_LIB(nOutputFileID As Integer, sOutput As String) As Integer
+	' Writes sOutput plus a linebreak to the specified stream number
+	BufferedFileWriteLine_LIB = BufferedFileWrite_LIB(nOutputFileID, sOutput & vbNewLine)
+End Function
+
+Function BufferedFileWrite_LIB(nOutputFileID As Integer, sOutput As String) As Integer
+
+	' Writes sOutput to the specified stream number
+	Const nBufferLength = 2500 ' Found heuristically to provide good performance
+
+	sOutputBuffer_LIB = sOutputBuffer_LIB & sOutput
+	If (Len(sOutputBuffer_LIB) > nBufferLength) Then
+		Print #nOutputFileID, sOutputBuffer_LIB ;
+		sOutputBuffer_LIB = ""
+	End If
+
+End Function
+
+Function CloseBufferedFile_LIB(nOutputFileID As Integer) As Integer
+
+	' Clear buffer at the end and close stream, unlock buffer
+	Print #nOutputFileID, sOutputBuffer_LIB ;
+	Close nOutputFileID
+	sOutputBuffer_LIB = "" ' Reset output buffer
+	bLockBuffer_LIB = False
+
+End Function
+
+
+' ---- Buffered file output functions end here ---

@@ -1,0 +1,2557 @@
+
+' ================================================================================================================================================
+' Library: Farfield Computation
+'
+' PLEASE NOTE: When including this lib, a global variable 'Dim sFullCompString As String' needs to be declared in the macro/template
+'
+' Copyright 2010-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================================================================
+' History of Changes
+' ------------------------------------------------------------------------------------------------------------------------------------------------
+' 17-Jul-2024 set: Do not apply any smoothing in CDF calculation
+' 30-May-2023 set: Use numerical computation of area for Coverage Threshold/Coverage Efficiency. This is easier to read and less bug prone
+' 09-Mar-2022 ycao: Modified Coverage Efficiency/Threshold calculation to support selected components
+' 17-Jan-2022 set: Rename "Gain (IEEE)" to "Gain"
+' 26-Jul-2021 set: Extract function to generate component string.
+' 02-Jul-2021 set: Fix overwriting of farfield settings in multiple mode
+' 16-Apr-2021 set: Added check for the validity of RCS results
+' 24-Feb-2021 set: Allow general string values for script setting "GroupArrayType" - necessary for "Current plot settings" option for Array factor
+' 06-Oct-2020 fsr: Allowed general string values for script setting "Linear" in PlotFFWithAllSettings - necessary for "dBm" option
+' 11-Sep-2020 set: Fix tree path argument for GenerateFarfieldList in GenerateEnvelopePattern
+' 26-Aug-2020 fsr: Added dBm option to CDF calculation; not using ScriptSetting directly to determine linear/dB anymore in CDF
+' 17-Aug-2020 fsr: Fixed a problem with settings where (EndAngle - StartAngle) is not an even multiple of StepSize
+' 18-Jun-2020 fsr: Further performance improvement for GenerateFarfieldList by using FarfieldCalculator object
+' 06-Jun-2020 fsr: Performance improvement for GenerateFarfieldList in Schematic; Moved CDF calculation from ff template into this lib
+' 05-Jun-2020 fsr: Restored [Auto] renaming in envelope calculation for bwc; only write ff envelope once; delete ff envelopes on rebuild
+' 23-Apr-2020 fsr: Existing envelope pattern was not properly loaded; fixed.
+' 02-Apr-2020 fsr: Added option for scaling factor in GenerateEnvelopePattern_LIB
+' 16-Mar-2020 fsr: Fixed a bug with envelope calculation (reference power was missing in some cases)
+' 22-May-2019 fsr: Fixed a bug with envelope calculation
+' 05-Mar-2019 mta: Fixed a bug in Integrate1D_LIB
+' 28-Nov-2018 fsr: Moved global variable oSelectedSP to vba_globals_all.lib
+' 27-Nov-2018 fsr: Added warning that only first 6 columns will be considered when 9 column format tsv file is selected
+' 20-Nov-2018 fsr: Fixed a remaining problem with unit recognition in tsv files, added long name versions of units
+' 29-Oct-2018 fsr: New function CalculateEnvelopePattern, based on UpdateBestAchievablePattern from FF template with performance tweaks;
+'					Modified StoreAndDisable/ReStoreAndEnable FFPlot functions to use newly created RAII object (set2)
+' 25-Oct-2018 fsr: SP selection was not properly applied to a number of GetSelectedTreeItem/SelectTreeItem/Resulttree calls;
+' 20-Sep-2018 fsr: Added compatibility for old tsv files without unit string
+' 07-May-2018 fsr: Added functions to simplify Store/ReStore FF settings, enable/disable plot; restore/re-enable FF plot before ReportError
+' 26-Mar-2018 fsr: Do not re-calculate radiated power ratio for "<coord> abs" and full sphere ( = 1)
+' 04-Jan-2018 fsr: Code simplification by creating a common new function GenerateFarfieldList_LIB for repetitive code;
+'					New function GetFarfieldLogFactor to calculate log factor for given component/plot mode
+' 03-Jan-2018 fsr: Relaxed some checks for sComponent="Abs" to "InStr(LCase(sComponent), "abs") > 0"; performance improvements
+' 16-Nov-2017 fsr: Use closed form summation instead of analytic integral to have same reference surface for coverage threshold/efficiency calcs
+' 25-Jul-2017 fsr: Array files in array task folders are now supported
+' 06-Jun-2017 ses: GetSpecials paccvalid and pstimvalid need to be called after .Plot
+' 18-May-2017 fsr: Fixed a small problem with VisualizeWeightingFunction_LIB
+' 11-May-2017 fsr: Moved GetSimulationProjectByName_LIB to vba_globals_all.lib
+' 27-Apr-2017 fsr: powerRatioSolidAngle: extracted power calculation into separate function; fixed normalization to "Abs" component
+' 26-Apr-2017 fsr: Integrate1D_LIB now goes through Result1D object for trapezoidal method; VisualizeWeightFunction now always enables plot
+' 31-Mar-2017 fsr: Added bwc for templates created before 9/2/2015
+' 23-Mar-2017 fsr: Enabled access to fields within SimulationProjects
+' 02-Mar-2017 fsr: Added option to load MIMO channel data from file
+' 13-Feb-2017 fsr: Corrected radiometric noise temp calculation result
+' 03-Jan-2017 fsr: Phase center calculation settings can be changed now
+' 29-Jul-2016 fsr: Report an error if (realized) gain is requested for fields with unknown stimulated/accepted input power
+' 22-Jul-2016 fsr: Fixed linear/dB decision for AverageOverSolidAngle and powerRatioSolidAngle; depends now on plot settings not script setting
+' 07-Jul-2016 fsr: Provided wrapper functions with linear return values for GetMin/Max_SolidAngle for bwc
+' 11-Jun-2016 fsr: Implemented [Subrange] for Min&Max of polar plots
+' 11-May-2016 fsr: AverageOverSolidAngle and powerRatioSolidAngle now also handles dB/linear internally
+' 10-May-2016 fsr: GetMin_SolidAngle and GetMax_SolidAngle now return dB or linear values, as determined by the plot settings
+' 13-Apr-2016 fsr: Improved performance of coverage threshold calculation - no initial guess needed, not iterative anymore
+' 01-Apr-2016 fsr: Moved PlotMode and PlotMode2 into lib
+'					added option to calculate coverage efficiency and coverage threshold
+' 19-Jan-2016 ube,fsr: Manually set plot resolution to 360 degrees if single direction is requested to speed up calculation of I solver results
+' 03-Sep-2015 fsr: Moved OriginOptionsList and AxesAlignmentOptionsList here from farfield template
+' 02-Sep-2015 fsr: Adjusted MEG calculation to new infrastructure, AddListItem -> AddListEvaluationPoint, moved PlotFarfieldWithAllSettings here
+' 04-Jun-2015 fsr: Fixed normalization of radiometric noise temperature, sped up its calculation
+' 10-Apr-2015 fsr: Added solid angle directly to CorrelationCoefficient and MeanEffectiveGain for improved performance and accuracy
+' 09-Apr-2015 fsr: Last sample in Getmin/getmax for solid angle was not included, fixed; increased resolution of visualization of
+'					mimo weighting function visualization to 1 degree; disabled automatic renormalization of visualized weighting function to 1W
+' 02-Mar-2015 fsr: Improved performance for getmin/getmax if full sphere is selected
+' 07-Oct-2014 fsr: Added option for radiometric noise temp calculation;
+'					Phi for solid angles in MIMO weighting functions may now be between -360...720 degrees
+' 18-Dec-2013 fsr: Using 'GetList' now instead of 'GetListItem' in loop
+' 23-Oct-2013 fsr: Fixed display of MIMO weighting functions for Laplace/Laplace and Gauss/Gauss distributions
+' 17-Oct-2013 fsr: Fixed an issue for broadband evaluations on German locales
+' 30-Sep-2013 fsr: Reference distance properly taken into account for min/max calculations
+' 18-Jun-2013 fsr: Added solid angle functionality for broadband transient monitors; bugfixes
+' 13-Jun-2013 fsr: Fixed tot. eff. and Solid Angle 0D value from bb monitor
+' 07-May-2013 fsr: Template could not evaluate Gauss/Gauss and Laplace/Laplace distributions except for visualization; fixed.
+' 06-May-2013 fsr: Combined all MIMO weight distribution calculations into a single function; weight functions now support solid angle option
+' 29-Apr-2013 fsr: Upgraded integration method to Boole's rule for average and power ratio calculations;
+'					mean effective gain, average, powerRatio now support broadband monitors
+' 21-Apr-2013 fsr: powerRatioSolidAngleNEW now able to calculate ratio for a given field component, not just "Abs"; Simpson for MeanEffectiveGain
+'					new distribution functions for MIMO: Gaussian/Gaussian and Laplace/Laplace
+' 11-Mar-2013 fsr: Use Simpson rule for power integration
+' 17-Aug-2012 fsr,ube: Solid Angle calculations were incorrect if phi was not in the 0...360 interval; added some tolerance in double loops
+' 14-Oct-2011 fsr: MIMO visualization now also works for user-defined pdfs
+' 30-Sep-2011 fsr: Added option for user-defined MIMO power distribution functions
+' 					Added functions to calculate min/max values for a given solid angle
+' 22-Feb-2011 fsr: Added function VisualizeWeightingFunction_LIB to visualize MIMO power distribution function
+' 02-Feb-2011 fsr: CorrelationCoefficient now returns the envelope correlation coefficient, removed sqrt()
+' 24-Sep-2010 ube,fsr: for bwc reasons 2 functions in farfield.lib are renamed to ...NEW
+'						(averageOverSolidAngleNEW, powerRatioSolidAngleNEW)
+' 21-Sep-2010 fsr: new functions: CorrelationCoefficient and MeanEffectiveGain from former diversity gain macro;
+'						stepsize is now an input parameter for all functions
+' 20-Jul-2010 fsr: fixed a bug that caused the stepsize to always be 5 degrees; added function "averageOverSolidAngle"
+' 20-May-2010 fsr: Initial version for rad. and total efficiency calculation in solid angle
+' ------------------------------------------------------------------------------------------------------------------------------------------------
+
+Public Const PlotMode_LIB  = Array("directivity", "gain",       "Realized Gain", "efield", "epattern",		"hfield", "pfield",       	"rcs", 			"rcsunits", 			"rcssw")
+Public Const PlotMode2_LIB = Array("Directivity", "Gain", "Realized Gain", "E-field","E-field pattern", "H-field", "Power pattern","RCS (square meters)", "RCS (project units squared)", "RCS (wavelength squared)")
+
+Public Const OriginOptionsList_LIB = Array("Current plot settings", "Center of bounding box", "Global origin", "Stored WCS:", "User defined")
+Public Const AxesAlignmentOptionsList_LIB = Array("Current plot settings", "Global XYZ coordinates", "Main lobe", "Stored WCS:", "User defined")
+
+' Public sFullCompString As String ' for debugging purposes, uncomment this here and comment it out in the template
+
+Function GetFullCompString (sCoordSystem As String, sPolarization As String, sComponent As String) As String
+	Select Case sComponent
+		Case "Abs"
+			GetFullCompString = sCoordSystem + " abs"
+		Case "Axial Ratio"
+			GetFullCompString = sCoordSystem + " " + sPolarization + " axialratio"
+		Case Else
+			If (InStr(sComponent," Phase")<>0) Then
+				' phase string is ok already
+				GetFullCompString = sCoordSystem + " " + sPolarization + " " + sComponent
+			ElseIf (InStr(sComponent,"/")<>0) Then
+				' this is either compratio12 or 21
+				Dim sAngle1 As String
+				sAngle1 = LCase(Left(sComponent,InStr(sComponent,"/")-1))
+				Select Case sAngle1
+				Case "theta","azimuth","alpha","horizontal","left","crosspolar"
+					GetFullCompString = sCoordSystem + " " + sPolarization + " compratio12"
+				Case Else
+					GetFullCompString = sCoordSystem + " " + sPolarization + " compratio21"
+				End Select
+			Else
+				' here just "abs" has to be added
+				GetFullCompString = sCoordSystem + " " + sPolarization + " " + sComponent + " abs"
+			End If
+	End Select
+End Function
+
+Sub PlotFarfieldWithAllSettings_LIB (ffnameShort As String, ibbFF_status As Integer, dfrq_now As Double, dtime_now As Double)
+
+	' ibbFF_status (0=off/1=frq/2=tim), dfrq_now, dtime_now  are only required for bb-monitor from TD-solver: "farfield (broadband)"
+
+	Dim sArrayFileName As String, nArrayFileID As Integer
+	Dim sCoordSystem As String
+	Dim sPolarization As String
+	Dim sComponent As String
+	Dim sArrayTaskTagAndName As String, sArrayTaskName As String
+	Dim dLengthUnitFactor As Double
+	Dim bAlreadyDisplayedFormatWarning As Boolean
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	sCoordSystem = GetScriptSetting("CoordinateSystemType","spherical")
+	sPolarization = GetScriptSetting("PolarisationType","linear")
+	sComponent = GetScriptSetting("sComponentName","abs")
+
+	sFullCompString = GetFullCompString(sCoordSystem, sPolarization, sComponent)
+	
+	With oSelectedSP.FarfieldArray
+		Select Case GetScriptSetting("GroupArrayType","None")
+		Case "Current plot settings"
+			' sText = "Array factor from current plot"
+		Case "0", "None"
+			' sText = "Array factor not used"
+			.Reset
+			.UseArray "FALSE"
+		Case "1", "Rectangular"
+			' sText = "Rectangular Array"
+			.Reset
+			.UseArray "TRUE"
+			.Arraytype "Rectangular"
+			.XSet Evaluate(GetScriptSetting("array_nx","1")),Evaluate(GetScriptSetting("array_sx","0")),Evaluate(GetScriptSetting("array_px","0"))
+			.YSet Evaluate(GetScriptSetting("array_ny","1")),Evaluate(GetScriptSetting("array_sy","0")),Evaluate(GetScriptSetting("array_py","0"))
+			.ZSet Evaluate(GetScriptSetting("array_nz","1")),Evaluate(GetScriptSetting("array_sz","0")),Evaluate(GetScriptSetting("array_pz","0"))
+			.SetList
+		Case Else
+			' sText = "Array setup through ASCII file"
+			.Reset
+			.UseArray "TRUE"
+			.Arraytype "Edit"
+
+			' .Antenna  xpos, ypos, zpos, ampli, phase
+			' .Antenna "0", "0", "0", "1", "0"
+
+			bAlreadyDisplayedFormatWarning = False
+
+			sArrayFileName = GetScriptSetting("ArrayFilename","\Model\3D\array-setup.tsv")
+			If (InStr(sArrayFileName, "$$") > 0) Then
+				sArrayTaskTagAndName = Split(sArrayFileName, "$$")(1)
+				sArrayTaskName = Split(sArrayTaskTagAndName, ":")(1)
+				SimulationTask.Name(sArrayTaskName)
+				sArrayFileName = Replace(sArrayFileName, "$$" & sArrayTaskTagAndName & "$$", SimulationTask.GetModelFolder(True))
+			End If
+
+			If (Dir(sArrayFileName) = "") Then
+				sArrayFileName = GetProjectPath("Project") + GetScriptSetting("ArrayFilename","\Model\3D\array-setup.tsv") ' bwc fallback
+			End If
+
+			If (Dir(sArrayFileName) = "") Then
+				RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+				ReportError("farfield.lib: PlotFarfieldWithAllSettings: Cannot find array tsv file.")
+			Else
+				nArrayFileID = FreeFile()
+			End If
+
+			Open sArrayFileName For Input As nArrayFileID
+				Dim sline As String, sLineContents() As String, csep As String, sUnitString As String
+				dLengthUnitFactor = 1 ' default
+				While Not EOF(nArrayFileID)
+					Line Input #nArrayFileID, sline
+					If (InStr(Replace(sline, " ", ""), "#unit:") > 0) Then
+						sUnitString = Split(Replace(sline, " ", ""), ":")(1)
+						sUnitString = Replace(Replace(sUnitString, " ", ""), vbTab, "") ' replace any possibly trailing or leading tabs and spaces
+						Select Case sUnitString
+							Case "km", "kilometer", "kilometers"
+								dLengthUnitFactor = 1000/Units.GetGeometryUnitToSI
+							Case "m", "meter", "meters"
+								dLengthUnitFactor = 1/Units.GetGeometryUnitToSI
+							Case "cm", "centimeter", "centimeters"
+								dLengthUnitFactor = 1e-2/Units.GetGeometryUnitToSI
+							Case "mm", "millimeter", "millimeters"
+								dLengthUnitFactor = 1e-3/Units.GetGeometryUnitToSI
+							Case "um", "micrometer", "micrometers", "microns"
+								dLengthUnitFactor = 1e-6/Units.GetGeometryUnitToSI
+							Case "nm", "nanometer", "nanometers"
+								dLengthUnitFactor = 1e-9/Units.GetGeometryUnitToSI
+							Case "in", "inch", "inches"
+								dLengthUnitFactor = 2.54e-2/Units.GetGeometryUnitToSI
+							Case "mil", "mils", "milliinches"
+								dLengthUnitFactor = 2.54e-5/Units.GetGeometryUnitToSI
+							Case Else
+								ReportError("farfield.lib: PlotFarfieldWithAllSettings: Unsupported unit '" & sUnitString & "' in tsv file '" & sArrayFileName & "'. Please contact support.")
+						End Select
+					End If
+					If Left(sline,1)<>"#" Then
+						sline = Trim(sline)
+						If InStr(sline, Chr(9)) <> 0 Then
+							csep=Chr(9)  ' TAB
+						Else
+							csep=" "
+						End If
+						sLineContents() = Split(sline, csep)
+						If ((Not bAlreadyDisplayedFormatWarning) And (UBound(sLineContents) > 5)) Then
+							ReportWarning("Farfield array import: TSV file '" & sArrayFileName & "' contains additional columns. Only the first 6 columns (element/x/y/z/mag/phase) will be considered.")
+							bAlreadyDisplayedFormatWarning = True
+						End If
+						.Antenna dLengthUnitFactor*Evaluate(sLineContents(1)), dLengthUnitFactor*Evaluate(sLineContents(2)), dLengthUnitFactor*Evaluate(sLineContents(3)), Evaluate(sLineContents(4)), Evaluate(sLineContents(5))
+					End If
+				Wend
+			Close nArrayFileID
+
+		End Select
+	End With
+
+	With oSelectedSP.FarfieldPlot
+		.SetCoordinateSystemType sCoordSystem
+		.SetPolarizationType sPolarization
+		.SlantAngle GetScriptSetting("SlantAngle","0")
+
+		' Select tree item only if it or one of its subcomponents is not already selected; minimal speedup and less flickering
+		If ((oSelectedSP.GetSelectedTreeItem <> "Farfields\" + ffnameShort) And (oSelectedSP.GetSelectedTreeItem <> "Farfields\" + ffnameShort +"\" + sComponent)) Then
+			oSelectedSP.SelectTreeItem ("Farfields\" + ffnameShort)
+		End If
+
+		Dim nRange As Integer
+		nRange = CInt(GetScriptSetting("GroupPlotrange","2"))
+
+		Select Case nRange
+		Case 0 ' "3D Plot"
+			.Plottype "3d"
+		Case 1,2,3 ' "polar - const theta" and "const phi" and "single direction"
+			.Plottype "polar"
+		End Select
+
+	    .SetTheta360 "True"
+	    .CartSymRange "True"
+
+		.Step GetScriptSetting("Stepsize","5.0")
+
+		If (Cint(GetScriptSetting("GroupPlotrange","2"))=3 And (GetScriptSetting("a0DValue","Max. Value") = "Value")) Then
+			' for I-Solver this is advantageous to not call the solver unnecessarily often
+			.Step "360.0"
+		End If
+
+
+		If (CInt(GetScriptSetting("UseFFApprox","1"))=1) Then
+		     .UseFarfieldApproximation "True"
+		Else
+		     .UseFarfieldApproximation "False"
+		End If
+
+		If (CInt(GetScriptSetting("UseInvIEEE","0"))=1) Then
+		     .SetInverseAxialRatio "True"
+		Else
+		     .SetInverseAxialRatio "False"
+		End If
+
+		Dim sMode As String
+		sMode = PlotMode_LIB(Cint(GetScriptSetting("PlotMode","0")))
+		.SetPlotMode  sMode  '  <directivity/gain/efield/hfield/pfield/rcs/rcssw/scale2max>
+
+		If (nRange=2) Then
+			' "const phi"
+			.Vary "theta"
+			.Phi GetScriptSetting("Phi","0")
+		ElseIf (nRange=1) Then
+			' "const theta"
+			.Vary "phi"
+			.Theta GetScriptSetting("Theta","90")
+		End If
+
+		.Distance(GetScriptSetting("Distance","1.0")) ' unit: meters
+
+		If ((GetScriptSetting("Linear","0")="1") Or (GetScriptSetting("Linear","0")="1.0")) Then ' FSR: As of 10/06/2020, scriptsetting "Linear" can have non-numerical values, so CInt() check not possible anymore.
+			.SetScaleLinear  "True"  '  linear
+		Else
+			.SetScaleLinear  "False"  '  dB
+		End If
+		' always call the next two lines, even if linear scale is selected
+		.DBUnit    GetScriptSetting("DBUnit","0")
+		.SetLogRange GetScriptSetting("LogRangedB","40")
+
+		.SetMainLobeThreshold GetScriptSetting("xAngularWidth","3")
+
+		If (InStr(GetScriptSetting("a0DValue","Max. Value"),"Phase Center") > 0) Then
+			.EnablePhaseCenterCalculation "True"
+			If (GetScriptSetting("PhaseCenterAngularLimitT", "VOID") <> "VOID" And _
+				GetScriptSetting("PhaseCenterFieldComponentOG", "VOID") <> "VOID" And _
+				GetScriptSetting("PhaseCenterPlaneOG", "VOID") <> "VOID") Then ' make sure that behavior of older templates is not affected
+				.SetPhaseCenterAngularLimit GetScriptSetting("PhaseCenterAngularLimitT", "30")
+				.SetPhaseCenterComponent GetScriptSetting("PhaseCenterFieldComponentOG", "Boresight")
+				.SetPhaseCenterPlane GetScriptSetting("PhaseCenterPlaneOG", "E-plane")
+			End If
+		Else
+			.EnablePhaseCenterCalculation "False"
+		End If
+
+		Select Case ibbFF_status    ' special handling bb-monitor from TD-solver: "farfield (broadband)"
+			Case 1 ' frq-domain
+	            .SetTimeDomainFF False
+	            If dfrq_now = 0.0 Then
+	            	ReportWarning("Farfield (broadband) cannot be evaluated at zero frequency, frequency value changed to 0.01")
+		            .Setfrequency "0.01"
+	            Else
+		            .Setfrequency CStr(dfrq_now)
+	            End If
+			Case 2 ' time-domain
+	            .SetTimeDomainFF True
+	            .SetTime CStr(dtime_now)
+		End Select
+
+		' Origin and coordinate system settings
+		Dim dOriginX As Double, dOriginY As Double, dOriginZ As Double
+		Select Case OriginOptionsList_LIB(CInt(GetScriptSetting("Origin", "0")))
+			Case "Current plot settings", "empty" ' key is missing, or user chose to take settings from GUI plot; the old default - do nothing
+				' do nothing here
+			Case "Center of bounding box"
+				.Origin("bbox")
+			Case "Global origin"
+				.Origin("zero")
+			Case "Stored WCS:"
+				.Origin("free")
+				If Not oSelectedSP.WCS.GetOrigin(GetScriptSetting("OriginWCSName", ""), dOriginX, dOriginY, dOriginZ) Then
+					RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+					ReportError("Farfield template: Could not read origin from WCS '"+GetScriptSetting("OriginWCSName", "")+"'. Please check your settings.")
+				End If
+				.Userorigin(dOriginX, dOriginY, dOriginZ)
+			Case "User defined"
+				.Origin("free")
+				.Userorigin(Evaluate(GetScriptSetting("OriginX", "0")), Evaluate(GetScriptSetting("OriginY", "0")), Evaluate(GetScriptSetting("OriginZ", "0")))
+			Case Else
+				RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+				ReportError("Farfield template: Unknown origin option '"+OriginOptionsList_LIB(CInt(GetScriptSetting("Origin", "0")))+". Please contact support.")
+		End Select
+
+		Dim dThetaX As Double, dThetaY As Double, dThetaZ As Double, dPhiX As Double, dPhiY As Double, dPhiZ As Double
+		Select Case AxesAlignmentOptionsList_LIB(CInt(GetScriptSetting("AxesAlignment", "0")))
+			Case "Current plot settings" ' key is missing, or user chose to take settings from GUI plot; the old default - do nothing
+				' do nothing here
+			Case "Global XYZ coordinates"
+				.SetAxesType("xyz")
+			Case "Main lobe"
+				.SetAxesType("mainlobe")
+			Case "Stored WCS:"
+				.SetAxesType("user")
+				If Not oSelectedSP.WCS.GetNormal(GetScriptSetting("AxesAlignmentWCSName", ""), dThetaX, dThetaY, dThetaZ) Then
+					RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+					ReportError("Farfield template: Could not read normal vector from WCS '"+GetScriptSetting("AxesAlignmentWCSName", "")+"'. Please check your settings.")
+				End If
+				If Not oSelectedSP.WCS.GetUVector(GetScriptSetting("AxesAlignmentWCSName", ""), dPhiX, dPhiY, dPhiZ) Then
+					RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+					ReportError("Farfield template: Could not read u vector from WCS '"+GetScriptSetting("AxesAlignmentWCSName", "")+"'. Please check your settings.")
+				End If
+				.Thetastart(dThetaX, dThetaY, dThetaZ)
+				.PhiStart(dPhiX, dPhiY, dPhiZ)
+			Case "User defined"
+				.SetAxesType("user")
+				.Thetastart(Evaluate(GetScriptSetting("AlignmentThetaX", "0")), Evaluate(GetScriptSetting("AlignmentThetaY", "0")), Evaluate(GetScriptSetting("AlignmentThetaZ", "0")))
+				.Phistart(Evaluate(GetScriptSetting("AlignmentPhiX", "0")), Evaluate(GetScriptSetting("AlignmentPhiY", "0")), Evaluate(GetScriptSetting("AlignmentPhiZ", "0")))
+			Case Else
+				RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+				ReportError("Farfield template: Unknown axes type option '"+AxesAlignmentOptionsList_LIB(CInt(GetScriptSetting("AxesAlignment", "0")))+". Please contact support.")
+		End Select
+
+		' .Plot needs to be called before and after SelectTreeComponent
+		.Plot
+		.SelectTreeComponent(ffnameShort,sFullCompString)
+		.Plot  'This forces the update of the farfield tree entries; needs to be the last call in "With oSelectedSP.FarfieldPlot"
+
+	End With
+
+	' Gain and realized gain can only be calculated if stimulated/accepted power are known. GetSpecials are only evaluated after FarfieldPlot.Plot
+	If ((LCase(sMode) = "gain") And (oSelectedSP.FarfieldPlot.GetSpecials("paccvalid") = 0)) Then
+		RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+		ReportError("Farfield Result: Cannot calculate gain. Accepted input power is unknown.")
+	ElseIf ((LCase(sMode) = "realized gain") And (oSelectedSP.FarfieldPlot.GetSpecials("pstimvalid") = 0)) Then
+		RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+		ReportError("Farfield Result: Cannot calculate realized gain. Stimulated input power is unknown.")
+	ElseIf ((InStr(LCase(sMode), "rcs") > 0) And (oSelectedSP.FarfieldPlot.GetSpecials("rcsvalid") = 0)) Then
+		RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+		ReportError("Farfield Result: Cannot calculate RCS. The farfield was not computed from a plane wave excitation.")
+	End If
+
+End Sub
+
+Function averageOverSolidAngle(cst_farfield As String,  _
+								cst_plotmode As String, _
+								cst_component As String, _
+								thetaStart As Double, _
+								thetaEnd As Double, _
+								phiStart As Double, _
+								phiEnd As Double) As Double
+	' Wrapper for new call, which includes the degree resolution cst_degree (backwards comp.)
+	Dim cst_degree As Double
+	cst_degree = Evaluate(GetScriptSetting("Stepsize"),"5")
+	averageOverSolidAngle = averageOverSolidAngleNEW(cst_farfield, cst_plotmode, cst_component, thetaStart, thetaEnd, phiStart, phiEnd, cst_degree)
+End Function
+
+Function averageOverSolidAngleNEW(cst_farfield As String, _
+								cst_plotmode As String, _
+								cst_component As String, _
+								thetaStart As Double, _
+								thetaEnd As Double, _
+								phiStart As Double, _
+								phiEnd As Double, _
+								cst_degree As Double) As Double
+
+	Dim componentSum As Double, solidAngleArea As Double
+	Dim n_theta As Long, n_phi As Long, i As Long, j As Long
+	Dim dthetaValues() As Double, dphiValues() As Double, dyValues() As Double
+	Dim dthetaValues_full() As Double, dphiValues_full() As Double, dyValues_full() As Double
+	Dim dStartTime As Double
+	Dim dFactordB As Double, dMaxValuedB As Double, dMaxValueLinear As Double, bReturndBResult As Boolean
+
+	dStartTime = Timer()
+
+	Dim sIntegrationMethod As String
+	sIntegrationMethod = "Boole"' InputBox("Integration method? (Riemann,Trapez,Simpson, Boole)", "Integration method", "Boole")
+
+	componentSum = 0
+	solidAngleArea = 0
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	With oSelectedSP.FarfieldPlot
+		' Select tree item only if it or one of its subcomponents is not already selected; minimal speedup and less flickering
+		If ((oSelectedSP.GetSelectedTreeItem <> cst_farfield) And (InStr(oSelectedSP.GetSelectedTreeItem, cst_farfield +"\")=0)) Then
+			oSelectedSP.SelectTreeItem (cst_farfield)
+		End If
+	    .Plottype ( "3D" )
+	    bReturndBResult = Not .IsScaleLinear ' return dB if current plot is set to dB
+		dFactordB = GetFarfieldLogFactor_LIB(cst_component, cst_plotmode)
+
+		' now remain in linear mode for averaging, convert to dB after averaging if needed
+		.SetScaleLinear (True)
+
+		' Check that EndAngle >= StartAngle+cst_degree
+		If (thetaEnd-thetaStart < cst_degree) Then
+			thetaEnd = thetaStart+2*cst_degree
+			ReportWarningToWindow("ThetaEnd has been automatically increased to ThetaStart+2*stepsize")
+		End If
+		If (phiEnd-phiStart < cst_degree) Then
+			phiEnd = phiStart+2*cst_degree
+			ReportWarningToWindow("PhiEnd has been automatically increased to PhiStart+2*stepsize")
+		End If
+
+		If (GenerateFarfieldList_LIB(oSelectedSP, cst_farfield, cst_plotmode, thetaStart, thetaEnd, cst_degree, phiStart, phiEnd, cst_degree, n_phi, n_theta, "farfield") <= 0) Then
+			RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+			ReportError("Farfield result list contains no values. Please contact your local support team.")
+		End If
+
+		ReDim dthetaValues(n_theta-1)
+		ReDim dphiValues(n_phi-1)
+		ReDim dyValues(n_theta-1, n_phi-1)
+
+		' thetaValues and phiValues in rad
+     	dthetaValues_full = oSelectedSP.FarfieldCalculator.GetList(cst_plotmode, "Point_T")
+		dphiValues_full = oSelectedSP.FarfieldCalculator.GetList(cst_plotmode, "Point_P")
+		dyValues_full = oSelectedSP.FarfieldCalculator.GetList(cst_plotmode, cst_component)
+		For i = 0 To n_theta-1
+			dthetaValues(i) = dthetaValues_full(i*n_phi)*(Pi/180)
+		Next
+		For j = 0 To n_phi-1
+			dphiValues(j) = dphiValues_full(j)*(Pi/180)
+		Next
+        For i=0 To n_theta-1
+			For j = 0 To n_phi-1
+				dyValues(i,j) = dyValues_full(i*n_phi+j)*Sin(dthetaValues(i)) ' include Jacobian here
+			Next
+        Next i
+		componentSum = Integrate2D_LIB(dthetaValues(), dphiValues(), dyValues(), sIntegrationMethod)
+
+	End With
+
+	dStartTime = Timer()
+	'solidAngleArea = (phiEnd-phiStart)*(Cos(thetaStart)-Cos(thetaEnd)) ' instead of analytical equation, also calculate solid area numerically; slower but some errors will balance out this way
+	' The closed form of the discrete first-order sum should NOT be used here since the enumerator uses Boole integration, which is higher order and more accurate
+	' Is there a closed form of the discrete sum for Boole integration of solid angle?
+	For i=0 To n_theta-1
+		For j = 0 To n_phi-1
+			dyValues(i,j) = Sin(dthetaValues(i)) ' include Jacobian here
+		Next
+    Next i
+    solidAngleArea = Integrate2D_LIB(dthetaValues(), dphiValues(), dyValues(), sIntegrationMethod)
+	' ReportInformationToWindow(CStr(Timer()-dStartTime) & ": " & CStr(solidAngleArea))
+
+	averageOverSolidAngleNEW = componentSum/solidAngleArea
+
+	If (bReturndBResult) Then
+		averageOverSolidAngleNEW = dFactordB * CST_Log10(averageOverSolidAngleNEW)
+	End If
+
+End Function
+
+Function GenerateFarfieldList_LIB(oSelectedSP As Object, cst_farfield As String, cst_plotmode As String, _
+									dThetaStart As Double, dThetaEnd As Double, dThetaStep As Double, _
+									dPhiStart As Double, dPhiEnd As Double, dPhiStep As Double, _
+									nPhi As Long, nTheta As Long, Optional sCalculationParameters As String) As Long
+
+	' This function will set up and calculate a farfield result list
+	' Inputs:
+	'	oSelectedSP - The simulation project which contains the farfield plot
+	'	cst_farfield - the full name of the farfield result
+	'	cst_plotmode - the plot mode for the list (e.g., efield, pfield,...)
+	'	dThetaStart - start value for theta
+	'	dThetaEnd - end value for theta
+	'	dThetaStep - step resolution for theta
+	'	dPhiStart - start value for phi
+	'	dPhiEnd - end value for phi
+	'	dPhiStep - step resolution for phi
+	' 	sCalculationParameters - "farfield", "nearfield", "Eonly", or "Honly". Optional for bwc, in which case "farfield" is chosen
+	' Outputs:
+	'	nPhi - actual number of samples in phi
+	'	nTheta - actual number of samples in theta
+	'	GenerateFarfieldList_LIB - the function will return the total number of samples, nPhi*nTheta
+
+	Dim i As Long
+	Dim dTheta As Double, dPhi As Double
+	Dim nThetaTemp As Long, nPhiTemp As Long
+	Dim dCurrentSampleValue As Double, sCoordinateSystemType As String, sTimeOrFreq As String
+	' Dim dStartTime As Double
+	Dim sThetaArray() As String, sPhiArray() As String, sRadiusArray(0) As String, sCoordSystemTypeArray(0) As String, sTimeOrFreqArray(0) As String, sCurrentSampleValueArray(0) As String
+
+	Dim oSelectedFarfieldPlot As Object, oSelectedFarfieldCalculator As Object
+
+	Set oSelectedFarfieldPlot = oSelectedSP.FarfieldPlot
+	Set oSelectedFarfieldCalculator = oSelectedSP.FarfieldCalculator
+
+	If sCalculationParameters = "" Then sCalculationParameters = "farfield"
+
+	oSelectedFarfieldPlot.Reset
+	oSelectedFarfieldPlot.SetSpecials("disableplot") ' will be re-enabled at end of template
+	If (cst_plotmode <> "") Then oSelectedFarfieldPlot.SetPlotMode(cst_plotmode)
+
+	' Use current FarfieldPlot to initiate FarfieldCalculator
+	oSelectedFarfieldCalculator.ResetAsCurrentPlot()
+
+	' dStartTime = Timer()
+	nTheta = 0
+	nPhi = 0
+	dCurrentSampleValue = Evaluate(GetScriptSetting("BroadbandMonitorCurrentSample", "1"))
+	sCoordinateSystemType = GetScriptSetting("CoordinateSystemType", "spherical")
+	If InStr(cst_farfield, "farfield (broadband)")>0 Then
+		If (GetScriptSetting("GroupConstSweep", "0") < 2) Then ' frequency
+			dCurrentSampleValue = IIf(dCurrentSampleValue = 0, 0.01, dCurrentSampleValue)
+			sTimeOrFreq = "frequency"
+		Else ' time
+			sTimeOrFreq = "time"
+		End If
+    Else
+    	sTimeOrFreq = ""
+    	dCurrentSampleValue = 0
+    End If
+    sRadiusArray(0) = GetScriptSetting("Distance","1.0")
+    sCoordSystemTypeArray(0) = sCoordinateSystemType
+    sTimeOrFreqArray(0) = sTimeOrFreq
+    sCurrentSampleValueArray(0) = CStr(dCurrentSampleValue)
+
+	nTheta = Fix((dThetaEnd - dThetaStart) / dThetaStep) + 1
+	nPhi = Fix((dPhiEnd - dPhiStart) / dPhiStep) + 1
+
+    ReDim sThetaArray(nTheta * nPhi - 1)
+    ReDim sPhiArray(nTheta * nPhi - 1)
+
+    i = 0
+    nThetaTemp = 0
+    nPhiTemp = 0
+	For dTheta=dThetaStart To dThetaEnd+0.01*dThetaStep STEP dThetaStep
+		nThetaTemp = nThetaTemp + 1
+		For dPhi=dPhiStart To dPhiEnd+0.01*dPhiStep STEP dPhiStep
+			If (nThetaTemp = 1) Then nPhiTemp = nPhiTemp + 1
+			sThetaArray(i) = CStr(dTheta)
+			sPhiArray(i) = CStr(dPhi)
+			i = i + 1
+		Next dPhi
+		If GetTemplateAborted Then Exit All
+ 	Next dTheta
+
+ 	' Confirm that original calculation of nTheta and nPhi agrees with double for loop including potential rounding errors
+ 	Assert_LIB(nTheta = nThetaTemp)
+ 	Assert_LIB(nPhi = nPhiTemp)
+
+	' ReportInformationToWindow("List compiled after " & CStr(Timer() - dStartTime))
+	' dStartTime = Timer()
+
+	oSelectedFarfieldCalculator.AddListEvaluationPoints(sThetaArray, sPhiArray, sRadiusArray, sCoordSystemTypeArray, sTimeOrFreqArray, sCurrentSampleValueArray) ' zero radius for farfield approximation
+	oSelectedFarfieldCalculator.CalculateList(cst_farfield, sCalculationParameters)
+	' ReportInformationToWindow("List calculated after " & CStr(Timer() - dStartTime))
+
+	GenerateFarfieldList_LIB = nPhi * nTheta ' return the total number of samples
+
+End Function
+
+Function GetFarfieldLogFactor_LIB(sComponent As String, sPlotMode As String) As Double
+
+	' Determine logarithmic factor for a given component and plot mode
+
+	If (InStr(LCase(sComponent), "phase") > 0) Then
+		GetFarfieldLogFactor_LIB = 0
+	ElseIf (InStr(LCase(sComponent), "axialratio") > 0) Then
+		GetFarfieldLogFactor_LIB = 20
+	ElseIf ((sPlotMode = "efield") Or (sPlotMode = "epattern") Or (sPlotMode = "hfield")) Then
+		GetFarfieldLogFactor_LIB = 20
+	Else
+		GetFarfieldLogFactor_LIB = 10
+	End If
+
+End Function
+
+
+Function Integrate1D_LIB(vxValues As Variant, vyValues As Variant, Optional sMethod As String) As Double
+
+	' integrate ydx using the specified method; currently implemented: "Riemann", "Trapez", "Simpson", "Boole"
+
+	Dim i As Long
+	Dim dxValues() As Double, dyValues() As Double
+	Dim oTempObject As Object
+	Dim dStartTime ' for performance measurements
+	dStartTime = Timer()
+
+	Assert_LIB(UBound(vxValues)=UBound(vyValues))
+	ReDim dxValues(UBound(vxValues))
+	ReDim dyValues(UBound(vyValues))
+
+	Integrate1D_LIB = 0
+	For i = 0 To UBound(vxValues)
+		dxValues(i) = vxValues(i)
+		dyValues(i) = vyValues(i)
+	Next
+	If sMethod = "" Then sMethod = "Trapez"
+	Select Case sMethod
+		Case "Riemann"
+			' integrate ydx using Riemann sums; can accept non-equidistant samples; y_n should be y value taken half-way between x_n and x_n+1
+			For i = 1 To UBound(dxValues)-1
+				Integrate1D_LIB = Integrate1D_LIB + (dxValues(i+1)-dxValues(i))*dyValues(i)
+			Next
+			'ReportInformationToWindow("Riemann integration: " + CStr(UBound(dxValues)) + " samples, " + CStr(Timer()-dStartTime) + " secs.")
+		Case "Trapez"
+			' integrate ydx using trapezoidal rule; can accept non-equidistant samples
+			'For i = 0 To UBound(dxValues)-1
+			'	Integrate1D_LIB = Integrate1D_LIB + (dxValues(i+1)-dxValues(i))*(dyValues(i+1)+dyValues(i))
+			'Next
+			'Integrate1D_LIB = Integrate1D_LIB/2
+			'ReportInformationToWindow("Trapezoidal integration VBA: " + CStr(UBound(dxValues)) + " samples, " + CStr(Timer()-dStartTime) + " secs.")
+			' 4/26/2017 FSC Implementation through Result1D object should be faster for large arrays:
+			Set oTempObject = Result1D("")
+			oTempObject.Initialize(UBound(dxValues) + 1)
+			oTempObject.SetArray(dxValues, "x")
+			oTempObject.SetArray(dyValues, "y")
+			Integrate1D_LIB = oTempObject.GetIntegral()
+			' ReportInformationToWindow("Trapezoidal integration: " + CStr(UBound(dxValues)) + " samples, " + CStr(Timer()-dStartTime) + " secs.")
+		Case "Simpson"
+			' integrate ydx using Simpson's rule; assumes equidistant samples
+		    For i=0 To UBound(dxValues)-2 STEP 2
+		   		' Simpson rule
+				If (Abs((dxValues(i+2)-dxValues(i))/(dxValues(i+1)-dxValues(i))-2)>1e-2) Then ' accept 1% variation in interval width
+					ReportWarning("Simpson integration requires equidistant samples. Switching to trapezoidal rule.")
+					Integrate1D_LIB = Integrate1D_LIB(dxValues, dyValues, "Trapez")
+				Else
+			    	Integrate1D_LIB = Integrate1D_LIB + (dxValues(i+2)-dxValues(i))*(dyValues(i) + 4*dyValues(i+1) + dyValues(i+2)) ' apply weight 1/6 below
+			    End If
+		    Next i
+		    ' If Simpson stopped at UBound(dxValues)-1, add last point to integral in trapezoidal form
+			If (i = UBound(dxValues)-1) Then
+				Integrate1D_LIB = Integrate1D_LIB/6 + (dxValues(UBound(dxValues))-dxValues(UBound(dxValues)-1))*(dyValues(UBound(dxValues))+dyValues(UBound(dxValues)-1))/2
+			Else
+				Integrate1D_LIB = Integrate1D_LIB/6
+			End If
+			'ReportInformationToWindow("Simpson integration: " + CStr(UBound(dxValues)) + " samples, " + CStr(Timer()-dStartTime) + " secs.")
+		Case "Boole"
+			' integrate ydx using Boole's rule (similar to Simpson, order 4); assumes equidistant samples
+		    For i=0 To UBound(dxValues)-4 STEP 4
+				If (Abs((dxValues(i+4)-dxValues(i))/(dxValues(i+1)-dxValues(i))-4)>1e-2) Then ' accept 1% variation in interval width
+					ReportWarning("Boole integration requires equidistant samples. Switching to trapezoidal rule.")
+					Integrate1D_LIB = Integrate1D_LIB(dxValues, dyValues, "Trapez")
+				Else
+			    	Integrate1D_LIB = Integrate1D_LIB + (dxValues(i+4)-dxValues(i))*(7*dyValues(i) + 32*dyValues(i+1) + 12*dyValues(i+2) + 32*dyValues(i+3) + 7*dyValues(i+4)) ' apply weight 2/(4*45) = 1/90 below
+			    End If
+		    Next i
+		    ' If Boole stopped at UBound(dxValues)-n, add last points to integral in appropriate form
+			If (i = UBound(dxValues)-3) Then ' Newton 3/8
+				Integrate1D_LIB = Integrate1D_LIB/90 + (dxValues(UBound(dxValues))-dxValues(UBound(dxValues)-3))*(dyValues(UBound(dxValues)-3)+3*dyValues(UBound(dxValues)-2)+3*dyValues(UBound(dxValues)-1)+dyValues(UBound(dxValues)))/8
+			ElseIf (i = UBound(dxValues)-2) Then ' Simpson
+				Integrate1D_LIB = Integrate1D_LIB/90 + (dxValues(UBound(dxValues))-dxValues(UBound(dxValues)-2))*(dyValues(UBound(dxValues)-2) + 4*dyValues(UBound(dxValues)-1) + dyValues(UBound(dxValues)))/6
+			ElseIf (i = UBound(dxValues)-1) Then ' trapez
+				Integrate1D_LIB = Integrate1D_LIB/90 + (dxValues(UBound(dxValues))-dxValues(UBound(dxValues)-1))*(dyValues(UBound(dxValues))+dyValues(UBound(dxValues)-1))/2
+			Else
+				Integrate1D_LIB = Integrate1D_LIB/90
+			End If
+			'ReportInformationToWindow("Boole integration: " + CStr(UBound(dxValues)) + " samples, " + CStr(Timer()-dStartTime) + " secs.")
+		Case Else
+			ReportWarning("Unknown integration method, using trapezoidal as fallback.") ' This should not happen
+			Integrate1D_LIB = Integrate1D_LIB(dxValues, dyValues, "Trapez")
+	End Select
+End Function
+
+Function Integrate2D_LIB(vxValues As Variant, vyValues As Variant, vfValues As Variant, Optional sMethod As String) As Double
+
+	' Calculate Integral[f(x,y), {x}, {y}]; f is assumed to be a 2D matrix with dim(vfValues)=dim(vxValues) x dim(vyValues)
+	Dim i As Long, j As Long
+	Dim d1DKernel() As Double, d1DIntegral() As Double
+	Dim nxDim As Long, nyDim As Long
+
+	nxDim = UBound(vxValues)
+	nyDim = UBound(vyValues)
+	Assert_LIB(nxDim=UBound(vfValues,1))
+	Assert_LIB(nyDim=UBound(vfValues,2))
+
+	' Integrate along vyValues first, then vxValues
+	ReDim d1DIntegral(nxDim)
+	ReDim d1DKernel(nyDim)
+	For i = 0 To nxDim
+		For j = 0 To nyDim
+			d1DKernel(j) = vfValues(i, j)
+		Next
+		d1DIntegral(i) = Integrate1D_LIB(vyValues, d1DKernel(), sMethod)
+	Next
+	Integrate2D_LIB = Integrate1D_LIB(vxValues, d1DIntegral(), sMethod)
+
+End Function
+
+Function Integrate3D_LIB(vxValues As Variant, vyValues As Variant, vzValues As Variant, vfValues As Variant, Optional sMethod As String) As Double
+
+	' Calculate Integral[f(x,y,z), {x}, {y}, {z}]; f is assumed to be a 3D matrix with dim(vfValues)=dim(vxValues) x dim(vyValues) x dim(vzValues)
+	Dim i As Long, j As Long, k As Long
+	Dim d2DKernel() As Double, d2DIntegral() As Double
+	Dim nxDim As Long, nyDim As Long, nzDim As Long
+
+	nxDim = UBound(vxValues)
+	nyDim = UBound(vyValues)
+	nzDim = UBound(vzValues)
+	Assert_LIB(nxDim=UBound(vfValues,1))
+	Assert_LIB(nyDim=UBound(vfValues,2))
+	Assert_LIB(nzDim=UBound(vfValues,3))
+
+	' Integrate along vyValues and vzValues first, then vxValues
+	ReDim d2DIntegral(nxDim)
+	ReDim d2DKernel(nyDim,nzDim)
+	For i = 0 To nxDim
+		For j = 0 To nyDim
+			For k = 0 To nzDim
+				d2DKernel(j, k) = vfValues(i, j, k)
+			Next
+		Next
+		d2DIntegral(i) = Integrate2D_LIB(vyValues, vzValues, d2DKernel(), sMethod)
+	Next
+	Integrate3D_LIB = Integrate1D_LIB(vxValues, d2DIntegral(), sMethod)
+
+End Function
+
+Function GetMax_SubRange_LIB(cst_farfield As String, _
+								cst_plotmode As String, _
+								cst_component As String, _
+								nThetaOrPhiConst As Integer, _
+								dConstAngle As Double, _
+								dRangeStart As Double, _
+								dRangeEnd As Double, _
+								cst_degree As Double) As Double
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	' Select tree item only if it or one of its subcomponents is not already selected; minimal speedup and less flickering
+	If ((oSelectedSP.GetSelectedTreeItem <> cst_farfield) And (InStr(oSelectedSP.GetSelectedTreeItem, cst_farfield +"\")=0)) Then
+		oSelectedSP.SelectTreeItem (cst_farfield)
+	End If
+
+	Select Case nThetaOrPhiConst
+		Case 1 ' Theta const
+			If ((Abs(dRangeStart) < 1e-6) And (Abs(dRangeEnd-360) < 1e-6)) Then
+				oSelectedSP.FarfieldPlot.SetSpecials("disableplot") ' will be re-enabled at end of template
+				oSelectedSP.FarfieldPlot.SetPlotMode cst_plotmode
+				GetMax_SubRange_LIB = oSelectedSP.FarfieldPlot.GetMax
+				Exit Function
+			End If
+
+			' Check that EndAngle >= StartAngle+cst_degree
+			If (dRangeEnd-dRangeStart < cst_degree) Then
+				dRangeEnd = dRangeStart+cst_degree
+				ReportWarningToWindow("PhiEnd has been automatically increased to PhiStart+stepsize")
+			End If
+			GetMax_SubRange_LIB = GetMax_SolidAngleOrSubRange_LIB(cst_farfield, cst_plotmode, cst_component, dConstAngle, dConstAngle, dRangeStart, dRangeEnd, cst_degree)
+		Case 2 ' Phi const
+			If ((Abs(dRangeStart) < 1e-6) And (Abs(dRangeEnd-180) < 1e-6)) Then
+				oSelectedSP.FarfieldPlot.SetSpecials("disableplot") ' will be re-enabled at end of template
+				oSelectedSP.FarfieldPlot.SetPlotMode cst_plotmode
+				GetMax_SubRange_LIB = oSelectedSP.FarfieldPlot.GetMax
+				Exit Function
+			End If
+
+			' Check that EndAngle >= StartAngle+cst_degree
+			If (dRangeEnd-dRangeStart < cst_degree) Then
+				dRangeEnd = dRangeStart+cst_degree
+				ReportWarningToWindow("ThetaEnd has been automatically increased to PhiStart+stepsize")
+			End If
+			GetMax_SubRange_LIB = GetMax_SolidAngleOrSubRange_LIB(cst_farfield, cst_plotmode, cst_component, dRangeStart, dRangeEnd, dConstAngle, dConstAngle, cst_degree)
+	End Select
+
+End Function
+
+Function GetMax_SolidAngle_LIB(cst_farfield As String, _
+								cst_plotmode As String, _
+								cst_component As String, _
+								thetaStart As Double, _
+								thetaEnd As Double, _
+								phiStart As Double, _
+								phiEnd As Double, _
+								cst_degree As Double) As Double
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	' Legacy implementation always returned linear values; provide this wrapper function for bwc
+	oSelectedSP.FarfieldPlot.SetScaleLinear (True)
+	GetMax_SolidAngle_LIB = GetMax_SolidAngleNEW_LIB(cst_farfield, cst_plotmode, cst_component, thetaStart, thetaEnd, phiStart, phiEnd, cst_degree)
+
+End Function
+
+Function GetMax_SolidAngleNEW_LIB(cst_farfield As String, _
+									cst_plotmode As String, _
+									cst_component As String, _
+									thetaStart As Double, _
+									thetaEnd As Double, _
+									phiStart As Double, _
+									phiEnd As Double, _
+									cst_degree As Double) As Double
+
+	' Calculate Max value in a given solid angle; return linear or dB value, depending upon current plot setting
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	' Select tree item only if it or one of its subcomponents is not already selected; minimal speedup and less flickering
+	If ((oSelectedSP.GetSelectedTreeItem <> cst_farfield) And (InStr(oSelectedSP.GetSelectedTreeItem, cst_farfield +"\")=0)) Then
+		oSelectedSP.SelectTreeItem (cst_farfield)
+	End If
+
+	If ((Abs(thetaStart) < 1e-6) And (Abs(thetaEnd-180) < 1e-6) And (Abs(phiStart) < 1e-6) And (Abs(phiEnd-360) < 1e-6)) Then
+		oSelectedSP.FarfieldPlot.SetSpecials("disableplot") ' will be re-enabled at end of template
+		oSelectedSP.FarfieldPlot.SetPlotMode cst_plotmode
+		GetMax_SolidAngleNEW_LIB = oSelectedSP.FarfieldPlot.GetMax
+		Exit Function
+	End If
+
+	' Check that EndAngle >= StartAngle+cst_degree
+	If (thetaEnd-thetaStart < cst_degree) Then
+		thetaEnd = thetaStart+cst_degree
+		ReportWarningToWindow("ThetaEnd has been automatically increased to ThetaStart+stepsize")
+	End If
+	If (phiEnd-phiStart < cst_degree) Then
+		phiEnd = phiStart+cst_degree
+		ReportWarningToWindow("PhiEnd has been automatically increased to PhiStart+stepsize")
+	End If
+
+	GetMax_SolidAngleNEW_LIB = GetMax_SolidAngleOrSubRange_LIB(cst_farfield, cst_plotmode, cst_component, thetaStart, thetaEnd, phiStart, phiEnd, cst_degree)
+
+End Function
+
+Function GetMax_SolidAngleOrSubRange_LIB(cst_farfield As String, _
+											cst_plotmode As String, _
+											cst_component As String, _
+											dThetaStart As Double, _
+											dThetaEnd As Double, _
+											dPhiStart As Double, _
+											dPhiEnd As Double, _
+											cst_degree As Double) As Double
+
+	Dim dListValues() As Double
+	Dim nPhi As Long, nTheta As Long
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	' Select tree item only if it or one of its subcomponents is not already selected; minimal speedup and less flickering
+	If ((oSelectedSP.GetSelectedTreeItem <> cst_farfield) And (InStr(oSelectedSP.GetSelectedTreeItem, cst_farfield +"\")=0)) Then
+		oSelectedSP.SelectTreeItem (cst_farfield)
+	End If
+
+	If (GenerateFarfieldList_LIB(oSelectedSP, cst_farfield, cst_plotmode, dThetaStart, dThetaEnd, cst_degree, dPhiStart, dPhiEnd, cst_degree, nPhi, nTheta, "farfield") <= 0) Then
+		RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+		ReportError("Farfield result list contains no values. Please contact your local support team.")
+	End If
+
+	dListValues = oSelectedSP.FarfieldCalculator.GetList(cst_plotmode, cst_component)
+
+	GetMax_SolidAngleOrSubRange_LIB = Max_Lib(dListValues)
+
+End Function
+
+Function GetMin_SubRange_LIB(cst_farfield As String, _
+								cst_plotmode As String, _
+								cst_component As String, _
+								nThetaOrPhiConst As Integer, _
+								dConstAngle As Double, _
+								dRangeStart As Double, _
+								dRangeEnd As Double, _
+								cst_degree As Double) As Double
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	' Select tree item only if it or one of its subcomponents is not already selected; minimal speedup and less flickering
+	If ((oSelectedSP.GetSelectedTreeItem <> cst_farfield) And (InStr(oSelectedSP.GetSelectedTreeItem, cst_farfield +"\")=0)) Then
+		oSelectedSP.SelectTreeItem (cst_farfield)
+	End If
+
+	Select Case nThetaOrPhiConst
+		Case 1 ' Theta const
+			If ((Abs(dRangeStart) < 1e-6) And (Abs(dRangeEnd-360) < 1e-6)) Then
+				oSelectedSP.FarfieldPlot.SetSpecials("disableplot") ' will be re-enabled at end of template
+				oSelectedSP.FarfieldPlot.SetPlotMode cst_plotmode
+				GetMin_SubRange_LIB = oSelectedSP.FarfieldPlot.GetMin
+				Exit Function
+			End If
+
+			' Check that EndAngle >= StartAngle+cst_degree
+			If (dRangeEnd-dRangeStart < cst_degree) Then
+				dRangeEnd = dRangeStart+cst_degree
+				ReportWarningToWindow("PhiEnd has been automatically increased to PhiStart+stepsize")
+			End If
+			GetMin_SubRange_LIB = GetMin_SolidAngleOrSubRange_LIB(cst_farfield, cst_plotmode, cst_component, dConstAngle, dConstAngle, dRangeStart, dRangeEnd, cst_degree)
+		Case 2 ' Phi const
+			If ((Abs(dRangeStart) < 1e-6) And (Abs(dRangeEnd-180) < 1e-6)) Then
+				oSelectedSP.FarfieldPlot.SetSpecials("disableplot") ' will be re-enabled at end of template
+				oSelectedSP.FarfieldPlot.SetPlotMode cst_plotmode
+				GetMin_SubRange_LIB = oSelectedSP.FarfieldPlot.GetMin
+				Exit Function
+			End If
+
+			' Check that EndAngle >= StartAngle+cst_degree
+			If (dRangeEnd-dRangeStart < cst_degree) Then
+				dRangeEnd = dRangeStart+cst_degree
+				ReportWarningToWindow("ThetaEnd has been automatically increased to PhiStart+stepsize")
+			End If
+			GetMin_SubRange_LIB = GetMin_SolidAngleOrSubRange_LIB(cst_farfield, cst_plotmode, cst_component, dRangeStart, dRangeEnd, dConstAngle, dConstAngle, cst_degree)
+	End Select
+
+End Function
+
+Function GetMin_SolidAngle_LIB(cst_farfield As String, _
+								cst_plotmode As String, _
+								cst_component As String, _
+								thetaStart As Double, _
+								thetaEnd As Double, _
+								phiStart As Double, _
+								phiEnd As Double, _
+								cst_degree As Double) As Double
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	' Legacy implementation always returned linear values; provide this wrapper function for bwc
+	oSelectedSP.FarfieldPlot.SetScaleLinear (True)
+	GetMin_SolidAngle_LIB = GetMin_SolidAngleNEW_LIB(cst_farfield, cst_plotmode, cst_component, thetaStart, thetaEnd, phiStart, phiEnd, cst_degree)
+
+End Function
+
+Function GetMin_SolidAngleNEW_LIB(cst_farfield As String, _
+									cst_plotmode As String, _
+									cst_component As String, _
+									thetaStart As Double, _
+									thetaEnd As Double, _
+									phiStart As Double, _
+									phiEnd As Double, _
+									cst_degree As Double) As Double
+
+	' Calculate Min value in a given solid angle; return linear or dB value, depending upon current plot setting
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	' Select tree item only if it or one of its subcomponents is not already selected; minimal speedup and less flickering
+	If ((oSelectedSP.GetSelectedTreeItem <> cst_farfield) And (InStr(oSelectedSP.GetSelectedTreeItem, cst_farfield +"\")=0)) Then
+		oSelectedSP.SelectTreeItem (cst_farfield)
+	End If
+
+	If ((Abs(thetaStart) < 1e-6) And (Abs(thetaEnd-180) < 1e-6) And (Abs(phiStart) < 1e-6) And (Abs(phiEnd-360) < 1e-6)) Then
+		oSelectedSP.FarfieldPlot.SetSpecials("disableplot") ' will be re-enabled at end of template
+		oSelectedSP.FarfieldPlot.SetPlotMode cst_plotmode
+		GetMin_SolidAngleNEW_LIB = oSelectedSP.FarfieldPlot.GetMin
+		Exit Function
+	End If
+
+	' Check that EndAngle >= StartAngle+cst_degree
+	If (thetaEnd-thetaStart < cst_degree) Then
+		thetaEnd = thetaStart+cst_degree
+		ReportWarningToWindow("ThetaEnd has been automatically increased to ThetaStart+stepsize")
+	End If
+	If (phiEnd-phiStart < cst_degree) Then
+		phiEnd = phiStart+cst_degree
+		ReportWarningToWindow("PhiEnd has been automatically increased to PhiStart+stepsize")
+	End If
+
+	GetMin_SolidAngleNEW_LIB = GetMin_SolidAngleOrSubRange_LIB(cst_farfield, cst_plotmode, cst_component, thetaStart, thetaEnd, phiStart, phiEnd, cst_degree)
+
+End Function
+
+Function GetMin_SolidAngleOrSubRange_LIB(cst_farfield As String, _
+											cst_plotmode As String, _
+											cst_component As String, _
+											dThetaStart As Double, _
+											dThetaEnd As Double, _
+											dPhiStart As Double, _
+											dPhiEnd As Double, _
+											cst_degree As Double) As Double
+
+	Dim dListValues() As Double
+	Dim nPhi As Long, nTheta As Long
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	' Select tree item only if it or one of its subcomponents is not already selected; minimal speedup and less flickering
+	If ((oSelectedSP.GetSelectedTreeItem <> cst_farfield) And (InStr(oSelectedSP.GetSelectedTreeItem, cst_farfield +"\")=0)) Then
+		oSelectedSP.SelectTreeItem (cst_farfield)
+	End If
+
+	If (GenerateFarfieldList_LIB(oSelectedSP, cst_farfield, cst_plotmode, dThetaStart, dThetaEnd, cst_degree, dPhiStart, dPhiEnd, cst_degree, nPhi, nTheta, "farfield") <= 0) Then
+		RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+		ReportError("Farfield result list contains no values. Please contact your local support team.")
+	End If
+	dListValues = oSelectedSP.FarfieldCalculator.GetList(cst_plotmode, cst_component)
+
+	GetMin_SolidAngleOrSubRange_LIB = Min_Lib(dListValues)
+
+End Function
+
+Function powerRatioSolidAngle(cst_farfield As String, _
+								thetaStart As Double, _
+								thetaEnd As Double, _
+								phiStart As Double, _
+								phiEnd As Double) As Double
+	' Wrapper for new call, which includes the degree resolution cst_degree (backwards comp.)
+	' This function should not be called anymore (obsolete), call powerRatioSolidAngleNEW instead
+	Dim cst_degree As Double
+	cst_degree = Evaluate(GetScriptSetting("Stepsize"),"5")
+	powerRatioSolidAngle = powerRatioSolidAngleNEW(cst_farfield, thetaStart, thetaEnd, phiStart, phiEnd, cst_degree, "Abs")
+
+End Function
+
+Function powerRatioSolidAngleNEW(cst_farfield As String, _
+									thetaStart As Double, _
+									thetaEnd As Double, _
+									phiStart As Double, _
+									phiEnd As Double, _
+									cst_degree As Double, _
+									Optional sComponent As String) As Double
+
+	' This function returns the ratio of the power radiated into the solid angle to the total radiated power
+	' Total radiated power always uses "Abs" component, power into solid angle may accept other components (Theta,Phi, ...)
+
+	Dim dPowerInSolidAngle As Double, dTotalPower As Double
+	Dim dFactordB As Double, dMaxValuedB As Double, dMaxValueLinear As Double, bReturndBResult As Boolean
+	Dim dStartTime As Double
+
+	dStartTime = Timer()
+
+	If sComponent = "" Then sComponent = "Abs"
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	With oSelectedSP.FarfieldPlot
+		' Select tree item only if it or one of its subcomponents is not already selected; minimal speedup and less flickering
+		If ((oSelectedSP.GetSelectedTreeItem <> cst_farfield) And (InStr(oSelectedSP.GetSelectedTreeItem, cst_farfield +"\")=0)) Then
+			oSelectedSP.SelectTreeItem (cst_farfield)
+		End If
+		bReturndBResult = Not .IsScaleLinear ' return dB Result if current plot is in dB
+		If bReturndBResult Then
+			.SetScaleLinear (True)
+			dFactordB = GetFarfieldLogFactor_LIB(sComponent, "Pfield")
+			' ReportInformationToWindow(dFactordB)
+		End If
+	End With
+
+	' Return "1" if full sphere and Abs component is requested
+	If ((Abs(thetaEnd-thetaStart-180)<1e-6) And (Abs(phiEnd-phiStart-360)<1e-6) And _
+			((sComponent = "Abs") Or _
+				((UBound(Split(sComponent, " ")) = 1) And (LCase(Right(sComponent, 4)) = " abs") ))) Then
+		powerRatioSolidAngleNEW = 1
+	Else
+		dPowerInSolidAngle = GetRadiatedPowerSolidAngle_LIB(cst_farfield, thetaStart, thetaEnd, phiStart, phiEnd, cst_degree, cst_degree, sComponent, True)
+		dTotalPower = GetRadiatedPowerSolidAngle_LIB(cst_farfield, 0, 180, 0, 360, cst_degree, cst_degree, "Abs", True)
+		powerRatioSolidAngleNEW = dPowerInSolidAngle/dTotalPower
+	End If
+
+	If (bReturndBResult) Then
+		powerRatioSolidAngleNEW = dFactordB * CST_Log10(powerRatioSolidAngleNEW)
+	End If
+
+	' ReportInformationToWindow(CStr(Timer() - dStartTime))
+
+End Function
+
+Function GetRadiatedPowerSolidAngle_LIB(cst_farfield As String, _
+										thetaStart As Double, _
+										thetaEnd As Double, _
+										phiStart As Double, _
+										phiEnd As Double, _
+										cst_degree_theta As Double, _
+										cst_degree_phi As Double, _
+										sComponent As String, _
+										Optional bDoNotUseTRP As Boolean) As Double
+
+	' This function returns the power radiated into the specified solid angle, taking the specified component (Theta/Phi/Abs/...) into account. Results are in linear scale.
+	' Optional bDoNotUseTRP can be used to enforce calculation through FFPlot.CalculateList. This reduces systematic errors in power ratios where the for example the numerator
+	' integrates values from CalculateList and the denominator is the total power.
+
+	Dim n_theta As Long, n_phi As Long, i As Long, j As Long
+	Dim dthetaValues() As Double, dphiValues() As Double, dyValues() As Double
+	Dim dthetaValues_full() As Double, dphiValues_full() As Double, dyValues_full() As Double
+	Dim SINTHETA As Double
+
+	Dim sIntegrationType As String
+	sIntegrationType = "Boole"' InputBox("Integration method? (Riemann,Trapez,Simpson, Boole)", "Integration method", "Boole")
+
+	If sComponent = "" Then
+		RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+		ReportError("GetRadiatedPowerSolidAngle_LIB: Please specify a component")
+	End If
+
+	' If unknown, oSelectedSP is determined here to ensure backwards compatibility
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	With oSelectedSP.FarfieldPlot
+		' Select tree item only if it or one of its subcomponents is not already selected; minimal speedup and less flickering
+		If ((oSelectedSP.GetSelectedTreeItem <> cst_farfield) And (InStr(oSelectedSP.GetSelectedTreeItem, cst_farfield +"\")=0)) Then
+			oSelectedSP.SelectTreeItem (cst_farfield)
+		End If
+		' ensure linear scale and Pfield plot
+		.SetScaleLinear (True)
+
+		' Return TRP if full sphere and Abs component is requested
+		If ((Abs(thetaEnd-thetaStart-180)<1e-6) And (Abs(phiEnd-phiStart-360)<1e-6) And _
+				((sComponent = "Abs") Or _
+					((UBound(Split(sComponent, " ")) = 1) And (LCase(Right(sComponent, 4)) = " abs"))) And _
+				Not bDoNotUseTRP) Then
+			GetRadiatedPowerSolidAngle_LIB = .GetTRP
+		Else
+			' Check that EndAngle >= StartAngle+cst_degree
+			If (thetaEnd-thetaStart < cst_degree_theta) Then
+				thetaEnd = thetaStart+2*cst_degree_theta
+				ReportWarningToWindow("ThetaEnd has been automatically increased to ThetaStart+2*stepsize")
+			End If
+			If (phiEnd-phiStart < cst_degree_phi) Then
+				phiEnd = phiStart+2*cst_degree_phi
+				ReportWarningToWindow("PhiEnd has been automatically increased to PhiStart+2*stepsize")
+			End If
+
+			If (GenerateFarfieldList_LIB(oSelectedSP, cst_farfield, "Pfield", thetaStart, thetaEnd, cst_degree_theta, phiStart, phiEnd, cst_degree_phi, n_phi, n_theta, "farfield") <= 0) Then
+				RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+				ReportError("Farfield result list contains no values. Please contact your local support team.")
+			End If
+
+			ReDim dthetaValues(n_theta-1)
+			ReDim dphiValues(n_phi-1)
+			ReDim dyValues(n_theta-1, n_phi-1)
+
+			' thetaValues and phiValues in rad
+	     	dthetaValues_full = oSelectedSP.FarfieldCalculator.GetList("Pfield", "Point_T")
+			dphiValues_full = oSelectedSP.FarfieldCalculator.GetList("Pfield", "Point_P")
+			dyValues_full = oSelectedSP.FarfieldCalculator.GetList("Pfield", IIf(sComponent = "Abs", "spherical abs", sComponent))
+			For i = 0 To n_theta-1
+				dthetaValues(i) = dthetaValues_full(i*n_phi)*(Pi/180)
+			Next
+			For j = 0 To n_phi-1
+				dphiValues(j) = dphiValues_full(j)*(Pi/180)
+			Next
+	        For i=0 To n_theta-1
+	        	SINTHETA = Sin(dthetaValues(i))
+				For j = 0 To n_phi-1
+					dyValues(i,j) = dyValues_full(i*n_phi+j)*SINTHETA ' include Jacobian here
+				Next
+	        Next i
+			GetRadiatedPowerSolidAngle_LIB = Integrate2D_LIB(dthetaValues(), dphiValues(), dyValues(), sIntegrationType)
+		End If
+	End With ' oSelecteSP.FarfieldPlot
+
+End Function
+
+Function CorrelationCoefficient(ffname1 As String, _
+								ffname2 As String, _
+								ffstep As Double, _
+								distType As Integer, _
+								meanHorizontal As Double, _
+								sigmaHorizontal As Double, _
+								meanVertical As Double, _
+								sigmaVertical As Double, _
+								XPRdB As Double, _
+								Optional vPDFExpr As String, _
+								Optional hPDFExpr As String) As Double
+
+	' This function returns the envelope correlation coefficient, no sqrt is taken at the end
+	' vPDFExpr and hPDFExpr need to be Optional for bwc reasons
+
+	Dim theta As Double, phi  As Double, dPhi_Shifted As Double
+	Dim theta_re1() As Double,theta_im1() As Double, phi_re1() As Double,phi_im1() As Double
+	Dim theta_re2() As Double,theta_im2() As Double, phi_re2() As Double,phi_im2() As Double
+	Dim dThetaStart As Double, dThetaEnd As Double, dPhiStart As Double, dPhiEnd As Double, dPhiShift As Double
+	Dim position_theta() As Double, position_phi() As Double, SINTHETA As Double
+	Dim sThetaArray() As String, sPhiArray() As String, sRadiusArray(0) As String, sCoordSystemTypeArray(0) As String, sTimeOrFreqArray(0) As String, sCurrentSampleValueArray(0) As String
+	Dim theta_re1_full() As Double,theta_im1_full() As Double, phi_re1_full() As Double,phi_im1_full() As Double
+	Dim theta_re2_full() As Double,theta_im2_full() As Double, phi_re2_full() As Double,phi_im2_full() As Double
+	Dim position_theta_full() As Double, position_phi_full() As Double
+	Dim P_theta_real() As Double, P_phi_real() As Double, P_theta_imag() As Double, P_phi_imag() As Double ' weighting functions
+
+	Dim G1G2_re() As Double, G1G2_im() As Double, G1G2_re_theta() As Double, G1G2_re_phi() As Double, G1G2_im_theta() As Double, G1G2_im_phi() As Double
+	Dim G1G1() As Double, G1G1_theta() As Double, G1G1_phi() As Double, G2G2() As Double, G2G2_theta() As Double, G2G2_phi() As Double
+	Dim G1G2_re_sum As Double, G1G2_im_sum As Double, G1G1_sum As Double, G2G2_sum As Double
+
+	Dim XPR As Double, CPR As Double ' Cross- and Co-Polarization ratios
+	Dim rho_re As Double, rho_im As Double, rho_abs As Double
+
+	Dim nTheta As Long, nPhi As Long, n As Long, i As Long, j As Long
+
+	Dim dCurrentBroadbandSample As Double, sCoordinateSystemType As String, sTimeOrFreq As String
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	With oSelectedSP.FarfieldPlot
+		.SetPlotMode "Efield"
+		.SetScaleLinear "True"
+		.Reset
+		.SetSpecials("disableplot") ' will be re-enabled at end of template
+	End With
+
+	oSelectedSP.FarfieldCalculator.ResetAsCurrentPlot
+
+	nTheta=0
+	nPhi=0
+	dCurrentBroadbandSample = Evaluate(GetScriptSetting("BroadbandMonitorCurrentSample", "1"))
+	sCoordinateSystemType = GetScriptSetting("CoordinateSystemType", "spherical")
+	If InStr(ffname1, "farfield (broadband)")>0 Then
+		If (GetScriptSetting("GroupConstSweep", "0") < 2) Then ' frequency
+			dCurrentBroadbandSample = IIf(dCurrentBroadbandSample = 0, 0.01, dCurrentBroadbandSample)
+			sTimeOrFreq = "frequency"
+		Else ' time
+			sTimeOrFreq = "time"
+		End If
+	Else
+		sTimeOrFreq = ""
+		dCurrentBroadbandSample = 0
+	End If
+
+	dThetaStart = Evaluate(GetScriptSetting("thetaStart", "0"))
+	dThetaEnd = Evaluate(GetScriptSetting("thetaEnd", "180"))
+	dPhiStart = Evaluate(GetScriptSetting("phiStart", "0"))
+	dPhiEnd = Evaluate(GetScriptSetting("phiEnd", "360"))
+
+	' In some situations (distType = 5), this function requires its own list of samples that cannot be created automatically by GenerateFarfieldList_LIB
+	If (distType = 5) Then ' tabulated data
+		' Determine theta and phi values from table file
+		nTheta = ReadTabulatedPDFData(GetScriptSetting("TabulatedFileName", ""), dCurrentBroadbandSample, position_theta(), position_phi(), P_theta_real(), P_theta_imag(), P_phi_real(), P_phi_imag())
+		nPhi = 1 ' in this case, all combinations will be stored in a 1-index array
+	Else
+		' Depending on ffstep, dThetaEnd and dPhiEnd might not be included. This will converge with a finer resolution. Adding end value manually would lead to non-equidistant samples, which decreases accuracy of integration
+		nTheta = Fix((dThetaEnd - dThetaStart) / ffstep) + 1
+		nPhi = Fix((dPhiEnd - dPhiStart) / ffstep) + 1
+		ReDim position_theta(nTheta * nPhi - 1)
+		ReDim position_phi(nTheta * nPhi - 1)
+
+		i = 0
+		For theta=dThetaStart To dThetaEnd+0.01*ffstep STEP ffstep
+		    For phi=dPhiStart To dPhiEnd+0.01*ffstep STEP ffstep
+				position_theta(i) = theta
+				position_phi(i) = phi
+				i = i + 1
+			Next phi
+		Next theta
+	End If
+
+	ReDim sThetaArray(UBound(position_theta))
+	ReDim sPhiArray(UBound(position_phi))
+
+	' Copy double arrays to string, required by AddListEvaluationPoints
+	For i = 0 To UBound(sThetaArray())
+		sThetaArray(i) = CStr(position_theta(i))
+		sPhiArray(i) = CStr(position_phi(i))
+	Next
+
+	sRadiusArray(0) = GetScriptSetting("Distance","1.0")
+	sCoordSystemTypeArray(0) = sCoordinateSystemType
+	sTimeOrFreqArray(0) = sTimeOrFreq
+	sCurrentSampleValueArray(0) = CStr(dCurrentBroadbandSample)
+
+	oSelectedSP.FarfieldCalculator.AddListEvaluationPoints(sThetaArray, sPhiArray, sRadiusArray, sCoordSystemTypeArray, sTimeOrFreqArray, sCurrentSampleValueArray)
+	oSelectedSP.FarfieldCalculator.CalculateList(ffname1, "farfield")
+
+	ReDim theta_re1(nTheta-1, nPhi-1),theta_im1(nTheta-1, nPhi-1), phi_re1(nTheta-1, nPhi-1), phi_im1(nTheta-1, nPhi-1)
+	ReDim theta_re2(nTheta-1, nPhi-1),theta_im2(nTheta-1, nPhi-1), phi_re2(nTheta-1, nPhi-1), phi_im2(nTheta-1, nPhi-1)
+	ReDim position_theta(nTheta-1), position_phi(nPhi-1)
+
+	position_theta_full = oSelectedSP.FarfieldCalculator.GetList("efield", "Point_T")
+	position_phi_full = oSelectedSP.FarfieldCalculator.GetList("efield", "Point_P")
+	theta_re1_full = oSelectedSP.FarfieldCalculator.GetList("efield", "spherical linear theta re")
+	theta_im1_full = oSelectedSP.FarfieldCalculator.GetList("efield", "spherical linear theta im")
+	phi_re1_full   = oSelectedSP.FarfieldCalculator.GetList("efield", "spherical linear phi re")
+	phi_im1_full   = oSelectedSP.FarfieldCalculator.GetList("efield", "spherical linear phi im")
+
+	For i=0 To nTheta-1
+		position_theta(i) = position_theta_full(i*nPhi)*(Pi/180) ' in rad, better for integration
+		For j = 0 To nPhi-1
+			position_phi(j) = position_phi_full(i*nPhi+j)*(Pi/180) ' in rad, better for integration
+		    theta_re1(i,j) = theta_re1_full(i*nPhi+j)
+			theta_im1(i,j) = theta_im1_full(i*nPhi+j)
+			phi_re1(i,j)   = phi_re1_full(i*nPhi+j)
+			phi_im1(i,j)   = phi_im1_full(i*nPhi+j)
+		Next j
+	Next i
+
+	oSelectedSP.FarfieldCalculator.CalculateList(ffname2, "farfield") ' re-use list that was defined for ffname1
+
+	' re-use lists for position_theta and phi
+	theta_re2_full = oSelectedSP.FarfieldCalculator.GetList("efield", "spherical linear theta re")
+	theta_im2_full = oSelectedSP.FarfieldCalculator.GetList("efield", "spherical linear theta im")
+	phi_re2_full   = oSelectedSP.FarfieldCalculator.GetList("efield", "spherical linear phi re")
+	phi_im2_full   = oSelectedSP.FarfieldCalculator.GetList("efield", "spherical linear phi im")
+
+	For i=0 To nTheta-1
+		For j = 0 To nPhi-1
+		    theta_re2(i,j) = theta_re2_full(i*nPhi+j)
+			theta_im2(i,j) = theta_im2_full(i*nPhi+j)
+			phi_re2(i,j)   = phi_re2_full(i*nPhi+j)
+			phi_im2(i,j)   = phi_im2_full(i*nPhi+j)
+		Next j
+	Next i
+
+	If (distType <> 5) Then ' P_theta and P_phi already loaded from file for tabulated case, i.e. distType = 5
+		CalculateWeightingFunction_LIB(position_theta(), position_phi(), "rad", distType, meanHorizontal, sigmaHorizontal, meanVertical, sigmaVertical, XPRdB, vPDFExpr, hPDFExpr, P_theta_real(), P_phi_real())
+	End If
+
+	' calcuate G1*G2_c, G1*G1_c,G2*G2_c
+	CPR = 1
+	XPR = 10^(XPRdB/10)
+	G1G2_re_sum=0
+	G1G2_im_sum=0
+	G1G1_sum=0
+	G2G2_sum=0
+	ReDim G1G2_re_theta(nTheta-1, nPhi-1), G1G2_re_phi(nTheta-1, nPhi-1), G1G2_re(nTheta-1, nPhi-1)
+	ReDim G1G2_im_theta(nTheta-1, nPhi-1), G1G2_im_phi(nTheta-1, nPhi-1), G1G2_im(nTheta-1, nPhi-1)
+	ReDim G1G1_theta(nTheta-1, nPhi-1), G1G1_phi(nTheta-1, nPhi-1), G1G1(nTheta-1, nPhi-1)
+	ReDim G2G2_theta(nTheta-1, nPhi-1), G2G2_phi(nTheta-1, nPhi-1), G2G2(nTheta-1, nPhi-1)
+
+	' Calculate the various gain functions
+	If (distType <> 5) Then
+		For i=0 To nTheta-1
+			SINTHETA = Sin(position_theta(i)) ' Jacobian
+			For j = 0 To nPhi-1
+				G1G2_re_theta(i,j) = (theta_re1(i,j)*theta_re2(i,j)+theta_im1(i,j)*theta_im2(i,j))*XPR*P_theta_real(i,j)
+				G1G2_re_phi(i,j) = (phi_re1(i,j)*phi_re2(i,j)+phi_im1(i,j)*phi_im2(i,j))*CPR*P_phi_real(i,j)
+				G1G2_re(i,j) = (G1G2_re_theta(i,j) + G1G2_re_phi(i,j))*SINTHETA ' include Jacobian here
+				G1G2_im_theta(i,j) = (theta_im1(i,j)*theta_re2(i,j)-theta_re1(i,j)*theta_im2(i,j))*XPR*P_theta_real(i,j)
+				G1G2_im_phi(i,j) = (phi_im1(i,j)*phi_re2(i,j)-phi_re1(i,j)*phi_im2(i,j))*CPR*P_phi_real(i,j)
+				G1G2_im(i,j) = (G1G2_im_theta(i,j) + G1G2_im_phi(i,j))*SINTHETA ' include Jacobian here
+		      	G1G1_theta(i,j) = (theta_re1(i,j)^2+theta_im1(i,j)^2)*XPR*P_theta_real(i,j)
+		      	G1G1_phi(i,j) = (phi_re1(i,j)^2+phi_im1(i,j)^2)*CPR*P_phi_real(i,j)
+		      	G1G1(i,j) = (G1G1_theta(i,j) + G1G1_phi(i,j))*SINTHETA ' include Jacobian here
+		      	G2G2_theta(i,j) = (theta_re2(i,j)^2+theta_im2(i,j)^2)*XPR*P_theta_real(i,j)
+		      	G2G2_phi(i,j) = (phi_re2(i,j)^2+phi_im2(i,j)^2)*CPR*P_phi_real(i,j)
+		      	G2G2(i,j) = (G2G2_theta(i,j) + G2G2_phi(i,j))*SINTHETA ' include Jacobian here
+			Next j
+		Next i
+
+		' Integrate the gain functions
+		G1G2_re_sum = Integrate2D_LIB(position_theta(), position_phi(), G1G2_re(), "Boole")
+		G1G2_im_sum = Integrate2D_LIB(position_theta(), position_phi(), G1G2_im(), "Boole")
+		G1G1_sum = Integrate2D_LIB(position_theta(), position_phi(), G1G1(), "Boole")
+		G2G2_sum = Integrate2D_LIB(position_theta(), position_phi(), G2G2(), "Boole")
+
+	Else
+		For i=0 To nTheta-1
+			SINTHETA = Sin(position_theta(i)) ' Jacobian
+			For j = 0 To nPhi-1 ' nPhi should be 1 for distType = 5
+				G1G2_re_theta(i,j) = (theta_re1(i,j)*theta_re2(i,j)+theta_im1(i,j)*theta_im2(i,j))*XPR*P_theta_real(i,j) _
+										- (theta_im1(i,j)*theta_re2(i,j)-theta_re1(i,j)*theta_im2(i,j))*XPR*P_theta_imag(i,j)
+				G1G2_im_theta(i,j) = (theta_im1(i,j)*theta_re2(i,j)-theta_re1(i,j)*theta_im2(i,j))*XPR*P_theta_real(i,j) _
+										+ (theta_re1(i,j)*theta_re2(i,j)+theta_im1(i,j)*theta_im2(i,j))*XPR*P_theta_imag(i,j)
+
+				G1G2_re_phi(i,j) = (phi_re1(i,j)*phi_re2(i,j)+phi_im1(i,j)*phi_im2(i,j))*CPR*P_phi_real(i,j) _
+									- (phi_im1(i,j)*phi_re2(i,j)-phi_re1(i,j)*phi_im2(i,j))*CPR*P_phi_imag(i,j)
+				G1G2_im_phi(i,j) = (phi_im1(i,j)*phi_re2(i,j)-phi_re1(i,j)*phi_im2(i,j))*CPR*P_phi_real(i,j) _
+										+ (phi_re1(i,j)*phi_re2(i,j)+phi_im1(i,j)*phi_im2(i,j))*CPR*P_phi_imag(i,j)
+
+				G1G2_re(i,j) = (G1G2_re_theta(i,j) + G1G2_re_phi(i,j))*SINTHETA ' include Jacobian here
+				G1G2_im(i,j) = (G1G2_im_theta(i,j) + G1G2_im_phi(i,j))*SINTHETA ' include Jacobian here
+
+		      	G1G1_theta(i,j) = (theta_re1(i,j)^2+theta_im1(i,j)^2)*XPR*Sqr(P_theta_real(i,j)^2 + P_theta_imag(i,j)^2)
+		      	G1G1_phi(i,j) = (phi_re1(i,j)^2+phi_im1(i,j)^2)*CPR*Sqr(P_phi_real(i,j)^2 + P_phi_imag(i,j)^2)
+
+		      	G2G2_theta(i,j) = (theta_re2(i,j)^2+theta_im2(i,j)^2)*XPR*Sqr(P_theta_real(i,j)^2 + P_theta_imag(i,j)^2)
+		      	G2G2_phi(i,j) = (phi_re2(i,j)^2+phi_im2(i,j)^2)*CPR*Sqr(P_phi_real(i,j)^2 + P_phi_imag(i,j)^2)
+
+		      	G1G1(i,j) = (G1G1_theta(i,j) + G1G1_phi(i,j))*SINTHETA ' include Jacobian here
+		      	G2G2(i,j) = (G2G2_theta(i,j) + G2G2_phi(i,j))*SINTHETA ' include Jacobian here
+
+				' Integration becomes a simple summation
+				G1G2_re_sum = G1G2_re_sum + G1G2_re(i,j)
+				G1G2_im_sum = G1G2_im_sum + G1G2_im(i,j)
+				G1G1_sum = G1G1_sum + G1G1(i,j)
+				G2G2_sum = G2G2_sum + G2G2(i,j)
+			Next j
+		Next i
+	End If
+
+   	rho_re=G1G2_re_sum/Sqr(G1G1_sum*G2G2_sum)
+   	rho_im=G1G2_im_sum/Sqr(G1G1_sum*G2G2_sum)
+   	' Envelope correlation coefficient
+	CorrelationCoefficient = rho_re^2+rho_im^2
+
+End Function
+
+Function ReadTabulatedPDFData(sFileName As String, dFrequency As Double, _
+								ByRef theta() As Double, ByRef phi() As Double, _
+								ByRef P_theta_real() As Double, ByRef P_theta_imag() As Double, _
+								ByRef P_phi_real() As Double, ByRef P_phi_imag() As Double) As Integer
+
+	' Read in tabulated power distribution function values from a file.
+	' sFileName		: The full path to the data file
+	' theta()		: This array is used to return all theta values; one for each combination, so there can be multiple listings of the same theta
+	' phi()			: This array is used to return all phi values; one for each combination, so there can be multiple listings of the same theta
+	' P_theta_real(): This array is used to return the real part of the P_theta component
+	' P_theta_imag(): This array is used to return the imaginary part of the P_theta component
+	' P_phi_real()	: This array is used to return the real part of the P_phi component
+	' P_phi_imag()	: This array is used to return the imaginary part of the P_phi component
+
+	Dim sFileContents As String, sLineBreakChar As String, sFileContentsArray() As String, nNumberOfLines As Long
+	Dim dTimeDelayTheta As Double, dTimeDelayPhi As Double, dPhaseDelayTheta As Double, dPhaseDelayPhi As Double
+	Dim sLineArray() As String
+	Dim i As Long, nSize As Long
+
+	If (Dir(sFileName) = "") Then
+		' Try local copy
+		If(Dir(GetProjectPath("Model3D") & NoForbiddenFileNameCharacters(sFileName)) <> "") Then
+			ReportInformation("ReadTabulatedPDFData: Could not find MIMO channel data file '"  & sFileName & "'. Using local copy instead.")
+			sFileName = GetProjectPath("Model3D") & NoForbiddenFileNameCharacters(sFileName)
+		Else
+			RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+			ReportError("ReadTabulatedPDFData: Could not find MIMO channel data file '"  & sFileName & "'.")
+		End If
+	End If
+
+	sFileContents = TextFileToString_LIB(sFileName)
+
+	' Determine line break char
+	If UBound(Split(sFileContents, vbNewLine, 2))>=1 Then
+		sLineBreakChar = vbNewLine
+	Else ' Might be a linux machine, try Chr(10)=LF as separator
+		sLineBreakChar = Chr(10)
+	End If
+	' Remove all empty lines, double spaces, double tabs
+	nSize = Len(sFileContents)
+	Do
+		sFileContents = Replace(sFileContents, sLineBreakChar & sLineBreakChar, sLineBreakChar)
+		sFileContents = Replace(sFileContents, "  ", " ")
+		sFileContents = Replace(sFileContents, vbTab & vbTab, vbTab)
+	Loop While (Len(sFileContents) <> nSize)
+
+	sFileContentsArray() = Split(sFileContents, sLineBreakChar)
+	nNumberOfLines = UBound(sFileContentsArray) + 1
+	ReDim theta(nNumberOfLines - 1)
+	ReDim phi(nNumberOfLines - 1)
+	ReDim P_theta_real(nNumberOfLines - 1, 0)
+	ReDim P_theta_imag(nNumberOfLines - 1, 0)
+	ReDim P_phi_real(nNumberOfLines - 1, 0)
+	ReDim P_phi_imag(nNumberOfLines - 1, 0)
+	For i = 1 To nNumberOfLines
+		' Skip lines that start with %
+		If (Left(sFileContentsArray(i - 1), 1) <> "%") Then
+			sLineArray = Split(sFileContentsArray(i - 1), " ")
+			If (UBound(sLineArray) = 0) Then ' Try tab as separator
+				sLineArray = Split(sFileContentsArray(i - 1), vbTab)
+			End If
+			If (UBound(sLineArray) < 5) Then ' wrong file format?
+				RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+				ReportError("MIMO tabulated channel data: Could not read file format.")
+			Else
+				theta(i - 1) = Evaluate(sLineArray(0))
+				phi(i - 1) = Evaluate(sLineArray(1))
+				dTimeDelayTheta = Evaluate(sLineArray(3)) * 1e-9
+				dPhaseDelayTheta = 360 * Pi * dFrequency * Units.GetFrequencyUnitToSI * dTimeDelayTheta
+				P_theta_real(i - 1, 0) = Evaluate(sLineArray(2)) * CosD(dPhaseDelayTheta)
+				P_theta_imag(i - 1, 0) = Evaluate(sLineArray(2)) * SinD(dPhaseDelayTheta)
+				dTimeDelayPhi = Evaluate(sLineArray(5)) * 1e-9
+				dPhaseDelayPhi = 360 * Pi * dFrequency * Units.GetFrequencyUnitToSI * dTimeDelayPhi
+				P_phi_real(i - 1, 0) = Evaluate(sLineArray(4)) * CosD(dPhaseDelayPhi)
+				P_phi_imag(i - 1, 0) = Evaluate(sLineArray(4)) * SinD(dPhaseDelayPhi)
+			End If
+		End If
+	Next
+
+	ReadTabulatedPDFData = nNumberOfLines
+
+End Function
+
+Function MeanEffectiveGain(cst_farfield As String, _
+							ffstep As Double, _
+							distType As Integer, _
+							meanHorizontal As Double, _
+							sigmaHorizontal As Double, _
+							meanVertical As Double, _
+							sigmaVertical As Double, _
+							XPRdB As Double, _
+							Optional vPDFExpr As String, _
+							Optional hPDFExpr As String) As Double
+
+	' Calculate the mean effective gain (MEG) of an antenna with a given weighting function P to account for multi-path Rayleigh fading
+	' Taken from previous diversity gain template
+	' vPDFExpr and hPDFExpr need to be Optional for bwc reasons
+
+	Dim theta_re() As Double, phi_re() As Double
+	Dim dThetaStart As Double, dThetaEnd As Double, dPhiStart As Double, dPhiEnd As Double, dPhiShift As Double
+	Dim position_theta() As Double, position_phi() As Double
+	Dim theta_full() As Double, phi_full() As Double
+	Dim position_theta_full() As Double, position_phi_full() As Double
+	Dim P_theta() As Double, P_phi() As Double ' weighting functions
+	Dim N As Long, nTheta As Long, nPhi As Long
+	Dim i As Long, j As Long
+	Dim CPR As Double, XPR As Double ' Co- and cross polarization ratios
+	Dim A_Gsum As Double							' Normalization factor for gain
+	Dim Gsum_re As Double
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	If ((oSelectedSP.GetSelectedTreeItem <> cst_farfield) And (InStr(oSelectedSP.GetSelectedTreeItem, cst_farfield +"\")=0)) Then
+		If oSelectedSP.SelectTreeItem(cst_farfield)=False Then
+			ReportWarningToWindow("MEG calculation error: Cannot find farfield result '" + cst_farfield +"'")
+			Exit All
+		End If
+	End If
+
+	With oSelectedSP.FarfieldPlot
+		'.Plottype "3D" ' set in PlotFarfieldWithAllSettings
+		' .Step(ffstep) ' will be controlled by CalculateList
+		.SetPlotMode "Gain"
+		'.Distance "1" ' set in PlotFarfieldWithAllSettings
+		'.UseFarfieldApproximation  "True" ' set in PlotFarfieldWithAllSettings
+		.SetScaleLinear "True"
+		.Reset
+		.SetSpecials("disableplot") ' will be re-enabled at end of template
+	End With
+
+	dThetaStart = Evaluate(GetScriptSetting("thetaStart", "0"))
+	dThetaEnd = Evaluate(GetScriptSetting("thetaEnd", "180"))
+	dPhiStart = Evaluate(GetScriptSetting("phiStart", "0"))
+	dPhiEnd = Evaluate(GetScriptSetting("phiEnd", "360"))
+
+	If (GenerateFarfieldList_LIB(oSelectedSP, cst_farfield, "Gain", dThetaStart, dThetaEnd, ffstep, dPhiStart, dPhiEnd, ffstep, nPhi, nTheta, "farfield") <= 0) Then
+		RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+		ReportError("Farfield result list contains no values. Please contact your local support team.")
+	End If
+
+	ReDim theta_re(nTheta-1, nPhi-1), phi_re(nTheta-1, nPhi-1)
+	ReDim position_theta(nTheta-1),position_phi(nPhi-1)
+
+	position_theta_full = oSelectedSP.FarfieldCalculator.GetList("Gain", "Point_T")
+	position_phi_full = oSelectedSP.FarfieldCalculator.GetList("Gain", "Point_P")
+	theta_full = oSelectedSP.FarfieldCalculator.GetList("Gain", "spherical linear theta abs")
+	phi_full = oSelectedSP.FarfieldCalculator.GetList("Gain", "spherical linear phi abs")
+
+	For i=0 To nTheta-1
+		position_theta(i) = position_theta_full(i*nPhi)*(Pi/180)
+		For j = 0 To nPhi-1
+			position_phi(j) = position_phi_full(i*nPhi+j)*(Pi/180)
+			' include Jacobians here in preparation for integration; theta and phi should be in rad
+			theta_re(i,j) = theta_full(i*nPhi+j)*Sin(position_theta(i))
+			phi_re(i,j)   = phi_full(i*nPhi+j)*Sin(position_theta(i))
+		Next j
+	Next i
+
+	' Calculate normalized weighting functions
+	CalculateWeightingFunction_LIB(position_theta(), position_phi(), "rad", distType, meanHorizontal, sigmaHorizontal, meanVertical, sigmaVertical, XPRdB, vPDFExpr, hPDFExpr, P_theta(), P_phi())
+
+	Gsum_re = Integrate2D_LIB(position_theta(), position_phi(), theta_re(), "Boole") ' theta component
+	Gsum_re = Gsum_re + Integrate2D_LIB(position_theta(), position_phi(), phi_re(), "Boole") ' add phi component
+	A_Gsum = Gsum_re/(4*Pi)
+
+	XPR = 10^(XPRdB/10)
+	' now repeat previous integral with weighting functions and XPR
+	For i = 0 To nTheta-1
+		For j = 0 To nPhi -1
+			theta_re(i,j) = theta_re(i,j)*XPR/(1+XPR)*P_theta(i,j)
+			phi_re(i,j) = phi_re(i,j)*P_phi(i,j)/(1+XPR)
+		Next
+	Next
+	Gsum_re = Integrate2D_LIB(position_theta(), position_phi(), theta_re(), "Boole") ' theta component
+	Gsum_re = Gsum_re + Integrate2D_LIB(position_theta(), position_phi(), phi_re(), "Boole") ' add phi component
+
+	MeanEffectiveGain = Gsum_re/A_Gsum
+
+End Function
+
+Function CalculateRadiometricNoiseTemperature_LIB(cst_farfield As String, _
+													ffstep As Double, _
+													sTBrightnessDist As String) As Double
+
+	' Calculate the radiometric noise temperature of an antenna with a given weighting function P
+	' See "Efficient Simulation of Radiometric Noise in Offset Gregorian Antenna Systems" by D.I.L. de Villiers and R. Lehmensiek
+
+	Dim dThetaStart As Double, dThetaEnd As Double, dPhiStart As Double, dPhiEnd As Double
+	Dim SINTHETA As Double
+	Dim dPowerPattern() As Double
+	Dim dPowerPattern_full() As Double
+	Dim position_theta_full() As Double, position_phi_full() As Double
+	Dim P_enum() As Double, P_denom() As Double ' weighting functions
+	Dim n As Long, nTheta As Long, nPhi As Long
+	Dim i As Long, j As Long
+	Dim A_Gsum As Double							' Normalization factor for gain
+	Dim Gsum_re As Double
+	Dim nDistType As Integer
+	Dim sBrightnessDistThetaReplaced As String
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	If ((oSelectedSP.GetSelectedTreeItem <> cst_farfield) And (InStr(oSelectedSP.GetSelectedTreeItem, cst_farfield +"\")=0)) Then
+		If oSelectedSP.SelectTreeItem(cst_farfield)=False Then
+			ReportWarningToWindow("Radiometric noise temperature calculation error: Cannot find farfield result '" + cst_farfield +"'")
+			Exit All
+		End If
+	End If
+
+	With oSelectedSP.FarfieldPlot
+		.SetPlotMode "Pfield"
+		.SetScaleLinear "True"
+		.Reset
+		.SetSpecials("disableplot") ' will be re-enabled at end of template
+	End With
+
+	dThetaStart = Evaluate(GetScriptSetting("thetaStart", "0"))
+	dThetaEnd = Evaluate(GetScriptSetting("thetaEnd", "180"))
+	dPhiStart = Evaluate(GetScriptSetting("phiStart", "0"))
+	dPhiEnd = Evaluate(GetScriptSetting("phiEnd", "360"))
+
+	If (GenerateFarfieldList_LIB(oSelectedSP, cst_farfield, "Pfield", dThetaStart, dThetaEnd, ffstep, dPhiStart, dPhiEnd, ffstep, nPhi, nTheta, "farfield") <= 0) Then
+		RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+		ReportError("Farfield result list contains no values. Please contact your local support team.")
+	End If
+
+	ReDim dPowerPattern(nTheta-1, nPhi-1)
+	ReDim position_theta(nTheta-1),position_phi(nPhi-1)
+
+	position_theta_full = oSelectedSP.FarfieldCalculator.GetList("Pfield", "Point_T")
+	position_phi_full = oSelectedSP.FarfieldCalculator.GetList("Pfield", "Point_P")
+	dPowerPattern_full = oSelectedSP.FarfieldCalculator.GetList("Pfield", "spherical abs")
+
+	' Prepare Ta for evaluation
+	sTBrightnessDist = CST_ReplaceString(sTBrightnessDist, "PH")
+	sTBrightnessDist = CST_ReplaceString(sTBrightnessDist, "TH")
+
+	For i=0 To nTheta-1
+		position_theta(i) = position_theta_full(i*nPhi)*(Pi/180)
+		SINTHETA = Sin(position_theta(i))
+		sBrightnessDistThetaReplaced = Evaluate(Replace(sTBrightnessDist, "TH_cst_tmp", "("+CStr(position_theta(i))+")"))
+		For j = 0 To nPhi-1
+			position_phi(j) = position_phi_full(i*nPhi+j)*(Pi/180)
+			' include Jacobians here in preparation for integration; theta and phi in rad
+			dPowerPattern(i,j) = dPowerPattern_full(i*nPhi+j) * SINTHETA * Evaluate(Replace(sBrightnessDistThetaReplaced, "PH_cst_tmp", "("+CStr(position_phi(j))+")"))
+		Next j
+	Next i
+
+	Gsum_re = Integrate2D_LIB(position_theta(), position_phi(), dPowerPattern(), "Boole") ' theta component
+
+	CalculateRadiometricNoiseTemperature_LIB = Gsum_re/(oSelectedSP.FarfieldPlot.GetTRP)
+
+	If (CDbl(Split(Replace(GetApplicationVersion(), "Version ", ""), " - ")(0)) < 2018) Then
+		CalculateRadiometricNoiseTemperature_LIB = CalculateRadiometricNoiseTemperature_LIB/2
+	End If
+
+End Function
+
+Function CalculateCoverageEfficiency_LIB(cst_farfield As String, _
+											ffstep As Double, _
+											dThresholddB As Double) As Double
+
+	' Calculate the relative area for which the value of interest (typically gain) is above the specified threshold in dB
+	' See "mmWave Phased Array in Mobile Terminal for 5G Mobile System with Consideration of Hand Effect" by K. Zhao et al. and references therein
+
+	Dim dThetaStart As Double, dThetaEnd As Double, dPhiStart As Double, dPhiEnd As Double
+	Dim nTheta As Long, nPhi As Long
+	Dim dPattern_full() As Double
+	Dim position_theta_full() As Double, position_phi_full() As Double
+	Dim i As Long, j As Long
+	Dim dCoverageArea As Double, dTotalArea As Double, dStepArea As Double
+	Dim sPlotMode As String
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	If ((oSelectedSP.GetSelectedTreeItem <> cst_farfield) And (InStr(oSelectedSP.GetSelectedTreeItem, cst_farfield +"\")=0)) Then
+		If oSelectedSP.SelectTreeItem(cst_farfield)=False Then
+			ReportWarningToWindow("Coverage efficiency calculation error: Cannot find farfield result '" + cst_farfield +"'")
+			Exit All
+		End If
+	End If
+
+	oSelectedSP.FarfieldPlot.SetScaleLinear "False" ' threshold is usually specified in dB
+
+	dThetaStart = Evaluate(GetScriptSetting("thetaStart", "0"))
+	dThetaEnd = Evaluate(GetScriptSetting("thetaEnd", "180"))
+	dPhiStart = Evaluate(GetScriptSetting("phiStart", "0"))
+	dPhiEnd = Evaluate(GetScriptSetting("phiEnd", "360"))
+	sPlotMode = PlotMode_LIB(Cint(GetScriptSetting("PlotMode","gain")))
+
+	If (GenerateFarfieldList_LIB(oSelectedSP, cst_farfield, sPlotMode, dThetaStart, dThetaEnd, ffstep, dPhiStart, dPhiEnd, ffstep, nPhi, nTheta, "farfield") <= 0) Then
+		RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+		ReportError("Farfield result list contains no values. Please contact your local support team.")
+	End If
+
+	position_theta_full = oSelectedSP.FarfieldCalculator.GetList(sPlotMode, "Point_T")
+	position_phi_full = oSelectedSP.FarfieldCalculator.GetList(sPlotMode, "Point_P")
+	dPattern_full = oSelectedSP.FarfieldCalculator.GetList(sPlotMode, sFullCompString)
+
+	dCoverageArea = 0
+	dTotalArea = 0
+	For i = 0 To UBound(dPattern_full)
+		dStepArea = SinD(position_theta_full(i))
+		If (dPattern_full(i) > dThresholddB) Then
+			dCoverageArea = dCoverageArea + dStepArea
+		End If
+		dTotalArea = dTotalArea + dStepArea
+	Next
+
+	CalculateCoverageEfficiency_LIB = 100 * dCoverageArea / dTotalArea
+
+End Function
+
+Function CalculateCoverageThreshold_LIB(cst_farfield As String, _
+													ffstep As Double, _
+													dPercentage As Double, _
+													Optional dThresholddBInitialGuess As Double) As Double
+
+	' Calculate the threshold which would lead to a given coverage percentage; this is the inverse problem of 'CalculateCoverageEfficiency', optimization is needed
+	' See "mmWave Phased Array in Mobile Terminal for 5G Mobile System with Consideration of Hand Effect" by K. Zhao et al. and references therein
+
+	' Input variable dThresholddBInitialGuess is obsolete, needed for bwc
+
+	Dim dThresholddB As Double
+	Dim dThetaStart As Double, dThetaEnd As Double, dPhiStart As Double, dPhiEnd As Double
+	Dim nTheta As Long, nPhi As Long
+	Dim dPattern_full() As Double
+	Dim position_theta_full() As Double, position_phi_full() As Double
+	Dim dAreaElements() As Double, oAreaOverPatternValue As Object
+	Dim i As Long, nSamples As Long
+	Dim dCurrentPatternValue As Double, dPreviousPatternValue As Double
+	Dim dCoverageArea As Double, dPreviousCoverageArea As Double, dTotalArea As Double, dStepArea As Double, dTargetArea As Double
+	Dim sPlotMode As String
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	If ((oSelectedSP.GetSelectedTreeItem <> cst_farfield) And (InStr(oSelectedSP.GetSelectedTreeItem, cst_farfield +"\")=0)) Then
+		If oSelectedSP.SelectTreeItem(cst_farfield)=False Then
+			ReportWarningToWindow("Coverage threshold calculation error: Cannot find farfield result '" + cst_farfield +"'")
+			Exit All
+		End If
+	End If
+
+	oSelectedSP.FarfieldPlot.SetScaleLinear "False" ' threshold is usually specified in dB
+
+	dThetaStart = Evaluate(GetScriptSetting("thetaStart", "0"))
+	dThetaEnd = Evaluate(GetScriptSetting("thetaEnd", "180"))
+	dPhiStart = Evaluate(GetScriptSetting("phiStart", "0"))
+	dPhiEnd = Evaluate(GetScriptSetting("phiEnd", "360"))
+	sPlotMode = PlotMode_LIB(Cint(GetScriptSetting("PlotMode","gain")))
+
+
+	If (GenerateFarfieldList_LIB(oSelectedSP, cst_farfield, sPlotMode, dThetaStart, dThetaEnd, ffstep, dPhiStart, dPhiEnd, ffstep, nPhi, nTheta, "farfield") <= 0) Then
+		RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+		ReportError("Farfield result list contains no values. Please contact your local support team.")
+	End If
+
+	position_theta_full = oSelectedSP.FarfieldCalculator.GetList(sPlotMode, "Point_T")
+	position_phi_full = oSelectedSP.FarfieldCalculator.GetList(sPlotMode, "Point_P")
+	dPattern_full = oSelectedSP.FarfieldCalculator.GetList(sPlotMode, sFullCompString)
+									 
+	nSamples = UBound(dPattern_full) + 1
+
+	' Copy data into result1D object to make use of built-in sorting function; sort by increasing pattern values (e.g. gain)
+	Set oAreaOverPatternValue = Result1D("")
+	oAreaOverPatternValue.Initialize(nSamples)
+	oAreaOverPatternValue.SetArray(dPattern_full, "x")
+	dTotalArea = 0.
+	ReDim dAreaElements(nSamples - 1)
+	For i = 0 To nSamples - 1
+		dStepArea = SinD(position_theta_full(i))
+		dAreaElements(i) = dStepArea
+		dTotalArea = dTotalArea + dStepArea
+	Next
+	oAreaOverPatternValue.SetArray(dAreaElements, "y")
+	oAreaOverPatternValue.SortByX
+	' Extract sorted arrays
+	dPattern_full = oAreaOverPatternValue.GetArray("x")
+	dAreaElements = oAreaOverPatternValue.GetArray("y")
+
+	If dPercentage = 0 Then
+		ReportWarningToWindow("Coverage Threshold: Farfield Coverage should be larger than 0.")
+		Exit all
+	ElseIf dPercentage = 100 Then
+		CalculateCoverageThreshold_LIB = dPattern_full(0)
+	ElseIf dPercentage > 50 Then
+		dCoverageArea = dTotalArea
+		dTargetArea = dTotalArea * dPercentage/100
+		
+		' Start with lowest gain and go up
+		dPreviousPatternValue = dPattern_full(0)
+		For i = 0 To nSamples - 1
+			dCurrentPatternValue = dPattern_full(i)
+			If dCoverageArea <= dTargetArea Then Exit For
+			
+			dStepArea = dAreaElements(i)
+			dPreviousCoverageArea = dCoverageArea
+			dCoverageArea = dCoverageArea - dStepArea
+			dPreviousPatternValue = dCurrentPatternValue
+		Next
+	
+		CalculateCoverageThreshold_LIB = (dPreviousPatternValue * (dTargetArea - dCoverageArea) + dCurrentPatternValue * (dPreviousCoverageArea - dTargetArea)) / dStepArea
+	Else
+		dCoverageArea = 0
+		dTargetArea = dTotalArea * dPercentage/100
+		
+		' Start with highest gain and go down
+		dCurrentPatternValue = dPattern_full(nSamples - 1)
+		For i = nSamples - 1 To 0 Step -1
+			dPreviousPatternValue = dCurrentPatternValue
+			dCurrentPatternValue = dPattern_full(i)
+										
+			dStepArea = dAreaElements(i)
+			dPreviousCoverageArea = dCoverageArea
+			dCoverageArea = dPreviousCoverageArea + dStepArea
+			If dCoverageArea >= dTargetArea Then Exit For
+		Next
+		
+		CalculateCoverageThreshold_LIB = (dPreviousPatternValue * (dCoverageArea - dTargetArea) + dCurrentPatternValue * (dTargetArea - dPreviousCoverageArea)) / dStepArea
+	End If
+
+End Function
+
+Function CalculateWeightingFunction_LIB(vThetaValues As Variant, _
+										vPhiValues As Variant, _
+										sDegreeOrRad As String, _
+										distType As Integer, _
+										meanHorizontal As Double, _
+										sigmaHorizontal As Double, _
+										meanVertical As Double, _
+										sigmaVertical As Double, _
+										XPRdB As Double, _
+										sVerticalPDFExpr As String, _
+										sHorizontalPDFExpr As String, _
+										ByRef vPTheta() As Double, _
+										ByRef vPPhi() As Double) As Integer
+
+	' Calculates the weight distribution functions for several MIMO options
+	' Inputs:
+	' 	vThetaValues		- array of theta values
+	' 	vPhiValues 			- array of phi values
+	' 	sDegreeOrRad		- determine if list of theta and phi values are given in degree ("deg"), or rad ("rad")
+	' 	distType 			- an integer identifying the distribution type
+	' 	meanHorizontal		- horizontal mean for Gaussian distributions
+	' 	sigmaHorizontal	 	- horizontal sigmal for Gaussian distributions
+	'	meanVertical 		- vertical mean for Gaussian distributions
+	' 	sigmaVertical 		- vertical sigma for Gaussian distributions
+	' 	XPRdB				- the cross polarization ratio in dB
+	' 	sVerticalPDFExpr	- a string containing a formula for the vertical distribution function (used for non-Gaussians)
+	' 	sHorizontalPDFExpr	- a string containing a formula for the horizontal distribution function (used for non-Gaussians)
+	' Outputs:
+	' 	vPTheta				- a variant to return the theta component of the distribution as an array, dimensions according to resolution in theta and phi
+	'	vPPhi				- a variant to return the phi component of the distribution as an array, dimesnions according to resolution in theta and phi
+
+	Dim dPhi As Double, dPhi_Shifted As Double
+	Dim dThetaStart As Double, dThetaEnd As Double, dPhiStart As Double, dPhiEnd As Double, dPhiShift As Double
+	Dim dThetaValues_rad() As Double, dPhiValues_rad() As Double, dThetaValues_deg() As Double, dPhiValues_deg() As Double
+	Dim i As Long, j As Long
+	Dim nTheta As Long, nPhi As Long
+	Dim P_theta() As Double, P_phi() As Double ' Weighting functions
+	Dim P_theta_Int() As Double, P_phi_Int() As Double ' Weighting functions including Jacobian, used for integration
+	Dim A_theta As Double, A_phi As Double ' used for normalizing the weighting functions
+	Dim SINDTHETA As Double
+
+	nTheta = UBound(vThetaValues)
+	nPhi = UBound(vPhiValues)
+
+	ReDim P_theta(nTheta, nPhi)
+	ReDim P_phi(nTheta, nPhi)
+	ReDim P_theta_Int(nTheta, nPhi)
+	ReDim P_phi_Int(nTheta, nPhi)
+
+	If (distType >= 2) Then
+		If (sVerticalPDFExpr = "" Or sHorizontalPDFExpr = "") Then
+			ReportWarningToWindow("Weighting function calculation: Invalid expression for vertical or horizontal power distribution function, falling back to 'isotropic'.")
+			sVerticalPDFExpr = "1"
+			sHorizontalPDFExpr = "1"
+		Else
+			' add _cst_tmp to variables "PH" and "TH" so the expressions can be evaluated properly later
+			sVerticalPDFExpr = CST_ReplaceString(sVerticalPDFExpr, "PH")
+			sVerticalPDFExpr = CST_ReplaceString(sVerticalPDFExpr, "TH")
+			sHorizontalPDFExpr = CST_ReplaceString(sHorizontalPDFExpr, "PH")
+			sHorizontalPDFExpr = CST_ReplaceString(sHorizontalPDFExpr, "TH")
+		End If
+	End If
+
+	If (distType >= 3) Then ' user-defined/Gaussian/Laplace for phi -> might have beam properties in phi, needs to be symmetric around beam
+		' To estably symmetry, find beam direction (=max of distribution) and shift phi to be 0 there, then use range -180...180
+		dPhi_Shifted = 0
+		For dPhi = 0 To 360.1 STEP 3
+			' look at vertical component only
+			If (Evaluate(Replace(Replace(sVerticalPDFExpr, "PH_cst_tmp", "("+CStr(dPhi_Shifted)+")"), "TH_cst_tmp", "(90)")) _
+				< Evaluate(Replace(Replace(sVerticalPDFExpr, "PH_cst_tmp", "("+CStr(dPhi)+")"), "TH_cst_tmp", "(90)"))) Then
+				dPhi_Shifted = dPhi
+			End If
+		Next
+	End If
+
+	' Transfer theta and phi values from variant to double array; input values should be in rad!
+	ReDim dThetaValues_rad(nTheta)
+	ReDim dPhiValues_rad(nPhi)
+	ReDim dThetaValues_deg(nTheta)
+	ReDim dPhiValues_deg(nPhi) As Double
+
+	If (sDegreeOrRad = "rad") Then
+		For i = 0 To nTheta
+			dThetaValues_rad(i) = vThetaValues(i)
+			dThetaValues_deg(i) = dThetaValues_rad(i)*(180/Pi)
+		Next
+		For j = 0 To nPhi
+			dPhiValues_rad(j) = vPhiValues(j)
+			dPhiValues_deg(j) = dPhiValues_rad(j)*(180/Pi)
+		Next
+	ElseIf (sDegreeOrRad = "deg") Then
+		For i = 0 To nTheta
+			dThetaValues_deg(i) = vThetaValues(i)
+			dThetaValues_rad(i) = dThetaValues_deg(i)*(Pi/180)
+		Next
+		For j = 0 To nPhi
+			dPhiValues_deg(j) = vPhiValues(j)
+			dPhiValues_rad(j) = dPhiValues_deg(j)*(Pi/180)
+		Next
+	Else
+		RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP)
+		ReportError("CalculateWeightingFunction: Unknown angle type. Must be 'deg' or 'rad'.")
+	End If
+
+	' If a solid angle option is wanted at some point, Ptheta and Pphi could be simply set to 0 outside of the specified angle
+	dThetaStart = Evaluate(GetScriptSetting("thetaStart", "0"))
+	dThetaEnd = Evaluate(GetScriptSetting("thetaEnd", "180"))
+	dPhiStart = Evaluate(GetScriptSetting("phiStart", "0"))
+	dPhiEnd = Evaluate(GetScriptSetting("phiEnd", "360"))
+
+	For i=0 To nTheta
+		SINDTHETA = SinD(dThetaValues_deg(i))
+		For j = 0 To nPhi
+			' Set up power distribution function; normalization not necessary at this point, will be done later
+			' dist functions expect angle input in degree ...
+			' Check if theta, phi in solid angle; also check +-360 degrees for phi
+			If ((dThetaValues_deg(i)>=dThetaStart-1e-12) And (dThetaValues_deg(i)<=dThetaEnd+1e-12) _
+				And (((dPhiValues_deg(j)>=dPhiStart-1e-12) And (dPhiValues_deg(j)<=dPhiEnd+1e-12)) _
+						Or ((dPhiValues_deg(j)>=dPhiStart-360-1e-12) And (dPhiValues_deg(j)<=dPhiEnd-360+1e-12)) _
+						Or ((dPhiValues_deg(j)>=dPhiStart+360-1e-12) And (dPhiValues_deg(j)<=dPhiEnd+360+1e-12)))) Then
+				Select Case distType
+			    	Case 0 ' isotropic
+			     		P_theta(i,j) = 1
+						P_phi(i,j) = 1
+			     	Case 1 ' Gaussian/Uniform
+			     		P_theta(i,j) = Exp(-(dThetaValues_deg(i)-(90-meanVertical))^2/2/sigmaVertical^2)
+						P_phi(i,j) = Exp(-(dThetaValues_deg(i)-(90-meanHorizontal))^2/2/sigmaHorizontal^2)
+			     	Case 2 ' user defined expression
+			     		P_theta(i,j) = Evaluate(Replace(Replace(sVerticalPDFExpr, "PH_cst_tmp", "("+CStr(dPhiValues_deg(j))+")"), "TH_cst_tmp", "("+CStr(dThetaValues_deg(i))+")"))
+						P_phi(i,j) = Evaluate(Replace(Replace(sHorizontalPDFExpr, "PH_cst_tmp", "("+CStr(dPhiValues_deg(j))+")"), "TH_cst_tmp", "("+CStr(dThetaValues_deg(i))+")"))
+			     	Case Else ' Gaussian/Gaussian, Laplace/Laplace, ... for right now, handled like user-defined expression plus some special symmetry handling
+			     		If (dPhiValues_deg(j) > dPhi_Shifted+270) Then
+			     			P_theta(i,j) = Evaluate(Replace(Replace(sVerticalPDFExpr, "PH_cst_tmp", "("+CStr(dPhiValues_deg(j)-360)+")"), "TH_cst_tmp", "("+CStr(dThetaValues_deg(i))+")"))
+			     			P_phi(i,j) = Evaluate(Replace(Replace(sHorizontalPDFExpr, "PH_cst_tmp", "("+CStr(dPhiValues_deg(j)-360)+")"), "TH_cst_tmp", "("+CStr(dThetaValues_deg(i))+")"))
+			     		ElseIf ((dPhi_Shifted > 270) And (dPhiValues_deg(j) < dPhi_Shifted-270)) Then
+			     			P_theta(i,j) = Evaluate(Replace(Replace(sVerticalPDFExpr, "PH_cst_tmp", "("+CStr(dPhiValues_deg(j)+360)+")"), "TH_cst_tmp", "("+CStr(dThetaValues_deg(i))+")"))
+			     			P_phi(i,j) = Evaluate(Replace(Replace(sHorizontalPDFExpr, "PH_cst_tmp", "("+CStr(dPhiValues_deg(j)+360)+")"), "TH_cst_tmp", "("+CStr(dThetaValues_deg(i))+")"))
+			     		Else
+				     		P_theta(i,j) = Evaluate(Replace(Replace(sVerticalPDFExpr, "PH_cst_tmp", "("+CStr(dPhiValues_deg(j))+")"), "TH_cst_tmp", "("+CStr(dThetaValues_deg(i))+")"))
+				     		P_phi(i,j) = Evaluate(Replace(Replace(sHorizontalPDFExpr, "PH_cst_tmp", "("+CStr(dPhiValues_deg(j))+")"), "TH_cst_tmp", "("+CStr(dThetaValues_deg(i))+")"))
+				     	End If
+				End Select
+			Else
+				P_theta(i,j) = 0
+				P_phi(i,j) = 0
+			End If
+		   	' Values will be integrated over a spherical surface (radius 1); multiply with Jacobian at this point, such that values are ready for integration
+			P_theta_Int(i,j) = P_theta(i,j)*SINDTHETA
+			P_phi_Int(i,j) = P_phi(i,j)*SINDTHETA
+		Next j
+	Next i
+
+	' Calculate normalization factors for distribution functions; integrate in rad
+	A_theta = Integrate2D_LIB(dThetaValues_rad(), dPhiValues_rad(), P_theta_Int(), "Boole")
+	A_phi = Integrate2D_LIB(dThetaValues_rad(), dPhiValues_rad(), P_phi_Int(), "Boole")
+
+	' normalize weighting function
+	For i = 0 To nTheta
+		For j = 0 To nPhi
+			P_theta(i,j) = P_theta(i,j)/A_theta
+			P_phi(i,j) = P_phi(i,j)/A_phi
+		Next
+	Next
+
+	' return weighting function
+	vPTheta = P_theta
+	vPPhi = P_phi
+
+	' return status
+	CalculateWeightingFunction_LIB = 0 ' all is well
+
+End Function
+
+Function VisualizeWeightingFunction_LIB() As Integer
+
+	Dim dTheta() As Double, dPhi() As Double, dPhi_Shifted As Double, dThetaMin As Double, dThetaMax As Double
+	Dim dPhiMin As Double, dPhiMax As Double, dThetaStep As Double, dPhiStep As Double
+	Dim nPhiSamples As Integer, nThetaSamples As Integer
+	Dim sOutputFileName As String, iOutputFile As Integer, sFarfieldName As String, dMonitorFrequency As Double
+	Dim nMonitors As Integer, sFirstFFMonitor As String, nMonitorIndex As Integer
+	Dim icst_distType As Long, scst_vPDFExpr As String, scst_hPDFExpr As String
+	Dim dcst_meanHorizontal As Double, dcst_sigmaHorizontal As Double, dcst_meanVertical As Double, dcst_sigmaVertical As Double
+	Dim i As Long, j As Long
+	Dim sOutputBuffer As String
+
+	sOutputFileName = GetProjectPath("Root")+"\WeightingFunction.ffs"
+
+	Dim dEThetaReal() As Double, dEPhiReal() As Double
+	' Dim dEThetaImag As Double, dEPhiImag As Double ' do not use, always use imag=0
+
+	' Set up parameters
+	dThetaMin = 0
+	dThetaMax = 180
+	dThetaStep = 1
+	dPhiMin = 0
+	dPhiMax = 360
+	dPhiStep = 5
+	nThetaSamples = Fix((dThetaMax-dThetaMin)/dThetaStep) + 1
+	nPhiSamples = Fix((dPhiMax-dPhiMin)/dPhiStep) + 1
+
+	ReDim dTheta(nThetaSamples-1)
+	ReDim dPhi(nPhiSamples-1)
+
+	For i = 0 To nThetaSamples-1
+		dTheta(i) = dThetaMin + i*dThetaStep
+	Next
+	For j = 0 To nPhiSamples-1
+		dPhi(j) = dPhiMin + j*dPhiStep
+	Next
+
+	icst_distType = Evaluate(GetScriptSetting("distType","0"))
+	dcst_meanHorizontal = Evaluate(GetScriptSetting("meanHorizontal","0"))
+	dcst_sigmaHorizontal = Evaluate(GetScriptSetting("sigmaHorizontal","20"))
+	dcst_meanVertical = Evaluate(GetScriptSetting("meanVertical","0"))
+	dcst_sigmaVertical = Evaluate(GetScriptSetting("sigmaVertical","20"))
+	scst_vPDFExpr = GetScriptSetting("vPDFExpr", "1")
+	scst_hPDFExpr = GetScriptSetting("hPDFExpr", "1")
+
+	CalculateWeightingFunction_LIB(dTheta(), dPhi(), "deg", icst_distType, dcst_meanHorizontal, dcst_sigmaHorizontal, dcst_meanVertical, dcst_sigmaVertical, 0, scst_vPDFExpr, scst_hPDFExpr, dEThetaReal(), dEPhiReal())
+
+	iOutputFile = FreeFile()
+
+	' Open farfield source file
+	Open sOutputFileName For Output As iOutputFile
+	Print #iOutputFile, "// CST Farfield Source File"
+	Print #iOutputFile, "// Version:"
+	Print #iOutputFile, "2.1"
+	Print #iOutputFile, "// Data Type"
+	Print #iOutputFile, "Farfield"
+	Print #iOutputFile, "// Position"
+	Print #iOutputFile, "0 0 0"
+	Print #iOutputFile, "// z-Axis"
+	Print #iOutputFile, "0 0 1"
+	Print #iOutputFile, "// x-Axis"
+	Print #iOutputFile, "1 0 0"
+	Print #iOutputFile, "// Radiated Power"
+	Print #iOutputFile, "-1"
+	Print #iOutputFile, "// Accepted Power"
+	Print #iOutputFile, "-1"
+	Print #iOutputFile, "// Stimulated Power"
+	Print #iOutputFile, "-1"
+	Print #iOutputFile, "// Frequency"
+	Print #iOutputFile, CSTr(1*Units.GetFrequencyUnitToSI)
+	Print #iOutputFile, "// Total number of phi And theta samples"
+	Print #iOutputFile, CStr(nPhiSamples)+" "+CStr(nThetaSamples)
+	Print #iOutputFile, "// phi, theta, Re(Etheta), Im(Etheta), Re(Ephi), Im(Ephi)"
+
+	' Buffered file write; needs to be implemented directly here as using functions from exports.lib might cause dependency problems
+	sOutputBuffer = ""
+	For i = 0 To nPhiSamples-1
+		For j = 0 To nThetaSamples-1
+			sOutputBuffer = sOutputBuffer + CStr(dPhi(i))+" "+CStr(dTheta(j))+" "+CStr(dEThetaReal(j,i))+" 0 "+CStr(dEPhiReal(j,i))+" 0" & vbNewLine ' write 0 for imaginary parts
+			If (Len(sOutputBuffer) > 2500) Then
+				' Length 2500 found heuristically. Write buffer to file and reset buffer
+				Print #iOutputFile, sOutputBuffer;
+				sOutputBuffer = ""
+			End If
+		Next
+	Next
+	Print #iOutputFile, sOutputBuffer; ' flush remaining buffer
+
+	Close iOutputFile
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	' Convert to .ffp and add to tree
+	With oSelectedSP.FarfieldArray
+		.ClearAntennaItems()
+		.SetCombineFrequency("1")
+		.AddAntennaItem(GetProjectPath("Root")+"\WeightingFunction.ffs", 0,0,0, 0,0,0, 1, 0)
+		.SetCombineReferenceOrigin ( 0, 0 ,0 )
+		.SetNormalizeAntennas(False)
+		.ExecuteCombine(GetProjectPath("Result") + "WeightingFunction.ffp", Min_LIB(Array(dThetaStep, dPhiStep)))
+	End With
+
+	With oSelectedSP.Resulttree
+		.Name "Farfields\WeightingFunction"
+		.File GetProjectPath("Result") + "WeightingFunction.ffp"
+		.Type "Farfield"
+		.Add
+	End With
+
+	oSelectedSP.SelectTreeItem("Farfields\WeightingFunction")
+	' Update plot, show as 3D efield
+	With oSelectedSP.FarfieldPlot
+		.SetSpecials("enableplot") ' always enable plot here, in case it was disabled before due to template abort/error
+		.PlotType("3D")
+		.SetPlotMode("efield")
+		.Plot
+	End With
+
+End Function
+
+Function GenerateEnvelopePattern_LIB(sListOfFarfields() As String, _
+										ffstep As Double, _
+										sComponent As String, _
+										bIncludeExistingEnvelopePattern As Boolean, _
+										sEnvelopePatternName As String, _
+										Optional vScalingFactor As Variant) As Double
+
+	' Calculate the envelope of all farfield patterns listed by comparing the specified component for all angles and keeping the largest pattern value.
+	' Two scenarios (or a combination of both) can be considered:
+	' 1) Outside of a parameter sweep: Go through a list of multiple antennas or excitations. Multiple patterns.
+	' 2) Within a parameter sweep: Sweep over different angles for a phased array. Only one pattern but multiple parametric scenarios
+	' Result: Creates a new farfield pattern in the tree, representing the calculated envelope
+	'
+	' Function parameters:
+	' sListOfFarfields() 				- A list of strings referring to the tree entries for the requested farfield patterns. A single pattern should also be submitted within a 1 element array. SPs can be included by syntax <SPName>:<FFTREEENTRY>
+	' ffstep 							- The angular resolution to consider
+	' sComponent						- Compare the patterns based on this component, e.g. "spherical abs" or "theta"
+	' bIncludeExistingEnvelopePattern	- If this is true, all values are compared against the existing result. If not, the first pattern insListOfFarfields will be the reference.
+	' sEnvelopePatternName				- Name of the resulting envelope pattern. If [Auto], first item in list plus "envelope" is used.
+	' vScalingFactor(), OPTIONAL		- A list of scaling factors for each of the farfields in sListOfFarfields(); should contain a Double array, but optional does not work for arrays
+
+	Dim theta As Double, phi  As Double
+	Dim dThetaReal() As Double, dThetaImag() As Double
+	Dim dPhiReal() As Double, dPhiImag() As Double
+	Dim dBestThetaReal() As Double, dBestThetaImag() As Double
+	Dim dBestPhiReal() As Double, dBestPhiImag() As Double
+	Dim dComponentForComparison() As Double, dBestPattern() As Double
+	Dim position_theta_full() As Double, position_phi_full() As Double
+	Dim N As Long, nTheta As Long, nPhi As Long
+	Dim i As Long, j As Long, k As Long
+	Dim sEnvelopePatternFile As String, iOutputFile As Integer
+	Dim dFrequency As Double, dRadiatedPower As Double, dAcceptedPower As Double, dStimulatedPower As Double, sTempString As String
+	Dim sCoordinateSystem As String
+	Dim sOutputBuffer As String, cst_farfield As String
+	Dim sSPContainingFieldData As String, oSPContainingFieldData As Object
+	Dim dScalingFactor() As Double, SCFACTOR As Double
+	Dim sEnvelopePatternTreePath As String
+
+	GenerateEnvelopePattern_LIB = -1 ' unfinished
+
+	ReDim dScalingFactor(UBound(sListOfFarfields()))
+	If IsMissing(vScalingFactor) Then
+		For i = 0 To UBound(dScalingFactor())
+			dScalingFactor(i) = 1
+		Next
+	Else
+		For i = 0 To UBound(dScalingFactor())
+			dScalingFactor(i) = vScalingFactor(i)
+		Next
+	End If
+
+	For k = 0 To UBound(sListOfFarfields())
+		cst_farfield = sListOfFarfields(k)
+		If (InStr(cst_farfield, ":") > 0) Then
+			sSPContainingFieldData = Split(cst_farfield, ":")(0)
+			Set oSPContainingFieldData = GetSimulationProjectByName_LIB(sSPContainingFieldData)
+			cst_farfield = Split(cst_farfield, ":")(1)
+		Else
+			Set oSPContainingFieldData = GetOwnProject()
+		End If
+
+		If ((oSPContainingFieldData.GetSelectedTreeItem <> cst_farfield) And (InStr(oSPContainingFieldData.GetSelectedTreeItem, cst_farfield +"\")=0)) Then
+			If (InStr(cst_farfield, "farfield (broadband)") > 0) Then
+				ReportWarning("Farfield Envelope: Broadband monitors are currently not supported, skipping.")
+				GoTo EndOfKForLoop
+			ElseIf (oSPContainingFieldData.SelectTreeItem(cst_farfield) = False) Then
+				ReportWarningToWindow("Farfield Envelope: Cannot find farfield result '" + cst_farfield +"'. Skipping.")
+				GoTo EndOfKForLoop
+			End If
+		End If
+
+		With oSPContainingFieldData.FarfieldPlot
+			.SetScaleLinear "True"
+			.Reset
+			.SetSpecials("disableplot")
+			If (k = 0) Then
+				.Plot
+				' option 'linear' needs to be active before these calculation, or the efficiencies will return in dB!
+				dRadiatedPower = oSPContainingFieldData.FarfieldPlot.GetTRP
+				dStimulatedPower = dRadiatedPower/oSPContainingFieldData.FarfieldPlot.GetTotalEfficiency
+				dAcceptedPower = dRadiatedPower/oSPContainingFieldData.FarfieldPlot.GetRadiationEfficiency
+				dFrequency = IIf(oSPContainingFieldData.GetFieldFrequency=0, 0.01, oSPContainingFieldData.GetFieldFrequency)
+				If dFrequency = -1 Then ' Tabulated FF data requires plot to be active to work. Try again with plot active
+					oSPContainingFieldData.FarfieldPlot.SetSpecials("enableplot")
+					dFrequency = IIf(oSPContainingFieldData.GetFieldFrequency=0, 0.01, oSPContainingFieldData.GetFieldFrequency)
+					oSPContainingFieldData.FarfieldPlot.SetSpecials("disableplot")
+				End If
+			End If
+		End With
+
+		GenerateFarfieldList_LIB(oSPContainingFieldData, cst_farfield, "efield", 0, 180, ffstep, 0, 360, ffstep, nPhi, nTheta, "farfield")
+
+		position_theta_full = oSPContainingFieldData.FarfieldCalculator.GetList("efield", "Point_T")
+		position_phi_full = oSPContainingFieldData.FarfieldCalculator.GetList("efield", "Point_P")
+		dThetaReal = oSPContainingFieldData.FarfieldCalculator.GetList("efield", "spherical linear theta re") ' Contains all values of the current pattern
+		dThetaImag = oSPContainingFieldData.FarfieldCalculator.GetList("efield", "spherical linear theta im") ' Contains all values of the current pattern
+		dPhiReal = oSPContainingFieldData.FarfieldCalculator.GetList("efield", "spherical linear phi re") ' Contains all values of the current pattern
+		dPhiImag = oSPContainingFieldData.FarfieldCalculator.GetList("efield", "spherical linear phi im") ' Contains all values of the current pattern
+		dComponentForComparison = oSPContainingFieldData.FarfieldCalculator.GetList("efield", sComponent) ' Contains all values of the current pattern
+
+		' Scale all results with power scaling factor
+		SCFACTOR = Sqr(dScalingFactor(k))
+		If (Abs(SCFACTOR - 1) > 1e-12) Then
+			For i = 0 To UBound(dThetaReal)
+				dThetaReal(i) = dThetaReal(i) * SCFACTOR
+				dThetaImag(i) = dThetaImag(i) * SCFACTOR
+				dPhiReal(i) = dPhiReal(i) * SCFACTOR
+				dPhiImag(i) = dPhiImag(i) * SCFACTOR
+				dComponentForComparison(i) = dComponentForComparison(i) * SCFACTOR
+			Next
+		End If
+
+		' First run: Either use first pattern as reference, or load existing envelope as reference
+		If (k = 0) Then
+
+			' 6/5/2020 fsr: The following if section is kept for bwc; new templates handle the [Auto] renaming inside the template itself, not the lib
+			If (sEnvelopePatternName = "[Auto]") Then
+				If (InStr(cst_farfield, " [") > 0) Then
+					sEnvelopePatternName = Replace(cst_farfield, " [", " (envelope) [")
+				Else
+					sEnvelopePatternName = cst_farfield & " (envelope)"
+				End If
+			End If
+			' end FSR
+
+			If (Left(sEnvelopePatternName, 10) = "Farfields\") Then
+				sEnvelopePatternTreePath = sEnvelopePatternName
+			Else
+				sEnvelopePatternTreePath = "Farfields\" & sEnvelopePatternName
+			End If
+
+			If ((Not bIncludeExistingEnvelopePattern) Or (oSPContainingFieldData.SelectTreeItem(sEnvelopePatternTreePath)=False)) Then
+				' first run, best pattern is current pattern
+				dBestThetaReal = dThetaReal
+				dBestThetaImag = dThetaImag
+				dBestPhiReal = dPhiReal
+				dBestPhiImag = dPhiImag
+				dBestPattern = dComponentForComparison
+			Else
+				' Load best pattern and compare, store best value
+				' Best pattern is stored in current SP, object variable 'oSPContainingFieldData'
+				If ((oSPContainingFieldData.GetSelectedTreeItem <> sEnvelopePatternTreePath) And (InStr(oSPContainingFieldData.GetSelectedTreeItem, sEnvelopePatternTreePath +"\")=0)) Then
+					If (InStr(sEnvelopePatternName, "farfield (broadband)") > 0) Then
+						GenerateEnvelopePattern_LIB = -1
+						ReportError("Farfield Envelope: Broadband monitors are currently not supported. Loading reference failed.")
+					ElseIf (oSPContainingFieldData.SelectTreeItem(sEnvelopePatternTreePath) = False) Then
+						ReportWarningToWindow("Farfield Envelope: Cannot find farfield result '" + sEnvelopePatternTreePath +"'. Skipping.")
+						GoTo EndOfKForLoop
+					End If
+				End If
+
+				With oSPContainingFieldData.FarfieldPlot
+					.SetScaleLinear "True"
+					.Reset
+					.SetSpecials("disableplot") ' will be re-enabled at end of template
+				End With
+
+				GenerateFarfieldList_LIB(oSPContainingFieldData, sEnvelopePatternTreePath, "efield", 0, 180, ffstep, 0, 360, ffstep, nPhi, nTheta, "farfield")
+
+				dBestThetaReal = oSPContainingFieldData.FarfieldCalculator.GetList("efield", "spherical linear theta re") ' Contains all values of the current pattern
+				dBestThetaImag = oSPContainingFieldData.FarfieldCalculator.GetList("efield", "spherical linear theta im") ' Contains all values of the current pattern
+				dBestPhiReal = oSPContainingFieldData.FarfieldCalculator.GetList("efield", "spherical linear phi re") ' Contains all values of the current pattern
+				dBestPhiImag = oSPContainingFieldData.FarfieldCalculator.GetList("efield", "spherical linear phi im") ' Contains all values of the current pattern
+				dBestPattern = oSPContainingFieldData.FarfieldCalculator.GetList("efield", sComponent) ' Contains all values of the current pattern
+
+			End If
+		End If
+
+		' Now compare the current pattern with envelope pattern and update envelope pattern where needed
+		For i = 0 To UBound(dBestPattern)
+			If (dBestPattern(i) < dComponentForComparison(i)) Then
+				dBestThetaReal(i) = dThetaReal(i)
+				dBestThetaImag(i) = dThetaImag(i)
+				dBestPhiReal(i) = dPhiReal(i)
+				dBestPhiImag(i) = dPhiImag(i)
+				dBestPattern(i) = dComponentForComparison(i)
+			End If
+		Next
+
+		EndOfKForLoop:
+
+	Next k
+
+	' Store new best pattern and add to tree
+	sEnvelopePatternFile = GetProjectPath("Result") + Split(sEnvelopePatternTreePath, "\")(UBound(Split(sEnvelopePatternTreePath, "\"))) + ".dat"
+
+	' Buffered file write; needs to be implemented directly here as using functions from exports.lib might cause dependency problems
+	iOutputFile = FreeFile()
+	Open sEnvelopePatternFile For Output As #iOutputFile
+
+	Print #iOutputFile, "CST Farfield Format V1"+vbNewLine
+	Print #iOutputFile, "Frequency="+CStr(dFrequency*Units.GetFrequencyUnitToSI)
+	Print #iOutputFile, "Type=FARFIELD"
+	Print #iOutputFile, "Dimension=2"
+	Print #iOutputFile, "ThetaSamples="+CStr(nTheta)
+	Print #iOutputFile, "PhiSamples="+CStr(nPhi)
+	Print #iOutputFile, "RadiatedPower="+CStr(dRadiatedPower)
+	Print #iOutputFile, "AcceptedPower="+CStr(dAcceptedPower)
+	Print #iOutputFile, "StimulatedPower="+CStr(dStimulatedPower)+vbNewLine
+
+	'Format of data lines: Theta[deg], Phi[deg], Re(Etheta), Im(Etheta), Re(Ephi), Im(Ephi) - separated by vbTab
+	sOutputBuffer = ""
+	For i = 0 To UBound(position_theta_full)
+		' Read in values from sorted array and write to file
+		sOutputBuffer = sOutputBuffer + CStr(position_theta_full(i))+vbTab+CStr(position_phi_full(i))+vbTab+CStr(dBestThetaReal(i))+vbTab+CStr(dBestThetaImag(i))+vbTab+CStr(dBestPhiReal(i))+vbTab+CStr(dBestPhiImag(i)) & vbNewLine
+		If (Len(sOutputBuffer) > 2500) Then
+			' Length 2500 found heuristically. Write buffer to file and reset buffer
+			Print #iOutputFile, sOutputBuffer;
+			sOutputBuffer = ""
+		End If
+	Next i
+	Print #iOutputFile, sOutputBuffer; ' flush remaining buffer
+
+	Close #iOutputFile
+	' Shell "notepad " & sEnvelopePatternFile, 3
+
+	' Add to tree - add to current SP, variable 'oSPContainingFieldData'
+	sEnvelopePatternName = Mid(sEnvelopePatternName, InStrRev(sEnvelopePatternName, "\") + 1) ' can be shorted now
+	sEnvelopePatternFile = GetProjectPath("Result") + Split(sEnvelopePatternName, "\")(UBound(Split(sEnvelopePatternName, "\"))) + ".dat"
+	With oSPContainingFieldData.ResultTree
+		.Reset
+		.Name sEnvelopePatternTreePath
+		.File sEnvelopePatternFile
+		.Type "Farfield"
+		.DeleteAt("rebuild")
+		.Add
+	End With
+
+	GenerateEnvelopePattern_LIB = 0 ' all OK
+
+End Function
+
+Function GetFarfield_CDF_SolidAngle_LIB(cst_farfield As String, _
+										cst_plotmode As String, _
+										cst_component As String, _
+										dThetaStart As Double, _
+										dThetaEnd As Double, _
+										dThetaStep As Double, _
+										dPhiStart As Double, _
+										dPhiEnd As Double, _
+										dPhiStep As Double, _
+										sLinearOrdB As String, _
+										nSamples As Long) As Object
+
+	Dim oTempObject As Object
+
+	Dim i As Long, iSource As Long
+	Dim nPhi As Long, nTheta As Long
+	Dim position_theta_full() As Double, dPattern_full() As Double
+	Dim dWeightSum As Double
+	Dim sSPName As String
+
+	Dim dxValues() As Double, dyValues() As Double, dXTempValues() As Double, dYTempValues() As Double
+
+	If (InStr(cst_farfield, ":") > 0) Then
+		sSPName = Split(cst_farfield, ":")(0)
+		Set oSelectedSP = GetSimulationProjectByName_LIB(sSPName)
+		cst_farfield = Split(cst_farfield, ":")(1)
+	Else
+		Set oSelectedSP = GetOwnProject()
+	End If
+
+	' To insure a smooth curve for linear or dB scales, evaluation should be carried out from the beginning in the appropriate mode
+	oSelectedSP.FarfieldPlot.SetScaleLinear (LCase(sLinearOrdB) = "linear")
+
+	If (GenerateFarfieldList_LIB(oSelectedSP, cst_farfield, cst_plotmode, dThetaStart, dThetaEnd, dThetaStep, dPhiStart, dPhiEnd, dPhiStep, nPhi, nTheta, "farfield") <= 0) Then
+		ReportError("Farfield result list contains no values. Please contact your local support team.")
+	End If
+
+	position_theta_full = oSelectedSP.FarfieldCalculator.GetList(cst_plotmode, "Point_T")
+	dPattern_full = oSelectedSP.FarfieldCalculator.GetList(cst_plotmode, cst_component)
+
+	' Create a temp object with all pattern values as x axis, Jacobian weights as y axis
+	Set oTempObject = Result1D("")
+	oTempObject.Initialize(UBound(dPattern_full) + 1)
+	oTempObject.SetArray(dPattern_full, "x")
+	ReDim dYTempValues(UBound(dPattern_full))
+	dWeightSum = 0.
+	For i = 0 To UBound(dPattern_full)
+		dYTempValues(i) = SinD(position_theta_full(i))
+		dWeightSum = dWeightSum + dYTempValues(i)
+	Next
+	oTempObject.SetArray(dYTempValues, "y")
+	oTempObject.SortByX()
+
+	dYTempValues = oTempObject.GetArray("y")
+	ReDim dyValues(UBound(dPattern_full) + 1)
+
+	For i = 0 To UBound(dYTempValues)
+		If i = 0 Then
+			dyValues(i) = dYTempValues(i)/dWeightSum
+		Else
+			dyValues(i) = dyValues(i-1) + dYTempValues(i)/dWeightSum
+		End If
+	Next i
+
+	dxValues = oTempObject.GetArray("x")
+	
+	' Deduplicate x values
+	i = 0
+	For iSource = 1 To UBound(dXValues)
+		If dxValues(iSource) > dxValues(i) Then
+			i = i + 1
+		End If
+
+		dxValues(i) = dxValues(iSource)
+		dyValues(i) = dyValues(iSource)
+	Next iSource
+
+	ReDim Preserve dxValues(i)
+	ReDim Preserve dyValues(i)
+
+	Select Case LCase(sLinearOrdB)
+		Case "linear"
+			' do nothing, no renormalization necessary
+		Case "db"
+			' do nothing, no renormalization necessary
+		Case "dbm"
+			For i = 0 To UBound(dxValues)
+				dxValues(i) = dxValues(i) + 3 * GetFarfieldLogFactor_LIB(cst_component, cst_plotmode)
+			Next
+	End Select
+
+	oTempObject.Initialize(UBound(dXValues) + 1)
+
+	oTempObject.SetArray(dxValues, "x")
+	oTempObject.SetArray(dyValues, "y")
+
+	oTempObject.Xlabel(cst_plotmode & " " & cst_component & " " & sLinearOrdB)
+
+	Set GetFarfield_CDF_SolidAngle_LIB = oTempObject
+
+End Function
+
+' ----- Plot lock/unlock and store/restore settings section START ----
+
+Dim oRAIILocker_LIB As Object
+Function StoreAndDisableFarfieldPlot_LIB(oSelectedSP As Object) As Long
+	If oRAIILocker_LIB Is Nothing Then
+		Dim locker As Object
+		Set locker = ModuleLoadThis("VERSION 1.0 CLASS" & vbCrLf _
+								& "Attribute VB_Name = ""myFFLocker""" & vbCrLf _
+								& "'#Language ""WWB-COM""" & vbCrLf _
+								& "Private moSP As Object" & vbCrLf _
+								& "Public Sub DoLock(oSelectedSP As Object)" & vbCrLf _
+								& "Set moSP = oSelectedSP" & vbCrLf _
+								& "moSP.FarfieldPlot.SetSpecials(""disableplot"")" & vbCrLf _
+								& "moSP.FarfieldPlot.StoreAllSettings(""FFPreEval"")" & vbCrLf _
+								& "End Sub" & vbCrLf _
+								& "Private Sub Class_Terminate()" & vbCrLf _
+								& "moSP.FarfieldPlot.ReStoreAllSettings(""FFPreEval"")" & vbCrLf _
+								& "moSP.FarfieldPlot.SetSpecials(""enableplot"")" & vbCrLf _
+								& "End Sub", True)
+
+		locker.DoLock(oSelectedSP)
+		Set oRAIILocker_LIB = locker
+	End If
+End Function
+
+Function RestoreAndReEnableFarfieldPlot_LIB(oSelectedSP As Object) As Long
+
+	' 10/25/2018 - Not needed anymore. Keep empty function for bwc.
+	'oSelectedSP.FarfieldPlot.ReStoreAllSettings("FFPreEval")
+	'oSelectedSP.FarfieldPlot.SetSpecials("enableplot")
+
+End Function
+
+' ----- Plot lock/unlock and store/restore settings section END ----

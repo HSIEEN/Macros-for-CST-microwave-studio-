@@ -1,0 +1,139 @@
+Public PortNumberArray() As String     ' Array containing the names of all available ports
+Public ModeNumberArray() As String     ' Array containing the numbers of modes for the currently selected port
+Public ModeNumberArray_OUT() As String     ' Array containing the numbers of modes for the currently selected port
+Public ModeNumberArray_IN() As String     ' Array containing the numbers of modes for the currently selected port
+Public SParaPortNumberArray() As String   ' Array containing the names of all s-parameter ports
+
+' ================================================================================================
+' Copyright 2017-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================
+' History of Changes
+' -----------------------------------------------------------------------------------------------------------------
+' 20-Mar-2017 the: Added S-parameter port number array
+' -----------------------------------------------------------------------------------------------------------------
+
+Function GetPortNumberArray(bSParaOnly As Boolean) as String()
+
+	Dim nPorts As Long, nIndex As Long, nCount As Long
+	Dim NumberArray() As String
+
+	' Determine the total number of ports first and reset the enumberation to the beginning of the
+	' ports list.
+
+  If (bSParaOnly) Then
+    nPorts = Port.StartSParaPortNumberIteration()
+  Else
+    nPorts = Port.StartPortNumberIteration()
+  End If
+    
+
+	' Make the port number array large enough to hold all port numbers
+
+	ReDim NumberArray(nPorts)
+
+	' Now loop over all ports and add the waveguide ports to the port array
+
+	nCount = 0
+	For nIndex = 0 To nPorts-1
+
+		Dim nPortNumber As Long
+		nPortNumber = Port.GetNextPortNumber()
+
+		NumberArray(nCount) = CStr(nPortNumber)
+		nCount = nCount + 1
+
+	Next nIndex
+
+	' Adjust the length of the port number array to the actual number of waveguide ports
+
+	If (nCount < nPorts) Then
+		ReDim Preserve NumberArray(nCount)
+	End If
+
+	' now handle Floquet ports
+
+	If (FloquetPort.IsPortAtZmin) Then
+		nCount = nCount + 1
+		ReDim Preserve NumberArray(nCount)
+		NumberArray(nCount-1) = "Zmin"
+	End If
+
+	If (FloquetPort.IsPortAtZmax) Then
+		nCount = nCount + 1
+		ReDim Preserve NumberArray(nCount)
+		NumberArray(nCount-1) = "Zmax"
+	End If
+
+  GetPortNumberArray = NumberArray()
+  
+End Function
+
+Sub FillPortNumberArray()
+
+' -------------------------------------------------------------------------------------------------
+' FillPortNumberArray: This function fills the global array of port numbers according to the
+'                      currently defined waveguide ports.
+' -------------------------------------------------------------------------------------------------
+  PortNumberArray = GetPortNumberArray(False)
+  
+end Sub
+
+Sub FillSParaPortNumberArray()
+
+' -------------------------------------------------------------------------------------------------
+' FillSParaPortNumberArray: This function fills the global array of s-parameter-port numbers 
+' -------------------------------------------------------------------------------------------------
+  SParaPortNumberArray = GetPortNumberArray(True)
+  
+end Sub
+
+Sub FillModeNumberArray(sPort As String)
+
+' -------------------------------------------------------------------------------------------------
+' FillModeNumberArray: This function fills the global array of mode numbers according to the
+'                      currently selected waveguide port.
+' -------------------------------------------------------------------------------------------------
+
+	Dim nModes As Long, nIndex As Long, smode As String
+
+	Select Case sPort
+	Case "Zmin", "Zmax"
+		' start with Floquet Port handling
+		FloquetPort.Port(sPort)
+		nModes = FloquetPort.GetNumberOfModesConsidered()
+
+		ReDim ModeNumberArray(nModes)
+
+		For nIndex = 0 To nModes-1
+			FloquetPort.GetModeNameByNumber(smode, nIndex+1)
+			ModeNumberArray(nIndex) = CStr(nIndex+1) + " = " + smode
+		Next nIndex
+
+	Case Else
+		' now waveguide and discrete port handling
+
+		Dim nPort As Long
+		nPort = CLng(sPort)
+
+		Dim nPortID As Long
+
+		If (nPort = -1) Then
+			' No waveguide port is currently selected
+			ReDim ModeNumberArray(0)
+		Else
+			If (Port.GetType(nPort) <> "Waveguide") Then
+				ReDim ModeNumberArray(0)
+			Else
+				' Determine the number of modes for the currently selected port and fill the mode array
+				nModes = Port.GetNumberOfModes(nPort)
+
+				ReDim ModeNumberArray(nModes)
+
+				For nIndex = 0 To nModes-1
+					ModeNumberArray(nIndex) = CStr(nIndex+1)
+				Next nIndex
+			End If
+		End If
+	End Select
+
+End Sub

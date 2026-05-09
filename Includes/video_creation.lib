@@ -1,0 +1,818 @@
+'
+' This library allows the user to generate animations/movies from image series by providing an interface to FFMpeg and FFPlay
+' It is used in the "Save Video" Macro, but can also be applied elsewhere.
+' 
+' Features:
+' * rich set of supported output codecs
+' * allows resizing and cropping of the images
+' * allows overlaying a logo file
+' * allows reverting the playback order
+'
+' Copyright 2020-2023 Dassault Systemes Deutschland GmbH
+'-----------------------------------------------------------------------------------------------------------------------------------------------
+' History of Changes
+'-----------------------------------------------------------------------------------------------------------------------------------------------
+' 01-Mar-2021 thn: change logo default position to NorthWest
+' 15-Oct-2020 pge : Add default extension if extension if missing, otherwise no output is created
+' 08-Jul-2020 mwl,ube: use new command for image creation ExportImageToFile
+' 23-Mar-2020 mwl: added support for creating a movie from images in a directory (with dialog): GenerateMovieFromImagesInDirectory_Interactive()
+' 22-Mar-2020 mwl: added support for joining multiple images vertically or horizontally and adding overlay text: JoinImages()
+' 13-Feb-2020 mwl: added support for single image processing: CreateImageFromImage()
+' 13-Feb-2020 mwl: added support for apng and mjpeg video codecs
+' 12-Feb-2020 mwl: added support for wildcard patterns like '*.bmp'
+' 11-Feb-2020 mwl: added AV1 support
+' 08-Feb-2020 mwl: created library with extracts from new ffmpeg-only Save Video Macro
+'-----------------------------------------------------------------------------------------------------------------------------------------------
+
+''''''''''''' SUPPORTED VIDEO CODECS AND THEIR OPTIONS --> Used for CreateVideoFromImageSequence() ''''''''''''''''''''''''''
+Public Const                                      GIF=0,  MPEG=1,  MP4=2,  CVID=3,  FLV=4,  H264=5,  VP9=6,  MSVC=7,  WMV7=8,  WMV8=9, THEORA=10, AV1=11,  APNG=12,  MJPEG=13, LASTCODEC=13
+Public Const cst_codec_default_extension = Array("gif",  "mpg",   "mp4",  "avi",   "flv",  "mkv",   "webm", "avi",   "wmv",   "wmv",  "ogg",     "mkv",   "apng",   "mjpg")
+Public Const cst_codec_description       = Array( _
+            "Animated GIF", _
+            "MPEG II Video", _
+            "MP4 Video", _
+            "Radius Cinepak Codec (AVI container)", _
+            "Flash Video", _
+            "H.264 (MKV container, for mobile devices)", _
+            "VP9 (TrueMotion, for HTML5)", _
+            "Microsoft Video 1 (AVI container)", _
+            "Windows Media Video 7 (WMV)", _
+            "Windows Media Video 8 (WMV)", _
+            "Ogg (Theora)", _
+            "AOMedia Video1 (AV1)", _
+            "Animated PNG", _
+            "Motion JPEG video")
+Public Const cst_codec_default_option = Array( _
+            "-y -loop 0", _
+            "-y -vcodec mpeg2video -qscale:v 4 -pix_fmt yuv420p", _
+            "-y -vcodec mpeg4 -qscale:v 4 -pix_fmt yuv420p", _
+            "-y -vcodec cinepak", _
+            "-y -vcodec flv1 -qscale:v 6", _
+            "-y -vcodec h264 -pix_fmt yuv420p", _
+            "-y -vcodec libvpx-vp9 -threads 4 -speed 1 -quality good", _
+            "-y -vcodec msvideo1", _
+            "-y -vcodec wmv1 -qscale:v 4", _
+            "-y -vcodec wmv2 -qscale:v 4", _
+            "-y -vcodec libtheora -qscale:v 4", _
+            "-y -vcodec av1 -strict -2 -qscale:v 4", _
+            "-y -vcodec apng -qscale:v 4", _
+            "-y -vcodec mjpeg -qscale:v 4")
+' some codecs only support specific resolutions (e.g. width and height divisible by 2 or 4 - this is what we adjust for here, using trunc(X+0.5) as round() is not avilable on Linux)
+' for animated GIF, we generate and use a palette on the fly
+Public Const cst_codec_extrafilter = Array( _
+            "split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", _
+            "", _
+            "", _
+            "scale='trunc(ih*dar/4+0.5)*4':'trunc(ih/4+0.5)*4':bicubic,setsar=1/1", _
+            "", _
+            "scale='trunc(ih*dar/2+0.5)*2':'trunc(ih/2+0.5)*2':bicubic,setsar=1/1", _
+            "", _
+            "scale='trunc(ih*dar/4+0.5)*4':'trunc(ih/4+0.5)*4':bicubic,setsar=1/1", _
+            "scale='trunc(ih*dar/2+0.5)*2':'trunc(ih/2+0.5)*2':bicubic,setsar=1/1", _
+            "scale='trunc(ih*dar/2+0.5)*2':'trunc(ih/2+0.5)*2':bicubic,setsar=1/1", _
+            "", _
+            "", _
+            "", _
+            "")
+''''''''''''' SUPPORTED IMAGE CODECS AND THEIR OPTIONS --> Used for CreateImageFromImage() ''''''''''''''''''''''''''
+Public Const                                      GIF_=0,  BMP=1, JPEG=2,  PNG=3,  PPM=4,  TGA=5,  TIF=6,  XBM=7,  XWD=8,  PCX=9, LASTIMAGECODEC=9
+Public Const cst_image_default_extension = Array("gif",   "bmp",  "jpg",   "png",  "ppm",  "tga",  "tif",  "xbm",  "xwd",  "pcx")
+Public Const cst_image_description       = Array( _
+            "GIF (Graphics Interchange Format)", _
+            "BMP (Bitmap)", _
+            "JPG (Joint Picure Experts Group Format)", _
+            "PNG (Portable Network Graphics)", _
+            "PPM (Portable PixelMap)", _
+            "TGA (Truevision Targa Image)", _
+            "TIF (Tagged Image File Format)", _
+            "XBM (X BitMap)", _
+            "XWD (X Window Dump)", _
+            "PCX(PC Paintbrush PCX image)")
+Public Const cst_image_default_option = Array( _
+            "-y -vcodec gif", _
+            "-y", _
+            "-y", _
+            "-y -vcodec png", _
+            "-y -vcodec ppm", _
+            "-y -vcodec targa", _
+            "-y -vcodec tiff", _
+            "-y -vcodec xbm", _
+            "-y -vcodec xwd", _
+            "-y -vcodec pcx")
+' some codecs only support specific resolutions (e.g. width and height divisible by 2 or 4 - this is what we adjust for here)
+' for animated GIF, we generate and use a palette on the fly
+Public Const cst_image_extrafilter = Array( _
+            "split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", _
+            "", _
+            "", _
+            "", _
+            "", _
+            "", _
+            "", _
+            "", _
+            "", _
+            "")
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Public Const cst_video_default_format = Array( _
+            "768 x 576", _
+            "704 x 576 (PAL)", _
+            "704 x 480 (NTSC)", _
+            "640 x 480 (VGA)", _
+            "512 x 384", _
+            "384 x 288", _
+            "352 x 288 (Video CD - PAL/2)", _
+            "352 x 240 (Video CD - NTSC/2)", _
+            "320 x 240 (QVGA, VGA/2)", _
+            "256 x 192", _
+            "192 x 144", _
+            "800 x 600 (SVGA)", _
+            "1024 x 768 (XGA)", _
+            "1280 x 720 (720p)", _
+            "1280 x 800 (WXGA)", _
+            "1280 x 1024 (SXGA)", _
+            "1360 x 768 (HD)", _
+            "1600 x 1200 (UXGA)", _
+            "1920 x 1080 (1080p)", _
+            "2048 x 1080 (DCI 2K)", _
+            "3840 x 2160 (4K UHD)", _
+            "5120 x 2160 (UHD-Wide)", _
+            "4096 x 2160 (DCI 4K)" )
+
+Public Const LOGO_NORTHWEST=0, LOGO_WEST=1, LOGO_SOUTHWEST=2, LOGO_SOUTH=3, LOGO_SOUTHEAST=4, LOGO_EAST=5, LOGO_NORTHEAST=6, LOGO_NORTH=7
+Public Const RESIZE_CROP=0, RESIZE_FIT=1, RESIZE_DISTORT=2, RESIZE_AS_IS=3, RESIZE_RESCALE=4
+
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+Sub cst_verify_executable_existence(exe As String, product As String)
+	If IsLinux() Then
+        If RunCommand("which " + exe) <> 0 Then
+            ReportError("The executable '" + exe + "' could not be found." + vbCrLf + "Please consult your Linux distribution's documentation on how to install '" + product + "'. " + vbCrLf + vbCrLf + "Aborting.")
+            Exit All
+        End If
+    End If
+End Sub
+
+' retrieve full path of ffmpeg.exe and ffplay.exe (on Windows in installation dir, on Linux hopefully in /usr/bin)
+Sub GetFFMPegPath(ByRef ffmpeg As String, ByRef ffplay As String)
+    If IsWindows() Then
+        Dim cst_ffmpeg_dir As String
+        cst_ffmpeg_dir = Dir$(GetInstallPath() + "\Library\Misc\FFmpeg*", vbDirectory)
+        cst_ffmpeg_dir = GetInstallPath() + "\Library\Misc\" + IIf(cst_ffmpeg_dir <> "", cst_ffmpeg_dir, "FFmpeg") + "\"
+        ffmpeg = MakeWindowsPath(cst_ffmpeg_dir + "ffmpeg.exe")
+        ffplay = MakeWindowsPath(cst_ffmpeg_dir + "ffplay.exe")
+    Else
+        ffmpeg = "ffmpeg"
+        ffplay = "ffplay"
+    End If
+
+    cst_verify_executable_existence(ffmpeg, "FFmpeg")
+    cst_verify_executable_existence(ffplay, "FFplay (usually part of FFmpeg)")
+End Sub
+
+
+Sub CreateVideoFromImageSequence( _
+    tempdir As String, _
+    file_pattern As String, _
+    ffmpeg As String, _
+    ffplay As String, _
+    size As String, _
+    resize As Integer, _
+    framerate As String, _
+    DoInsertLogo As Boolean, _
+    logo_filename As String, _
+    logo_position As Integer, _
+    logo_border As Integer, _
+    codec As Integer, _
+    DoAllCodecs As Boolean, _
+    output_file As String, _
+    RevertVideo As Boolean, _
+    BounceVideo As Boolean, _
+    ExpertOptions As String, _
+    DoPreview As Boolean)
+    
+    Dim ffmpeg_filter As String
+    ffmpeg_filter = ""  ' this will contain the full string supplied to the ffmpeg "-filter_complex" parameter (will be omitted if empty), 
+                        ' see http://ffmpeg.org/ffmpeg-filters.html for a comprehensive list of what is possible
+
+    If RevertVideo Then
+        ffmpeg_filter = AppendToFilter(ffmpeg_filter, "reverse")
+    End If
+                        
+    ffmpeg_filter = AppendToFilter(ffmpeg_filter, CreateResizeCommand(size, resize))
+
+    Dim logo_input As String
+    logo_input = ""  ' logo_input is empty if no logo is desired, otherwise it reads "-i logofilename.png"
+    If (logo_filename <> "") And (DoInsertLogo) Then
+        ffmpeg_filter = AppendToFilter(ffmpeg_filter, CreateLogoCommand(tempdir, logo_filename, logo_position, logo_border, logo_input))
+    End If
+    
+    If BounceVideo Then
+        ffmpeg_filter = AppendToFilter(ffmpeg_filter, "split[s2][s3];[s2]reverse,fifo[r];[s3][r]concat=n=2:v=1")
+    End If
+
+    Dim crlf As String
+    crlf = IIf(IsLinux(), Chr(10), Chr(13) + Chr(10)) ' Somehow, I saw garbled line endings on Linux. this is why we specify them explicitly here
+
+    ' loop over all codecs if requested (for convenience to find a compatible / most beautiful one)
+    Dim current_codec As Integer, codec_first As Integer, codec_last As Integer
+    codec_first = IIf(DoAllCodecs, 0, codec)
+    codec_last  = IIf(DoAllCodecs, LASTCODEC, codec)
+    
+    ' globs are not supported on Windows
+    Dim ffmpeg_prefix As String
+    If IsWindows() And InStr(file_pattern, "*") Then
+        ffmpeg_prefix = "type " + file_pattern + " | "
+        file_pattern = "-"
+    End If
+
+    ' character '%' is used in the sequence file pattern and would need to be escaped when used as literal
+    If InStr(output_file, "%") Then
+        ReportError("Output file path contains invalid charachter '%'. Please choose a file path without this character.")
+    End If
+
+    For current_codec = codec_first To codec_last
+
+        Dim batchfile As String
+        batchfile = tempdir + "video_" + CStr(current_codec) + IIf(IsLinux(), ".sh", ".bat")
+
+        Open batchfile For Output As #1
+            If IsLinux() Then
+                Print #1, "#!/usr/bin/env bash"; crlf;
+            Else
+                Print #1, "@echo off"; crlf;
+                ' TGL dirty hack: encoding is critical for path names containing umlaut. since the encoding of the .bat
+                ' file and the codepage may have different settings just force a change to a certain value.
+                Print #1, "chcp 1252"; crlf;
+            End If
+
+            Print #1, "pushd" + AddSpaces(Quote(tempdir)); crlf;
+
+            Dim current_output_filename As String
+            current_output_filename = IIf(DoAllCodecs, CreateFileNameWithCodec(output_file, cst_codec_description(current_codec), cst_codec_default_extension(current_codec)), CreateFileNameWithExtension(output_file,cst_codec_default_extension(current_codec)))
+            Dim current_options As String
+            current_options = IIf(DoAllCodecs, cst_codec_default_option(current_codec), ExpertOptions)
+
+            Dim FullFilter As String
+            FullFilter = AppendToFilter(ffmpeg_filter, cst_codec_extrafilter(current_codec))
+
+            Print #1, ffmpeg_prefix + Quote(ffmpeg) + _
+                        AddSpaces("-framerate " + framerate) + _
+                        AddSpaces("-i " + Quote(file_pattern)) + _
+                        AddSpaces(logo_input) + _
+                        IIf(FullFilter <> "", AddSpaces("-filter_complex " + Quote(FullFilter)), "") + _
+                        AddSpaces(current_options) + _
+                        AddSpaces(Quote(current_output_filename)); crlf;
+                        
+            If DoPreview Then
+                Print #1, Quote(ffplay) + " -exitonkeydown -exitonmousedown " + AddSpaces(Quote(current_output_filename)); crlf;
+            End If
+
+            Print #1, "popd"; crlf;
+        Close #1
+
+        If Not DoPreview Then
+            ReportInformationToWindow(CStr(Time) + ": Generating " + current_output_filename + " ...")
+        End If
+
+        If IsLinux() Then
+            ' Unfortunately, we cannot make the batchfile executable on Linux. This is why we just run the bash explicitly
+            RunAndWait("bash" + AddSpaces(Quote(batchfile)))
+        Else
+            RunAndWait(Quote(batchfile))
+        End If
+
+        If Not DoPreview Then
+            ReportInformationToWindow(CStr(Time) + ": ... done.")
+        End If
+    Next
+
+End Sub
+
+Sub CreateImageFromImage( _
+    tempdir As String, _
+    input_file As String, _
+    ffmpeg As String, _
+    ffplay As String, _
+    size As String, _
+    resize As Integer, _
+    DoInsertLogo As Boolean, _
+    logo_filename As String, _
+    logo_position As Integer, _
+    logo_border As Integer, _
+    codec As Integer, _
+    DoAllCodecs As Boolean, _
+    output_file As String, _
+    ExpertOptions As String, _
+    DoPreview As Boolean)
+
+    Dim ffmpeg_filter As String
+    ffmpeg_filter = ""  ' this will contain the full string supplied to the ffmpeg "-filter_complex" parameter (will be omitted if empty), 
+                        ' see http://ffmpeg.org/ffmpeg-filters.html for a comprehensive list of what is possible
+
+    ffmpeg_filter = AppendToFilter(ffmpeg_filter, CreateResizeCommand(size, resize))
+
+    Dim logo_input As String
+    logo_input = ""  ' logo_input is empty if no logo is desired, otherwise it reads "-i logofilename.png"
+    If (logo_filename <> "") And (DoInsertLogo) Then
+        ffmpeg_filter = AppendToFilter(ffmpeg_filter, CreateLogoCommand(tempdir, logo_filename, logo_position, logo_border, logo_input))
+    End If
+
+    Dim crlf As String
+    crlf = IIf(IsLinux(), Chr(10), Chr(13) + Chr(10)) ' Somehow, I saw garbled line endings on Linux. this is why we specify them explicitly here
+
+    ' loop over all codecs if requested (for convenience to find a compatible / most beautiful one)
+    Dim current_codec As Integer, codec_first As Integer, codec_last As Integer
+    codec_first = IIf(DoAllCodecs, 0, codec)
+    codec_last  = IIf(DoAllCodecs, LASTIMAGECODEC, codec)
+
+    For current_codec = codec_first To codec_last
+
+        Dim batchfile As String
+        batchfile = tempdir + "image_" + CStr(current_codec) + IIf(IsLinux(), ".sh", ".bat")
+
+        Open batchfile For Output As #1
+            If IsLinux() Then
+                Print #1, "#!/usr/bin/env bash"; crlf;
+            Else
+                Print #1, "@echo off"; crlf;
+                ' TGL dirty hack: encoding is critical for path names containing umlaut. since the encoding of the .bat
+                ' file and the codepage may have different settings just force a change to a certain value.
+                Print #1, "chcp 1252"; crlf;
+            End If
+
+            Print #1, "pushd" + AddSpaces(Quote(tempdir)); crlf;
+
+            Dim current_output_filename As String
+            current_output_filename = IIf(DoAllCodecs, CreateFileNameWithCodec(output_file, cst_image_description(current_codec), cst_image_default_extension(current_codec)), CreateFileNameWithExtension(output_file,cst_image_default_extension(current_codec)))
+            Dim current_options As String
+            current_options = IIf(DoAllCodecs, cst_image_default_option(current_codec), ExpertOptions)
+
+            Dim FullFilter As String
+            FullFilter = AppendToFilter(ffmpeg_filter, cst_image_extrafilter(current_codec))
+
+            Print #1, Quote(ffmpeg) + _
+                        AddSpaces("-i " + Quote(input_file)) + _
+                        AddSpaces(logo_input) + _
+                        IIf(FullFilter <> "", AddSpaces("-filter_complex " + Quote(FullFilter)), "") + _
+                        AddSpaces(current_options) + _
+                        AddSpaces(Quote(current_output_filename)); crlf;
+                        
+            If DoPreview Then
+                Print #1, Quote(ffplay) + " -exitonkeydown -exitonmousedown " + AddSpaces(Quote(current_output_filename)); crlf;
+            End If
+
+            Print #1, "popd"; crlf;
+        Close #1
+
+        If Not DoPreview Then
+            ReportInformationToWindow(CStr(Time) + ": Generating " + current_output_filename + " ...")
+        End If
+
+        If IsLinux() Then
+            ' Unfortunately, we cannot make the batchfile executable on Linux. This is why we just run the bash explicitly
+            RunAndWait("bash" + AddSpaces(Quote(batchfile)))
+        Else
+            RunAndWait(Quote(batchfile))
+        End If
+
+        If Not DoPreview Then
+            ReportInformationToWindow(CStr(Time) + ": ... done.")
+        End If
+    Next
+
+End Sub
+
+Sub JoinImages( _
+    tempdir As String, _
+    input_files() As String, _
+    text_file As String, _
+    text_size As Integer, _
+    joinVertical As Boolean, _
+    ffmpeg As String, _
+    ffplay As String, _
+    codec As Integer, _
+    output_file As String, _
+    ExpertOptions As String, _
+    DoPreview As Boolean)
+
+    Dim input_file_command As String
+    input_file_command = "-i " + Quote(input_files(LBound(input_files)))
+    Dim num_input_files As Integer
+    num_input_files = UBound(input_files) - LBound(input_files) + 1
+    
+    Dim ffmpeg_filter As String, current_output As String
+    ffmpeg_filter = ""
+    
+    ' for two input files, vertical stacking and some overlay text, the filter should look like
+    ' "[0:v]drawtext="fontfile='C\:\\Windows\\Fonts\\arial.ttf':fontsize=30:textfile='C\:\\Dir\\RawImages\\params00021.txt':y=h-th"[m0],[1:v][m0]scale2ref[s1][m1],[m1][s1]vstack=inputs=2"
+    
+    If text_file <> "" Then
+        ffmpeg_filter = "[0:v]drawtext=fontfile='" + SanitizePath("C:\Windows\Fonts\arial.ttf") + _
+                        "':fontsize="  + CStr(text_size) + _
+                        ":textfile='" + SanitizePath(text_file) + _
+                        "':y=h-th[m0]"
+        current_output = "[m0]"
+    Else
+        current_output = IIf(num_input_files > 1, "[v:0]", "")
+    End If
+
+    Dim stack_filter As String
+    stack_filter = ""
+
+    ' only stack if there are more than one input image
+    If num_input_files > 1 Then
+
+        Dim stack_input As String
+        stack_input = ""
+
+        Dim image_idx As Integer, this_image_idx As Integer, this_output As String
+        For image_idx = LBound(input_files) + 1 To UBound(input_files)
+            input_file_command = input_file_command + " -i " + Quote(input_files(image_idx))
+            this_image_idx = image_idx - LBound(input_files)
+
+            ' this is for scaling each picture to the size of the first one
+            this_output = "[m" + CStr(this_image_idx) + "]"
+            stack_filter = AppendToFilter(stack_filter, "[" + CStr(this_image_idx) + ":v]" + current_output + "scale2ref[s" + CStr(this_image_idx) + "]" + this_output)
+            current_output = this_output
+            ' this is for the actual stacking command
+            stack_input = stack_input + "[s" + CStr(this_image_idx) + "]"
+        Next
+
+        current_output = "[stacked]"
+        stack_filter = AppendToFilter(stack_filter, "[m" + CStr(num_input_files-1) + "]" + stack_input + IIf(joinVertical, "vstack=inputs=", "hstack=inputs=") + CStr(num_input_files)) + current_output
+
+        ffmpeg_filter = AppendToFilter(ffmpeg_filter, stack_filter)
+    End If
+
+    Dim crlf As String
+    crlf = IIf(IsLinux(), Chr(10), Chr(13) + Chr(10)) ' Somehow, I saw garbled line endings on Linux. this is why we specify them explicitly here
+
+    Dim batchfile As String
+    batchfile = tempdir + "image_" + CStr(codec) + IIf(IsLinux(), ".sh", ".bat")
+
+    Open batchfile For Output As #1
+        If IsLinux() Then
+            Print #1, "#!/usr/bin/env bash"; crlf;
+        Else
+            Print #1, "@echo off"; crlf;
+            ' TGL dirty hack: encoding is critical for path names containing umlaut. since the encoding of the .bat
+            ' file and the codepage may have different settings just force a change to a certain value.
+            Print #1, "chcp 1252"; crlf;
+        End If
+
+        Print #1, "pushd" + AddSpaces(Quote(tempdir)); crlf;
+
+        Dim FullFilter As String
+        FullFilter = AppendToFilter(ffmpeg_filter, cst_image_extrafilter(codec))
+
+        Print #1, Quote(ffmpeg) + _
+                    AddSpaces(input_file_command) + _
+                    IIf(FullFilter <> "", AddSpaces("-filter_complex " + Quote(FullFilter)), "") + _
+                    AddSpaces(ExpertOptions) + _
+                    IIf(current_output <> "", AddSpaces("-map " + Quote(current_output)), "") + _
+                    AddSpaces(Quote(output_file)); crlf;
+
+        If DoPreview Then
+            Print #1, Quote(ffplay) + " -exitonkeydown -exitonmousedown " + AddSpaces(Quote(output_file)); crlf;
+        End If
+
+        Print #1, "popd"; crlf;
+    Close #1
+
+    If IsLinux() Then
+        ' Unfortunately, we cannot make the batchfile executable on Linux. This is why we just run the bash explicitly
+        RunAndWait("bash" + AddSpaces(Quote(batchfile)))
+    Else
+        RunAndWait(Quote(batchfile))
+    End If
+
+End Sub
+
+Sub ParseSize(size As String, ByRef videowidth As Integer, ByRef videoheight As Integer)
+    Dim geometry As String
+    geometry    = Replace(Left$(size, InStr(size + "(", "(") - 1), " ", "")
+    videowidth    = Val(Left$(geometry, InStr(geometry, "x") - 1))
+    videoheight = Val(Mid$(geometry, InStr(geometry, "x") + 1))
+End Sub
+
+' exports to a bitmap (with appropriate resolution if the rescale mode is requested)
+Sub ExportImage(rescale As Integer, tempfile As String, videowidth As Integer, videoheight As Integer, Is3DView As Boolean)
+    If rescale = RESIZE_RESCALE Then ' Rescale export
+		ExportImageToFile (MakeNativePath(tempfile), videowidth, videoheight)
+    Else
+		ExportImageToFile (MakeNativePath(tempfile), 0, 0)
+    End If
+End Sub
+
+' prepends and appends spaces to the given string (if it is not empty)
+Function AddSpaces(param As String) As String
+    Dim trimmed As String
+    trimmed = Trim(param)
+    AddSpaces = IIf(trimmed = "", "", " " + trimmed + " ")
+End Function
+
+' escape characters with backslash where necessary
+Function SanitizePath(ByVal param As String) As String
+    SanitizePath = Replace(Replace(param, "\", "\\"), ":", "\:")
+End Function
+
+' generates a filename that includes the codec description in square brackets
+Function CreateFileNameWithCodec(output_file As String, description As String, extensions As String) As String
+    CreateFileNameWithCodec = DirName(output_file) + GetPathSeparator() + BaseName(output_file) + "[" + description + "]." + extensions
+End Function
+
+' generates a filename with default extension if the extension is missing
+Function CreateFileNameWithExtension(output_file As String, extension As String) As String
+	CreateFileNameWithExtension = IIf(ExtName(output_file) = "", output_file + "." + extension, output_file)
+End Function
+
+' deletes all files inside directory that match pattern
+Sub DeleteFilesWithPattern(directory As String, pattern As String)
+    Dim dummy As String
+    Do
+        dummy = Dir$(directory + pattern, vbNormal)
+        If (dummy <> "") Then
+            SetAttr(directory + dummy, vbNormal)
+            Kill(directory + dummy)
+        End If
+    Loop Until (dummy = "")
+End Sub
+
+' create command for rescaling / cropping, etc.
+Function CreateResizeCommand(size As String, resize As Integer) As String
+
+    Dim videowidth As Integer, videoheight As Integer
+    ParseSize(size, videowidth, videoheight)
+
+    Select Case resize
+        Case RESIZE_CROP
+            CreateResizeCommand = "crop='min(iw," + CStr(videowidth) + ")':'min(ih," + CStr(videoheight) + ")'"
+        Case RESIZE_FIT
+            CreateResizeCommand = "scale=" + CStr(videowidth) + ":" + CStr(videoheight) + ":force_original_aspect_ratio=decrease"
+        Case RESIZE_DISTORT
+            CreateResizeCommand = "scale=" + CStr(videowidth) + ":" + CStr(videoheight)
+        Case RESIZE_AS_IS
+            CreateResizeCommand = ""
+        Case RESIZE_RESCALE ' Rescale export just affects the way images are exported and is the same as "As Is" here
+            CreateResizeCommand = ""
+        Case Else
+            CreateResizeCommand = ""
+    End Select
+End Function
+
+' construct command for stamping the logo onto each image and copy the logo file into the right place
+Function CreateLogoCommand(tempdir As String, _
+    logo_filename As String, logo_position As Integer, logo_border As Integer, ByRef logo_input As String) As String
+
+    If Dir$(logo_filename) = "" Then
+        ReportInformationToWindow("Logo file '" + logo_filename + "' not found. Continuing without logo.")
+        CreateLogoCommand = ""
+        Exit Function
+    End If
+
+    Dim logo_filename_short As String
+    logo_filename_short = MakeNativePath(ShortName(MakeWindowsPath(logo_filename))) ' ShortName() only works with "\"
+    Dim logo_filename_long As String
+    logo_filename_long = tempdir + logo_filename_short
+
+    If Dir$(logo_filename_long) = "" Then
+        FileCopy(logo_filename, logo_filename_long)
+    End If
+
+    Dim overlay_geometry As String
+
+    Select Case logo_position
+        Case LOGO_NORTHWEST
+            overlay_geometry = CStr(logo_border) + ":" + CStr(logo_border)
+        Case LOGO_WEST
+            overlay_geometry = CStr(logo_border) + ":(main_h-overlay_h)/2"
+        Case LOGO_SOUTHWEST
+            overlay_geometry = CStr(logo_border) + ":main_h-overlay_h-" + CStr(logo_border)
+        Case LOGO_SOUTH
+            overlay_geometry = "(main_w-overlay_w)/2:main_h-overlay_h-" + CStr(logo_border)
+        Case LOGO_SOUTHEAST
+            overlay_geometry = "main_w-overlay_w-" + CStr(logo_border) + ":main_h-overlay_h-" + CStr(logo_border)
+        Case LOGO_EAST
+            overlay_geometry = "main_w-overlay_w-" + CStr(logo_border) + ":(main_h-overlay_h)/2"
+        Case LOGO_NORTHEAST
+            overlay_geometry = "main_w-overlay_w-" + CStr(logo_border) + ":" + CStr(logo_border)
+        Case LOGO_NORTH
+            overlay_geometry = "(main_w-overlay_w)/2:" + CStr(logo_border)
+    End Select
+
+    logo_input = "-i " + Quote(logo_filename_short)
+    CreateLogoCommand = "overlay=" + overlay_geometry + ":format=" + IIf(IsWindows(), "auto", "rgb")  ' format=auto ensures automatic choice of color space, otherwise white background becomes yellowish; on Linux, 'auto' is not available, choose 'rgb' as the best bet
+End Function
+
+' helper function for appending additional filter commands to a comma-separated list of filters
+Function AppendToFilter(ffmpeg_filter As String, toAdd As String) As String
+    If ffmpeg_filter <> "" Then
+        If toAdd <> "" Then
+            AppendToFilter = ffmpeg_filter + "," + toAdd
+        Else
+            AppendToFilter = ffmpeg_filter
+        End If
+    Else
+        AppendToFilter = toAdd
+    End If
+End Function
+
+Function CreateFileBaseName(projectdir As String, projectname As String) As String
+    Dim version As Integer, newversion As Integer, filename As String
+    version     = 1
+    filename = FindFirstFile(projectdir, projectname + "_##.*", False)
+    While (filename <> "")
+        If IsNumeric(Right$(BaseName(filename), 2)) Then
+            newversion    = CInt(Right$(BaseName(filename), 2)) + 1
+            If newversion > version Then version = newversion
+        End If
+        filename = FindNextFile()
+    Wend
+
+    CreateFileBaseName = projectname + Format(version, "\_00")
+End Function
+
+Sub GenerateMovieFromImagesInDirectory_Interactive(ByVal directory As String, pattern As String, previewFile As String, helpfile As String)
+    Dim cst_templatedir As String
+    cst_templatedir     = MakeWindowsPath(GetInstallPath() + "\Library\Misc\templates")
+
+    Dim cst_ffmpeg As String, cst_ffplay As String
+    GetFFMPegPath(cst_ffmpeg, cst_ffplay)
+
+    Dim s1 As String, cst_projectdir As String, cst_projectname As String
+    s1 = MakeWindowsPath(GetProjectPath("Project")) ' see CST-46286
+    cst_projectdir = DirName(s1)
+    cst_projectname = ShortName(s1)
+
+    Dim cst_videofile_basename As String
+    cst_videofile_basename = CreateFileBaseName(cst_projectdir, cst_projectname)
+
+    Begin Dialog UserDialog 0,0,480,301,"Generate Video From Images",.GenerateMovieFromImagesInDirectory_DialogFunc ' %GRID:10,7,1,1
+        GroupBox 10,7,460,140,"Video Settings",.BoxAnimation
+        Text 20,21,80,14,"Filename",.LabelTarget
+        TextBox 20,36,340,21,.Target
+        PushButton 370,35,90,21,"Browse...",.BrowseTarget
+        Text 20,68,90,14,"Video Codec:",.LabelCodec
+        DropListBox 140,63,320,119,cst_codec_description(),.Codec
+        Text 30,94,100,15,"Framerate [1/s]:",.Text5
+        TextBox 140,91,90,21,.FrameRate
+        CheckBox 240,94,210,14,"Bounce Playback At End",.BounceVideoPlaybackAtEnd
+        Text 30,122,100,15,"Expert options:",.Text4
+        TextBox 140,119,320,21,.ExpertOptions
+        GroupBox 10,154,350,112,"",.BoxLogo
+        CheckBox 20,154,60,15,"Logo",.EnableLogo
+        Text 20,175,30,15,"File:",.LabelSource
+        TextBox 50,172,200,21,.Source
+        PushButton 260,172,90,21,"Browse...",.BrowseSource
+        GroupBox 20,193,100,66,"Position",.BoxPosition
+        OptionGroup .Position
+            OptionButton 30,208,20,15,"",.NorthWest
+            OptionButton 30,223,20,15,"",.West
+            OptionButton 30,238,20,15,"",.SouthWest
+            OptionButton 60,238,20,15,"",.South
+            OptionButton 90,238,20,15,"",.SouthEast
+            OptionButton 90,223,20,15,"",.East
+            OptionButton 90,208,20,15,"",.NorthEast
+            OptionButton 60,208,20,15,"",.North
+        Text 130,215,130,15,"Distance to border:",.LabelBorder
+        TextBox 260,212,90,21,.Border
+
+        PushButton 380,273,80,21,"Help",.Help
+        CancelButton 200,273,80,21
+        PushButton 290,273,80,21,"Preview",.Preview
+        OKButton 110,273,80,21
+    End Dialog
+
+    Dim dlg As UserDialog
+    dlg.codec      = Max(Min(GetRegDouble("CST STUDIO SUITE", "Animation", "codec", GIF), LASTCODEC), GIF)
+    dlg.Target     = cst_videofile_basename + "." + cst_codec_default_extension(dlg.codec)
+    dlg.FrameRate  = GetString("CST STUDIO SUITE", "Animation", "framerate", "24")
+    dlg.EnableLogo = GetString("CST STUDIO SUITE", "Animation", "insertLogo", "True") = "True"
+    dlg.Source     = GetString("CST STUDIO SUITE", "Animation", "logo_filename", "SIMULIA_CST_Studio_Suite.png")
+    dlg.position   = GetRegDouble("CST STUDIO SUITE", "Animation", "position", 0)
+    dlg.border     = CStr(GetRegDouble("CST STUDIO SUITE", "Animation", "border", 10))
+
+    Dim cst_videofile As String
+
+    GenerateMovieFromImagesInDirectory_Interactive_OpenDialog:
+    Select Case Dialog(dlg)
+    Case -1 ' OK
+        SaveInteger("CST STUDIO SUITE", "Animation", "codec", dlg.codec)
+        SaveInteger("CST STUDIO SUITE", "Animation", "framerate", dlg.FrameRate)
+        SaveString ("CST STUDIO SUITE", "Animation", "insertLogo", IIf(dlg.EnableLogo, "True", "False"))
+        SaveString ("CST STUDIO SUITE", "Animation", "logo_filename", dlg.Source)
+        SaveInteger("CST STUDIO SUITE", "Animation", "position", dlg.position)
+        SaveString ("CST STUDIO SUITE", "Animation", "border", dlg.border)
+
+        cst_videofile = MakeWindowsPath(FullPath(dlg.Target, cst_projectdir))
+
+        CreateVideoFromImageSequence(MakeNativePath(directory), _
+                      pattern, _
+                      MakeNativePath(cst_ffmpeg), _
+                      MakeNativePath(cst_ffplay), _
+                      cst_video_default_format(0), _
+                      RESIZE_AS_IS, _
+                      dlg.FrameRate, _
+                      dlg.EnableLogo, _
+                      MakeNativePath(FullPath(dlg.Source, cst_templatedir)), _
+                      dlg.position, _
+                      CInt(dlg.border), _
+                      dlg.Codec, _
+                      False, _
+                      MakeNativePath(cst_videofile), _
+                      False, _
+                      dlg.BounceVideoPlaybackAtEnd, _
+                      dlg.ExpertOptions, _
+                      False)
+
+        Start_LIB(MakeNativePath(cst_videofile))
+    Case 0 'Cancel
+        Exit Sub
+    Case 3 ' Help
+        StartHelp(helpfile)
+        GoTo GenerateMovieFromImagesInDirectory_Interactive_OpenDialog
+    Case 4 ' Preview
+        cst_videofile = MakeWindowsPath(FullPath("preview." + cst_codec_default_extension(dlg.Codec), directory))
+        CreateVideoFromImageSequence(MakeNativePath(directory), _
+                      previewFile, _
+                      MakeNativePath(cst_ffmpeg), _
+                      MakeNativePath(cst_ffplay), _
+                      cst_video_default_format(0), _
+                      RESIZE_AS_IS, _
+                      dlg.FrameRate, _
+                      dlg.EnableLogo, _
+                      MakeNativePath(FullPath(dlg.Source, cst_templatedir)), _
+                      dlg.position, _
+                      CInt(dlg.border), _
+                      dlg.Codec, _
+                      False, _
+                      MakeNativePath(cst_videofile), _
+                      False, _
+                      dlg.BounceVideoPlaybackAtEnd, _
+                      dlg.ExpertOptions, _
+                      True)
+        GoTo GenerateMovieFromImagesInDirectory_Interactive_OpenDialog
+    End Select
+End Sub
+
+Function GenerateMovieFromImagesInDirectory_DialogFunc%(Item As String, Action As Integer, Value As Integer)
+
+    Dim cst_filename As String, cst_extension As String, cst_index As Integer, cst_mode As Integer
+    Dim cst_tempfile As String
+    Dim cst_projectdir As String
+    Dim cst_resize As Integer
+    Dim cst_ffmpeg As String, cst_ffplay As String
+    Dim cst_templatedir As String
+
+    Select Case Action
+        Case 1 ' Dialog box initialization
+            GenerateMovieFromImagesInDirectory_DialogFunc("Codec", 2, DlgValue("Codec"))
+            GenerateMovieFromImagesInDirectory_DialogFunc("EnableLogo", 2, DlgValue("EnableLogo"))
+
+        Case 2 ' Value changing or button pressed
+            GenerateMovieFromImagesInDirectory_DialogFunc = True
+
+            Select Case Item
+                Case "BrowseTarget"
+                    cst_projectdir = DirName(MakeWindowsPath(GetProjectPath("Project")))
+                    cst_extension = cst_codec_default_extension(DlgValue("Codec"))
+                    cst_filename  = MakeWindowsPath(FullPath(DlgText("Target"), cst_projectdir))
+                    cst_filename  = MakeWindowsPath(GetFilePath(ShortName(cst_filename), cst_extension, DirName(cst_filename), "Save Animation As", 3))
+                    If (cst_filename <> "") Then
+                        DlgText("Target", ShortPath(cst_filename, cst_projectdir))
+                    End If
+                Case "Codec"
+                    cst_extension = cst_codec_default_extension(Value)
+                    cst_filename = DlgText("Target")
+                    cst_index = InStrRev(cst_filename, ".")
+                    DlgText("Target", Left$(cst_filename, cst_index) + cst_extension)
+                    DlgText("ExpertOptions", cst_codec_default_option(CInt(DlgValue("Codec"))))
+                Case "Resize"
+                    DlgEnable("Size", IIf(DlgValue("Resize") = 3, 0, 1))
+                Case "EnableLogo"
+                    DlgEnable("BoxLogo", DlgValue("EnableLogo"))
+                    DlgEnable("LabelSource", DlgValue("EnableLogo"))
+                    DlgEnable("Source", DlgValue("EnableLogo"))
+                    DlgEnable("BrowseSource", DlgValue("EnableLogo"))
+                    DlgEnable("BoxPosition", DlgValue("EnableLogo"))
+                    DlgEnable("Position", DlgValue("EnableLogo"))
+                    DlgEnable("LabelBorder", DlgValue("EnableLogo"))
+                    DlgEnable("Border", DlgValue("EnableLogo"))
+                Case "BrowseSource"
+                    cst_templatedir = MakeWindowsPath(GetInstallPath() + "\Library\Misc\templates")
+                    cst_extension = "Image Files|*.bmp;*.jpg;*.jpeg;*.gif;*.png;*.tga;*.tiff"
+                    cst_filename = MakeWindowsPath(FullPath(DlgText("Source"), cst_templatedir))
+                    cst_filename = MakeWindowsPath(GetFilePath(ShortName(cst_filename), cst_extension, DirName(cst_filename), "Choose logo file", 0))
+                    If (cst_filename <> "") Then
+                        DlgText("Source", ShortPath(cst_filename, cst_templatedir))
+                    End If
+                Case "Preview", "Help", "OK", "Cancel"
+                    GenerateMovieFromImagesInDirectory_DialogFunc = False ' close dialog
+            End Select
+
+        Case 3 ' TextBox or ComboBox text changed
+        Case 4 ' Focus changed
+        Case 5 ' Idle
+        Case 6 ' Function key
+    End Select
+End Function

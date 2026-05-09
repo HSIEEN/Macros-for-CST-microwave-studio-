@@ -1,0 +1,328 @@
+' ================================================================================================
+' Copyright 2015-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================
+' History of Changes
+' ------------------------------------------------------------------------------------------------
+' 10-Jun-2025 pgl: Always assume perfect Heaviside(t) input for TDR from time signals calculation
+' 11-Dec-2023 pgl: Added AutoDetectSignalType
+' 08-Dec-2023 pgl: Improved unit handling
+' 12-Oct-2023 pgl: Increased precision to Long
+' 25-Sep-2023 pgl: Added ConvertSignal2StepFunction
+' 28-Sep-2015 fmr: First version
+' ================================================================================================
+
+Sub CalculateTDR( tdr_signal As Object, refimpedance As Double, ExcitedSignal As Object, ReflectedSignal As Object, bGaussshift As Boolean, bReflection As Boolean)
+
+	Dim noftst As Long, ifreq_cst As Long
+	Dim absmax As Double
+	Dim at As Double, bt As Double
+	' new parameters: absmax,at2, ifreq_cst, opp,bintegrate, tdx
+    Dim at2 As Double, opp As Double, tdx As Double
+    Dim timpedance As Double, tvalue As Double
+	Dim bintegrate As Boolean
+
+	noftst = ExcitedSignal.GetN
+   ' check maximum signal amplitude of ingoing signal
+
+	absmax = 0
+	For ifreq_cst=1 To noftst -1
+		at=ExcitedSignal.GetY(ifreq_cst)
+		If (Abs(at) > absmax) Then absmax = Abs(at)
+	Next ifreq_cst
+  ' take the (last-10) signal to decide which signal amplitude
+	ifreq_cst= noftst-11
+	at=ExcitedSignal.GetY(ifreq_cst)
+
+    If (Abs(at) > 0.5*absmax) Then
+		' rising step function is used (set opp to amplitude of step function)
+		opp = at
+
+		If bGaussshift Then
+			ReportWarningToWindow "Time Shift in combination with step-function is ignored."
+			bGaussshift = False
+		End If
+
+		If bReflection Then
+			ReportWarningToWindow "Reflection factor can't be computed with step-type signals. Please uncheck the reflection factor option"
+			Exit All
+		End If
+
+    Else
+		If (Abs(at) < 0.001*absmax) Then
+			' gaussian function seemed to be used (apply TDR to integrated input signal !!!)
+			bintegrate = True
+			opp = 0
+			For ifreq_cst=1 To noftst-1
+				at2=ExcitedSignal.GetY(ifreq_cst)
+				opp = opp + at2
+			Next ifreq_cst
+		Else
+			' strange case
+			ReportWarningToWindow "Input Signal is neither of step-function type nor of gaussian type. Please check results carefully."
+			opp = 1
+		End If
+	End If
+
+    ' now perform TDR calculation and apply it to bt directly or to the intergal of bt, depending on the used input signal (boolean flag bintegrate)
+
+	tdx = 0
+	For ifreq_cst=0 To noftst-1
+		at=ExcitedSignal.GetY(ifreq_cst)
+		bt=ReflectedSignal.GetY(ifreq_cst)
+
+		tdx = IIf(bintegrate, tdx + bt, bt)
+
+		If bReflection Then
+			timpedance = tdx/opp
+		Else
+			If (tdx <> opp) Then
+				'  timpedance = refimpedance * Abs((at+bt)/(at-bt)) 'abs ???
+				timpedance = refimpedance * (opp+tdx)/(opp-tdx)
+			Else
+				timpedance = 0.0
+			End If
+		End If
+		tvalue = ExcitedSignal.GetX(ifreq_cst)                   ' * Units.GetTimeUnitToSI
+		tdr_signal.AppendXY(tvalue, timpedance)
+	Next ifreq_cst
+
+End Sub
+
+Sub GaussShiftSignal(ShiftedSignal As Object, InputSignal As Object, dFMin As Double, dFMax As Double, dTimeSIToUnit )
+
+    ' case gaussian with fmin = 0
+	Dim dBT As Double
+	dBT = 3.5545485 ' constant BT: duration of excitation * bandwidth = constant = dBT
+
+	Dim dTshift As Double
+	dTshift = dBT/(dFmax-dFmin)*0.5*dTimeSIToUnit
+
+    Dim dXtmp As Double
+    Dim iiitmp As Integer, nSteps As Integer
+    nSteps = InputSignal.GetN-1
+
+    For iiitmp = 0 To nSteps
+        dXtmp = InputSignal.GetX(iiitmp)
+
+        If (dXtmp >= dTshift) Then
+            ShiftedSignal.AppendXY  dXtmp-dTshift, InputSignal.GetY(iiitmp)
+        End If
+    Next iiitmp
+
+End Sub
+
+Function EquidistantIntegration(signal As Object)  As Object
+	Dim result As Object
+	Dim noftst As Integer
+	Dim integral As Double
+	Dim dt As Double
+	Dim ival As Integer
+	Set result = signal.copy()
+	
+	noftst = signal.GetN()
+	dt = signal.GetX(1) - signal.GetX(0)
+	integral = 0.0
+	For ival=1 To noftst-1
+		integral = integral + 0.5*dt*(signal.GetY(ival-1) + signal.GetY(ival))
+		result.SetY(ival, integral)
+	Next ival
+	
+	Set EquidistantIntegration = result
+
+End function
+
+Function NonEquidistantIntegration(signal As Object)  As Object
+	Dim result As Object
+	Dim noftst As Long
+	Dim integral As Double
+	Dim x1 As Double
+	Dim x2 As Double
+	Dim x3 As Double
+	Dim y1 As Double
+	Dim y2 As Double
+	Dim y3 As Double
+	Dim ap As Double
+	Dim bp As Double
+	Dim am As Double
+	Dim bm As Double
+	Dim intm As Double
+	Dim intp As Double
+	Dim denom As Double
+	Dim ival As Long
+	Set result = signal.copy()
+	
+	noftst = signal.GetN()
+	
+	integral = 0.0
+	For ival=1 To noftst-1
+	
+		If (ival=1) Then
+			x1 = signal.GetX(ival-1)
+			x2 = signal.GetX(ival)
+			x3 = signal.GetX(ival+1)
+			y1 = signal.GetY(ival-1)
+			y2 = signal.GetY(ival)
+			y3 = signal.GetY(ival+1)
+			denom = (x3-x2)*(x1-x2)*(x3-x1)
+			ap = ((y1-y2)*(x3-x2)*(x3-x2) - (y3-y2)*(x1-x2)*(x1-x2))/denom
+			bp = ((y3-y2)*(x1-x2) - (y1-y2)*(x3-x2))/denom
+			intp = y2*(x2-x1)-0.5*ap*(x2-x1)*(x2-x1)+bp*(x2-x1)*(x2-x1)*(x2-x1)/3.
+			integral = intp
+		ElseIf (ival=noftst-1) Then
+			am = ap
+			bm = bp
+			intm = y2*(x3-x2)+0.5*am*(x3-x2)*(x3-x2)+bp*(x3-x2)*(x3-x2)*(x3-x2)/3.
+			integral = integral + intm
+		Else
+			am = ap
+			bm = bp
+			intm = y2*(x3-x2)+0.5*am*(x3-x2)*(x3-x2)+bp*(x3-x2)*(x3-x2)*(x3-x2)/3.
+			x1 = signal.GetX(ival-1)
+			x2 = signal.GetX(ival)
+			x3 = signal.GetX(ival+1)
+			y1 = signal.GetY(ival-1)
+			y2 = signal.GetY(ival)
+			y3 = signal.GetY(ival+1)
+			denom = (x3-x2)*(x1-x2)*(x3-x1)
+			ap = ((y1-y2)*(x3-x2)*(x3-x2) - (y3-y2)*(x1-x2)*(x1-x2))/denom
+			bp = ((y3-y2)*(x1-x2) - (y1-y2)*(x3-x2))/denom
+			intp = y2*(x2-x1)-0.5*ap*(x2-x1)*(x2-x1)+bp*(x2-x1)*(x2-x1)*(x2-x1)/3.
+			integral = integral + 0.5*(intm+intp)
+		End If
+		
+		result.SetY(ival, integral)
+	Next ival
+	
+	Set NonEquidistantIntegration = result
+
+End function
+
+' t=0 to 50% amplitude of InputSignal
+Sub NormalizeInputTimeshift(InputSignal As Object, OutputSignal As Object)
+	Dim ymax As Double
+	Dim y As Double
+	Dim yh As Double
+	Dim ifreq_cst As Long
+	Dim noftst As Long
+	Dim ihalf As Long
+	Dim thalf As Double
+	Dim temp1 As Object
+	Dim temp2 As Object
+	
+	noftst = InputSignal.GetN()
+	
+	ymax = 0.0
+	For ifreq_cst=1 To noftst - 1
+		y=InputSignal.GetY(ifreq_cst)
+		If (y > ymax) Then ymax = y
+	Next ifreq_cst
+	
+	If (ymax <= 0.0) Then
+		Exit Sub
+	End If
+	
+	ihalf = -1
+	For ifreq_cst=1 To noftst - 1
+		y=InputSignal.GetY(ifreq_cst)
+		If (y >= 0.5*ymax) Then
+			ihalf = ifreq_cst
+			Exit For
+		End If
+	Next ifreq_cst
+	
+	If (ihalf >= 0) Then
+		yh = 0.5*ymax
+		thalf = ((InputSignal.GetY(ihalf)-yh)*InputSignal.GetX(ihalf-1) + (yh - InputSignal.GetY(ihalf-1))*InputSignal.GetX(ihalf))/(InputSignal.GetY(ihalf) - InputSignal.GetY(ihalf-1))
+	
+		Set temp1 = InputSignal.copy()
+		temp1.Initialize(InputSignal.GetN - ihalf)
+		Set temp2 = OutputSignal.copy()
+		temp2.Initialize(OutputSignal.GetN - ihalf)
+		For ifreq_cst=0 To noftst - ihalf - 1
+			temp1.SetXY(ifreq_cst, InputSignal.GetX(ifreq_cst+ihalf) - thalf, InputSignal.GetY(ifreq_cst+ihalf))
+			temp2.SetXY(ifreq_cst, OutputSignal.GetX(ifreq_cst+ihalf)- thalf, OutputSignal.GetY(ifreq_cst+ihalf))
+		Next ifreq_cst
+		Set InputSignal = temp1
+		Set OutputSignal = temp2
+	End If
+
+End Sub
+
+Function ConvertSignal2StepFunction(signal As Object)  As Object
+	Dim result As Object
+	Dim N As Long
+	Dim ival As Long
+	
+	Set result = signal.copy()
+	N = signal.GetN()
+	For ival=0 To N-1
+		result.SetY(ival, signal.GetY(N-1))
+	Next ival
+	
+	Set ConvertSignal2StepFunction = result
+
+End function
+
+Sub TimeSignals2TDR( tdr_signal As Object, refimpedance As Double, InputSignal As Object, OutputSignal As Object, bReflection As Boolean)
+	Dim ifreq_cst As Long
+	Dim noftst As Long
+	Dim sin  As Double
+	Dim sout As Double
+	Dim tvalue As Double
+	Dim timpedance As Double
+	
+	noftst = InputSignal.GetN()
+	
+	For ifreq_cst=0 To noftst-1
+		sin =InputSignal.GetY(noftst-1) 'Using the end value is equivalent to assume InputSignal = I0*Heaviside(t)
+		sout=OutputSignal.GetY(ifreq_cst)
+
+		If bReflection Then
+			timpedance = sout/sin
+		Else
+			If (sin <> sout) Then
+				timpedance = refimpedance * (sin+sout)/(sin-sout)
+			Else
+				timpedance = 0.0
+			End If
+		End If
+		tvalue = InputSignal.GetX(ifreq_cst)
+		tdr_signal.AppendXY(tvalue, timpedance)
+	Next ifreq_cst
+	
+	Dim sxLabel As String
+	Dim sxUnit  As String
+	InputSignal.GetXLabelAndUnit(sxLabel, sxUnit)
+	
+	If bReflection Then
+		tdr_signal.SetYLabelAndUnit "Gamma(t)" , "1"
+	Else
+		tdr_signal.SetYLabelAndUnit "Z(t)" , "Ohm"
+	End If
+	
+	tdr_signal.SetXLabelAndUnit "Time" , sxUnit
+
+End Sub
+
+Function AutoDetectSignalType(signal As Object) As String
+	Dim i As Long
+	Dim noftst As Long
+	Dim Integral As Double
+	Dim xL  As Double
+	Dim lastY As Double 
+	
+	noftst = signal.GetN()
+	Integral = 0.0
+	For i=1 To noftst-1
+		Integral = Integral + 0.5*(Signal.GetX(i) - Signal.GetX(i-1))*(Signal.GetY(i) + Signal.GetY(i-1))
+	Next i
+	
+	xL = Signal.GetX(noftst-1) - Signal.GetX(0)
+	lastY = Signal.GetY(noftst-1)
+	
+	If Integral > xL*lastY Then
+		AutoDetectSignalType = "DeltaLike"
+	Else
+		AutoDetectSignalType = "StepLike"
+	End If
+End Function

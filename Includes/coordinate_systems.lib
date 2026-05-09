@@ -1,0 +1,627 @@
+'
+' This lib allows access to several functions related to coordinate system operations
+'
+' ================================================================================================
+' Copyright 2003-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================
+' History of Changes
+' -------------------------------------------------------------------------------------------------------------
+' 04-Apr-2023 mha: changed name of constant sWCSname to lib_sWCSname and made public for reference in templates
+' 23-Aug-2021 ube: shorten prefix sWCSname, in order to have more space to view the wcs name in arbitr-template
+' 15-Jul-2015 fsr: Made aWCS() 'Public' so it can be accessed properly from other macros/templates
+' 15-Jun-2003 ube: Initial version, mainly used in Evaluate Field in arbitrary Coordinates
+' -------------------------------------------------------------------------------------------------------------
+
+Public aWCS() As String, nOfWCS As Integer
+Public Const lib_sWCSname=""
+
+Dim dOrigin(2) As Double
+Dim dNormal(2) As Double
+Dim dUVector(2) As Double
+
+Dim duvw2xyz(2,2) As Double
+Dim dxyz2uvw(2,2) As Double
+
+
+
+' Subroutine Main_wcsexample
+' Demonstrates how some of the subroutines in the library can be used.
+Sub Main_wcsexample ()
+	FillWCSArray
+
+	While (True)
+		Begin Dialog UserDialog 240,105,"Convert WCS" ' %GRID:10,7,1,1
+			DropListBox 30,21,190,192,aWCS(),.wcs
+			OKButton 30,70,90,21
+			CancelButton 140,70,90,21
+		End Dialog
+		Dim dlg As UserDialog
+
+		If (Not Dialog(dlg)) Then Exit All
+
+		Dim iwcs As Integer
+		iwcs = dlg.wcs
+
+		InitWCS(iwcs) ' sets numbers and matrices of aWCS(iwcs)
+
+		PrintMatrix duvw2xyz
+		PrintMatrix dxyz2uvw
+
+		Dim uvw(2) As Double, xyz(2) As Double
+
+		uvw(0)=1.627026
+		uvw(1)=1.554955
+		uvw(2)=-3.088269
+
+		Convert_Point2Global uvw, xyz
+
+		MsgBox  "Point uvw2xyz" + vbCrLf + vbCrLf + _
+				CStr(uvw(0))+" , "+CStr(uvw(1))+" , "+CStr(uvw(2)) + vbCrLf + vbCrLf + _
+				CStr(xyz(0))+" , "+CStr(xyz(1))+" , "+CStr(xyz(2))
+
+		Convert_Point2Local xyz, uvw
+
+		MsgBox  "Point xyz2uvw" + vbCrLf + vbCrLf + _
+				CStr(uvw(0))+" , "+CStr(uvw(1))+" , "+CStr(uvw(2)) + vbCrLf + vbCrLf + _
+				CStr(xyz(0))+" , "+CStr(xyz(1))+" , "+CStr(xyz(2))
+
+		' -- now: vector test
+
+		uvw(0)=1
+		uvw(1)=0
+		uvw(2)=0
+
+		Convert_Vector2Global uvw, xyz
+
+		MsgBox  "Vector uvw2xyz" + vbCrLf + vbCrLf + _
+				CStr(uvw(0))+" , "+CStr(uvw(1))+" , "+CStr(uvw(2)) + vbCrLf + vbCrLf + _
+				CStr(xyz(0))+" , "+CStr(xyz(1))+" , "+CStr(xyz(2))
+
+		Convert_Vector2Local xyz, uvw
+
+		MsgBox  "Vector xyz2uvw" + vbCrLf + vbCrLf + _
+				CStr(uvw(0))+" , "+CStr(uvw(1))+" , "+CStr(uvw(2)) + vbCrLf + vbCrLf + _
+				CStr(xyz(0))+" , "+CStr(xyz(1))+" , "+CStr(xyz(2))
+	Wend
+End Sub
+
+
+
+' Subroutine Convert_Point2Global
+' Uses array dOrigin amd matrix duvw2xyz, therefore InitWCS should be called before this subroutine.
+' Coordinates of local wcs specified in double array uvw_lib.
+' Corresponding coordinates in global system are filled into double array xyz_lib
+' By now also possible with method GetGlobalPointFromWCS
+Sub Convert_Point2Global (uvw_lib() As Double, xyz_lib() As Double)
+	Dim ii_tmp As Integer, jj_tmp As Integer
+
+	For ii_tmp=0 To 2
+
+		xyz_lib(ii_tmp) = dOrigin(ii_tmp)
+
+		For jj_tmp=0 To 2
+			xyz_lib(ii_tmp) = xyz_lib(ii_tmp) + uvw_lib(jj_tmp) * duvw2xyz(jj_tmp,ii_tmp)
+		Next jj_tmp
+
+	Next ii_tmp
+End Sub
+
+
+
+' Subroutine Convert_Vector2Global
+' Uses matrix duvw2xyz, therefore InitWCS should be called before this subroutine.
+' Vector coordinates specified in local wcs in double array uvw_lib.
+' Corresponding vector coordinates in global system are filled into double array xyz_lib
+Sub Convert_Vector2Global (uvw_lib() As Double, xyz_lib() As Double)
+	Dim ii_tmp As Integer, jj_tmp As Integer
+
+	For ii_tmp=0 To 2
+
+		xyz_lib(ii_tmp) = 0.0
+
+		For jj_tmp=0 To 2
+
+			xyz_lib(ii_tmp) = xyz_lib(ii_tmp) + uvw_lib(jj_tmp) * duvw2xyz(jj_tmp,ii_tmp)
+
+		Next jj_tmp
+	Next ii_tmp
+End Sub
+
+
+
+' Subroutine Convert_Point2Local
+' Uses array dOrigin and matrix dxyz2uvw, therefore InitWCS should be called before this subroutine.
+' Coordinates of global wcs specified in double array xyz_lib.
+' Corresponding coordinates in local system are filled into double array uvw_lib
+' By now also possible with method GetWCSPointFromGlobal
+Sub Convert_Point2Local (xyz_lib() As Double, uvw_lib() As Double)
+	Dim ii_tmp As Integer, jj_tmp As Integer
+
+	Dim xyz_moved(2) As Double
+
+	For ii_tmp=0 To 2
+
+		xyz_moved(ii_tmp) = xyz_lib(ii_tmp) - dOrigin(ii_tmp)
+
+		uvw_lib(ii_tmp) = 0.0
+
+	Next ii_tmp
+
+	For ii_tmp=0 To 2
+		For jj_tmp=0 To 2
+
+			uvw_lib(ii_tmp) = uvw_lib(ii_tmp) + xyz_moved(jj_tmp) * dxyz2uvw(jj_tmp,ii_tmp)
+
+		Next jj_tmp
+	Next ii_tmp
+End Sub
+
+
+
+' Subroutine Convert_Vector2Local
+' Uses matrix dxyz2uvw, therefore InitWCS should be called before this subroutine.
+' Vector coordinates specified in local wcs in double array uvw_lib.
+' Corresponding vector coordinates in global system are filled into double array xyz_lib
+Sub Convert_Vector2Local (xyz_lib() As Double, uvw_lib() As Double)
+	Dim ii_tmp As Integer, jj_tmp As Integer
+
+	For ii_tmp=0 To 2
+
+		uvw_lib(ii_tmp) = 0.0
+
+	Next ii_tmp
+
+	For ii_tmp=0 To 2
+		For jj_tmp=0 To 2
+
+			uvw_lib(ii_tmp) = uvw_lib(ii_tmp) + xyz_lib(jj_tmp) * dxyz2uvw(jj_tmp,ii_tmp)
+
+		Next jj_tmp
+	Next ii_tmp
+End Sub
+
+
+
+' Subroutine PrintMatrix
+' Shows message box with matrix xyz_lib (assumption: 3 x 3 matrix)
+Sub PrintMatrix (xyz_lib() As Double)
+	Dim ii_tmp As Integer, jj_tmp As Integer
+	Dim sss As String
+
+	sss = ""
+	For ii_tmp=0 To 2
+		For jj_tmp=0 To 2
+
+			sss = sss + "  (" + CStr(ii_tmp) + "," + CStr(jj_tmp) + ")=" + CStr( xyz_lib(ii_tmp,jj_tmp) )
+
+		Next jj_tmp
+			sss = sss + vbCrLf
+	Next ii_tmp
+
+	MsgBox sss
+End Sub
+
+
+
+' Subroutine InitWCS
+' Necessary precursor to many of the other subroutines used in library.
+' Fills in components in origina array, normal array, affine transformation matrices etc. 
+Sub InitWCS (iWCS_lib As Integer)
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	If (iWCS_lib=0) Then
+		'
+		' --- load global xyz
+		'
+		Dim ii_tmp As Integer, jj_tmp As Integer
+
+		For ii_tmp = 0 To 2
+
+			dOrigin(ii_tmp)  = 0.0
+			dUVector(ii_tmp) = 0.0
+			dNormal(ii_tmp)  = 0.0
+
+			For jj_tmp=0 To 2
+				duvw2xyz(ii_tmp,jj_tmp) = 0.0
+				dxyz2uvw(ii_tmp,jj_tmp) = 0.0
+			Next jj_tmp
+
+			' now set diagonal to 1
+
+			duvw2xyz(ii_tmp, ii_tmp) = 1.0
+			dxyz2uvw(ii_tmp, ii_tmp) = 1.0
+
+		Next ii_tmp
+
+		dUVector(0) = 1.0
+		dNormal(2)  = 1.0
+
+	Else
+		'
+		' --- load local wcs
+		'
+		Dim ilen_lib
+		ilen_lib = Len(lib_sWCSname)
+
+		Dim sWCSshort As String
+		sWCSshort = Mid(aWCS(iWCS_lib),ilen_lib+1)
+
+		With oSelectedSP.WCS
+
+			If .DoesExist(sWCSshort) Then
+
+				.GetNormal (sWCSshort,  dNormal(0),  dNormal(1),  dNormal(2))
+				.GetOrigin (sWCSshort,  dOrigin(0),  dOrigin(1),  dOrigin(2))
+				.GetUVector(sWCSshort, dUVector(0), dUVector(1), dUVector(2))
+
+				.GetMatrixUVW2XYZ(sWCSshort, duvw2xyz(0,0), duvw2xyz(1,0), duvw2xyz(2,0), _
+											 duvw2xyz(0,1), duvw2xyz(1,1), duvw2xyz(2,1), _
+											 duvw2xyz(0,2), duvw2xyz(1,2), duvw2xyz(2,2))
+
+				.GetMatrixXYZ2UVW(sWCSshort, dxyz2uvw(0,0), dxyz2uvw(1,0), dxyz2uvw(2,0), _
+											 dxyz2uvw(0,1), dxyz2uvw(1,1), dxyz2uvw(2,1), _
+											 dxyz2uvw(0,2), dxyz2uvw(1,2), dxyz2uvw(2,2))
+
+			Else
+				MsgBox "WCS does not exist: " + sWCSshort, vbCritical
+			End If
+
+		End With
+
+	End If
+End Sub
+
+
+
+' Subroutine FillWCSArray
+' Fills public string array aWCS() with all stored working coordinate systems. First entry will be 'global (xyz)'
+Sub FillWCSArray ()
+	Dim icount As Integer, ssc As String
+
+	icount = 0
+	ssc = Resulttree.GetFirstChildName ("WCS")  ' 3 characters long
+	While ssc <> ""
+		icount = icount + 1
+		ssc=Resulttree.GetNextItemName (ssc)
+	Wend
+
+	ReDim aWCS(icount)
+
+	aWCS(0) = "global (xyz)"
+	icount = 0
+	ssc = Resulttree.GetFirstChildName ("WCS")  ' 3 characters long
+	While ssc <> ""
+		icount = icount + 1
+		aWCS(icount) = lib_sWCSname + Mid$(ssc,5)  ' length+2
+		ssc=Resulttree.GetNextItemName (ssc)
+	Wend
+
+	nOfWCS = icount
+End Sub
+
+
+
+' Subroutine Convert_Point_Spherical2Cartesian
+' Converts given spherical coordinates in array rtf_lib to Cartesian coordinates in xyz_lib
+Sub Convert_Point_Spherical2Cartesian (rtf_lib() As Double, xyz_lib() As Double)
+	Dim r_lib As Double, t_lib As Double, f_lib As Double
+	Dim cosf As Double, sinf As Double, cost As Double, sint As Double
+
+	r_lib = rtf_lib(0)
+	t_lib = rtf_lib(1)
+	f_lib = rtf_lib(2)
+
+	cost = CosD(t_lib)
+	sint = SinD(t_lib)
+
+	cosf = CosD(f_lib)
+	sinf = SinD(f_lib)
+
+	xyz_lib(0) = r_lib * sint * cosf
+	xyz_lib(1) = r_lib * sint * sinf
+	xyz_lib(2) = r_lib * cost
+End Sub
+
+
+
+Sub Convert_Vector_Spherical2Cartesian (t_lib As Double, f_lib As Double, rtf_lib() As Double, xyz_lib() As Double)
+	Dim vr_lib As Double, vt_lib As Double, vf_lib As Double
+	Dim cosf As Double, sinf As Double, cost As Double, sint As Double
+
+	vr_lib = rtf_lib(0)
+	vt_lib = rtf_lib(1)
+	vf_lib = rtf_lib(2)
+
+	cost = CosD(t_lib)
+	sint = SinD(t_lib)
+
+	cosf = CosD(f_lib)
+	sinf = SinD(f_lib)
+
+	xyz_lib(0) = vr_lib * sint * cosf + vt_lib * cost * cosf - vf_lib * sinf
+	xyz_lib(1) = vr_lib * sint * sinf + vt_lib * cost * sinf + vf_lib * cosf
+	xyz_lib(2) = vr_lib * cost        - vt_lib * sint
+End Sub
+
+
+
+' Subroutine Convert_Point_Cartesian2Spherical
+' Converts given Cartesian coordinates in array xyz_lib to spherical coordinates in rtf_lib
+Sub Convert_Point_Cartesian2Spherical (xyz_lib() As Double, rtf_lib() As Double)
+	Dim x_lib As Double, y_lib As Double, z_lib As Double
+
+	x_lib = xyz_lib(0)
+	y_lib = xyz_lib(1)
+	z_lib = xyz_lib(2)
+
+	rtf_lib(0) = Sqr(x_lib*x_lib + y_lib*y_lib + z_lib*z_lib)
+	rtf_lib(1) = ATn2D(Sqr(x_lib*x_lib + y_lib*y_lib), z_lib)
+	rtf_lib(2) = ATn2D(y_lib, x_lib)
+
+	If (rtf_lib(2)<0) Then rtf_lib(2) = 360.0 + rtf_lib(2)
+End Sub
+
+
+
+Sub Convert_Vector_Cartesian2Spherical (t_lib As Double, f_lib As Double, xyz_lib() As Double, rtf_lib() As Double)
+	Dim vx_lib As Double, vy_lib As Double, vz_lib As Double
+	Dim cosf As Double, sinf As Double, cost As Double, sint As Double
+
+	vx_lib = xyz_lib(0)
+	vy_lib = xyz_lib(1)
+	vz_lib = xyz_lib(2)
+
+	cost = CosD(t_lib)
+	sint = SinD(t_lib)
+
+	cosf = CosD(f_lib)
+	sinf = SinD(f_lib)
+
+	rtf_lib(0) =  vx_lib * sint * cosf + vy_lib * sint * sinf + vz_lib * cost
+	rtf_lib(1) =  vx_lib * cost * cosf + vy_lib * cost * sinf - vz_lib * sint
+	rtf_lib(2) = -vx_lib * sinf        + vy_lib * cosf
+End Sub
+
+
+
+' Subroutine Convert_Point_Cylindrical2Cartesian
+' Converts given cylindrical coordinates in array rfz_lib to Cartesian coordinates in xyz_lib
+Sub Convert_Point_Cylindrical2Cartesian (rfz_lib() As Double, xyz_lib() As Double)
+	Dim f_lib As Double, r_lib As Double
+	Dim cosf As Double, sinf As Double
+
+	r_lib = rfz_lib(0)
+	f_lib = rfz_lib(1)
+
+	cosf = CosD(f_lib)
+	sinf = SinD(f_lib)
+
+	xyz_lib(0) = r_lib * cosf
+	xyz_lib(1) = r_lib * sinf
+	xyz_lib(2) = rfz_lib(2)
+End Sub
+
+
+
+Sub Convert_Vector_Cylindrical2Cartesian (f_lib As Double, rfz_lib() As Double, xyz_lib() As Double)
+	Dim vf_lib As Double, vr_lib As Double
+	Dim cosf As Double, sinf As Double
+
+	vr_lib = rfz_lib(0)
+	vf_lib = rfz_lib(1)
+
+	cosf = CosD(f_lib)
+	sinf = SinD(f_lib)
+
+	xyz_lib(0) = vr_lib * cosf - vf_lib * sinf
+	xyz_lib(1) = vr_lib * sinf + vf_lib * cosf
+	xyz_lib(2) = rfz_lib(2)
+End Sub
+
+
+
+' Subroutine Convert_Point_Cartesian2Cylindrical
+' Converts given Cartesian coordinates in array xyz_lib to cylindrical coordinates in rfz_lib
+Sub Convert_Point_Cartesian2Cylindrical (xyz_lib() As Double, rfz_lib() As Double)
+	Dim x_lib As Double, y_lib As Double
+
+	x_lib = xyz_lib(0)
+	y_lib = xyz_lib(1)
+
+	rfz_lib(0) = Sqr(x_lib*x_lib + y_lib*y_lib)
+	rfz_lib(1) = ATn2D(y_lib, x_lib)
+	rfz_lib(2) = xyz_lib(2)
+
+	If (rfz_lib(1)<0) Then rfz_lib(1) = 360.0 + rfz_lib(1)
+End Sub
+
+
+
+Sub Convert_Vector_Cartesian2Cylindrical (f_lib As Double, xyz_lib() As Double, rfz_lib() As Double)
+	Dim vx_lib As Double, vy_lib As Double
+	Dim cosf As Double, sinf As Double
+
+	vx_lib = xyz_lib(0)
+	vy_lib = xyz_lib(1)
+
+	cosf = CosD(f_lib)
+	sinf = SinD(f_lib)
+
+	rfz_lib(0) =  vx_lib * cosf + vy_lib * sinf
+	rfz_lib(1) = -vx_lib * sinf + vy_lib * cosf
+	rfz_lib(2) = xyz_lib(2)
+End Sub
+
+
+Sub Main2_rtf ()
+	Dim phi As Double
+	Dim theta As Double
+
+	Dim rtf(2) As Double
+	Dim xyz(2) As Double
+
+	Dim tmp(2) As Double
+
+	phi = 0.0
+	theta = 0.0
+
+	rtf(0)=0.0
+	rtf(1)=0.0
+	rtf(2)=0.0
+
+	While True
+		Convert_Vector_Spherical2Cartesian theta, phi, rtf, xyz
+
+	'	Convert_Point_Spherical2Cartesian rtf, xyz
+
+		tmp(0)=rtf(0)
+		tmp(1)=rtf(1)
+		tmp(2)=rtf(2)
+
+		Convert_Vector_Cartesian2Spherical theta, phi, xyz, rtf
+
+	'	Convert_Point_Cartesian2Spherical xyz, rtf
+
+		If ( Abs(tmp(0)-rtf(0)) > 1e-13 Or _
+			 Abs(tmp(1)-rtf(1)) > 1e-13 Or _
+			 Abs(tmp(2)-rtf(2)) > 1e-13 ) Then
+
+			MsgBox "ERROR" + vbCrLf + vbCrLf + _
+				CStr(tmp(0)) + "=" + CStr(rtf(0)) + vbCrLf + vbCrLf + _
+				CStr(tmp(1)) + "=" + CStr(rtf(1)) + vbCrLf + vbCrLf + _
+				CStr(tmp(2)) + "=" + CStr(rtf(2)) + vbCrLf + vbCrLf
+		End If
+
+		Begin Dialog UserDialog 540,175,"rtf2xyz" ' %GRID:10,7,1,1
+			Text 10,14,30,14,"r",.Text1
+			Text 10,35,30,14,"th",.Text2
+			Text 10,56,20,14,"ph",.Text3
+			TextBox 50,14,180,21,.r
+			TextBox 50,35,180,21,.t
+			TextBox 50,56,180,21,.f
+			OKButton 120,119,90,21
+			CancelButton 220,119,90,21
+			Text 240,14,20,14,"x",.Text4
+			Text 240,35,20,14,"y",.Text5
+			Text 240,63,20,14,"z",.Text6
+			TextBox 270,14,240,21,.x
+			TextBox 270,35,240,21,.y
+			TextBox 270,56,240,21,.z
+			Text 20,91,40,14,"phi=",.Text7
+			TextBox 80,91,90,21,.phi
+			Text 210,91,60,14,"theta=",.Text8
+			TextBox 280,91,90,21,.theta
+		End Dialog
+		Dim dlg As UserDialog
+		dlg.r=CStr(rtf(0))
+		dlg.t=CStr(rtf(1))
+		dlg.f=CStr(rtf(2))
+		dlg.x=CStr(xyz(0))
+		dlg.y=CStr(xyz(1))
+		dlg.z=CStr(xyz(2))
+
+		dlg.phi=CStr(phi)
+		dlg.theta=CStr(theta)
+
+		If (Dialog(dlg) = 0) Then Exit All
+
+		rtf(0) = Evaluate(dlg.r)
+		rtf(1) = Evaluate(dlg.t)
+		rtf(2) = Evaluate(dlg.f)
+
+		xyz(0) = Evaluate(dlg.x)
+		xyz(1) = Evaluate(dlg.y)
+		xyz(2) = Evaluate(dlg.z)
+
+		phi = Evaluate(dlg.phi)
+		theta = Evaluate(dlg.theta)
+	Wend
+End Sub
+
+
+
+Sub Main2_rfz ()
+	Dim phi As Double
+	Dim theta As Double
+
+	Dim rfz(2) As Double
+	Dim xyz(2) As Double
+
+	Dim tmp(2) As Double
+
+	phi = 0.0
+
+	rfz(0)=0.0
+	rfz(1)=0.0
+	rfz(2)=0.0
+
+	While True
+
+	'	Convert_Point_Cylindrical2Cartesian rfz, xyz
+
+		Convert_Vector_Cylindrical2Cartesian phi, rfz, xyz
+
+		tmp(0)=rfz(0)
+		tmp(1)=rfz(1)
+		tmp(2)=rfz(2)
+
+		Convert_Vector_Cartesian2Cylindrical phi, xyz, rfz
+
+	'	Convert_Point_Cartesian2Cylindrical xyz, rfz
+
+		If ( Abs(tmp(0)-rfz(0)) > 1e-13 Or _
+			 Abs(tmp(1)-rfz(1)) > 1e-13 Or _
+			 Abs(tmp(2)-rfz(2)) > 1e-13 ) Then
+
+			MsgBox "ERROR" + vbCrLf + vbCrLf + _
+				CStr(tmp(0)) + "=" + CStr(rfz(0)) + vbCrLf + vbCrLf + _
+				CStr(tmp(1)) + "=" + CStr(rfz(1)) + vbCrLf + vbCrLf + _
+				CStr(tmp(2)) + "=" + CStr(rfz(2)) + vbCrLf + vbCrLf
+		End If
+
+		Begin Dialog UserDialog 540,175,"rfz2xyz" ' %GRID:10,7,1,1
+			Text 10,14,30,14,"r",.Text1
+			Text 10,35,30,14,"f",.Text2
+			Text 10,56,20,14,"z",.Text3
+			TextBox 50,14,180,21,.r
+			TextBox 50,35,180,21,.f
+			TextBox 50,56,180,21,.z1
+			OKButton 120,119,90,21
+			CancelButton 220,119,90,21
+			Text 240,14,20,14,"x",.Text4
+			Text 240,35,20,14,"y",.Text5
+			Text 240,63,20,14,"z",.Text6
+			TextBox 270,14,240,21,.x
+			TextBox 270,35,240,21,.y
+			TextBox 270,56,240,21,.z2
+			Text 20,91,40,14,"phi=",.Text7
+			TextBox 80,91,90,21,.phi
+		End Dialog
+		Dim dlg As UserDialog
+		dlg.r=CStr(rfz(0))
+		dlg.f=CStr(rfz(1))
+		dlg.z1=CStr(rfz(2))
+		dlg.x=CStr(xyz(0))
+		dlg.y=CStr(xyz(1))
+		dlg.z2=CStr(xyz(2))
+
+		dlg.phi=CStr(phi)
+
+		If (Dialog(dlg) = 0) Then Exit All
+
+		rfz(0) = Evaluate(dlg.r)
+		rfz(1) = Evaluate(dlg.f)
+		rfz(2) = Evaluate(dlg.z1)
+
+		xyz(0) = Evaluate(dlg.x)
+		xyz(1) = Evaluate(dlg.y)
+		xyz(2) = Evaluate(dlg.z2)
+
+		phi = Evaluate(dlg.phi)
+
+	Wend
+End Sub

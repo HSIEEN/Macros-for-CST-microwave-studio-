@@ -1,0 +1,117 @@
+'Library of functions used in the macro Materials / Define Human Material Properties
+
+' ================================================================================================
+' Copyright 2010-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================
+' History of Changes
+' ------------------------------------------------------------------------------------------------
+' 07-Aug-2018 apr: biofreq lib update
+' 15-Jan-2010 ube: new macro colecole+age for biomodels
+' ================================================================================================
+
+Function TBW(age As Double) as Double    
+	TBW = 1e-6*(784.0-241.0*exp(-((log(age/55.0))/6.9589)^2))
+End Function
+
+Function CalcNewEpsAge(TBWc As Double, TBWA As Double, density As Double, EpsrA as Double, sigma as double, myfrequency as Double, epsNul as Double, byref setMatNotValid as Integer) As Complex 
+	Dim tau As Double
+	Dim alpha As Double
+	Dim alphaA As Double
+	Dim omega As Double
+	Dim EpsRW As Double
+	Dim term1r as Double
+	Dim term2r as Double
+	Dim term1_2 as Double
+	Dim epsInf as Double
+	Dim epsStat as Double
+	Dim tauW as Double
+
+	setMatNotValid = 0
+	epsInf = 5.9
+	epsStat = 74.1
+	tauW = 6.2e-12
+	omega = 2*pi*myfrequency
+
+	tau = epsNul*EpsrA/sigma
+	alpha = TBWc*density
+	alphaA = TBWA*density
+	if alphaA>1 Then
+		setMatNotValid = 1
+		CalcNewEpsAge.re = EpsrA
+		CalcNewEpsAge.im = -EpsrA*(1/(omega*tau))
+		exit Function
+	end If
+
+	EpsRW = epsInf+(epsStat-epsInf)/(1+2*pi*myfrequency*2*pi*myfrequency*tauW*tauW)
+
+	term1r=EpsRW^((alpha-alphaA)/(1-alphaA))
+	term2r=EpsrA^((1-alpha)/(1-alphaA))
+	term1_2=term1r*term2r
+	CalcNewEpsAge.re=term1_2
+	CalcNewEpsAge.im=-CalcNewEpsAge.re*(1/(omega*tau))
+End Function
+
+
+'This function calculates the new Complex epsilon based on the cole cole parameters
+Function CalcNewEps(matName As String, myFrequency As Double, epsInf As Complex, deltaEps1 As Complex, tau1 As Complex, alpha1 As Complex, deltaEps2 As Complex, tau2 As Complex, alpha2 As Complex, sigmaIon As Complex, deltaEps3 As Complex, tau3 As Complex, alpha3 As Complex, deltaEps4 As Complex, tau4 As Complex, alpha4 As Complex, eps0 As Complex) As Complex
+	Dim A As Complex, B As Complex, Cl As Complex, Ct As Complex
+	Dim compI As Complex, realOne As Complex, omega As Complex
+	Dim xx As Complex, yy As Complex, zz As Complex
+	Dim msg As String
+
+	omega.re = 2 * pi * myFrequency
+	omega.im = 0
+
+	compI.re = 0
+	compI.im = 1
+
+	realOne.re = 1
+	realOne.im = 0
+
+	CalcNewEps = epsInf
+
+	A = deltaEps4
+	B = realOne
+	Cl = mult(mult(compI, omega), tau4)
+	Ct = minus(realOne, alpha4)
+	CalcNewEps = plus(CalcNewEps, div(A, (plus(B, (YtoX(Cl, Ct))))))
+
+	A = deltaEps3
+	B = realOne
+	Cl = mult(mult(compI, omega), tau3)
+	Ct = minus(realOne, alpha3)
+	CalcNewEps = plus(CalcNewEps, div(A, (plus(B, (YtoX(Cl, Ct))))))
+
+	A = deltaEps2
+	B = realOne
+	Cl = mult(mult(compI, omega), tau2)
+	Ct = minus(realOne, alpha2)
+	CalcNewEps = plus(CalcNewEps, div(A, (plus(B, (YtoX(Cl, Ct))))))
+
+	A = deltaEps1
+	B = realOne
+	Cl = mult(mult(compI, omega), tau1)
+	Ct = minus(realOne, alpha1)
+	CalcNewEps = plus(CalcNewEps, div(A, (plus(B, (YtoX(Cl, Ct))))))
+
+	A = sigmaIon
+	B = mult(mult(compI, omega), eps0)
+	CalcNewEps = plus(CalcNewEps, div(A, B))
+End Function
+
+Public Function YtoX(Y As Complex, X As Complex) As Complex  'calculates y^x, where y is a purely imaginary number
+	Dim theta As Complex, LogVar As Complex
+
+	If absolute(Y) - 0 < 0.00000001 Then
+		YtoX.re = 0
+		YtoX.im = 0
+		Exit Function
+	End If
+	LogVar.re = Log(absolute(Y))
+	LogVar.im = 0
+	theta.re = 0
+	theta.im = pi / 2
+	YtoX = zexp(plus(mult(X, LogVar), (mult(X, theta))))
+End Function
+
+

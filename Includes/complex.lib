@@ -1,0 +1,831 @@
+' Complex number and matrix operations
+'--------------------------------------------------------------------------------------
+' 1) Defines the complex type, and operations with complex numbers:
+'  One-argument functions:
+'    neg, conj, absolute, absolute2 (square of abs. value), argph2reim, argph2reim_2 (takes two numbers as args), reim2argph
+'  Two-argument functions:
+'    plus, minus, mult, div, multsc, divsc (divide by scalar)
+
+' 2) Defines operations with 2-dimensional matrices:
+'    RealMatrixMult
+'    ComplexMatrixMult, ComplexMatrixTransp
+'	 RealComplexMatrixMult, ComplexRealMatrixMult (one matrix is of type double, the other one of type complex)
+
+' TO DO:
+'      - All functions for both Complex and ComplexMagPh types (see example for the "neg" function), maybe also for real
+'      - Matrix inversion?
+'
+'------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+' Copyright 2005-2023 Dassault Systemes Deutschland GmbH
+'------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+' History of Changes:
+'------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+' 19-Sep-2019 fsr: Added ComplexPowerReal to calculate z^r
+' 05-Nov-2018 fsr: Added AreMatricesEqual to compare matrices, ComplexMatrixPower to calculate A^n; ComplexMatrixMult now works with dynamic or static array as output variable
+' 					Added DisplayComplexMatrix to print result; ComplexRealMatrixMult now uses ComplexMatrixMult to carry out multiplication; general overhaul
+' 12-Jan-2015 tsi: Add AddComplexToArray function as requested by fsr.
+' 25-Apr-2014 mku: added zasinh, zacosh
+' 21-Sep-2011 fsr: changed all occurrences of "Arg" in connection with ComplexArgPh to "Mag"
+' 15-Jul-2011 fsr: added ztan, zatn, and zatn2; fixed a bug in function "neg" where the angle was multiplied by (-1) instead of shifted by Pi,
+'					removed Function "neg1", Split "neg" into "neg" And "neg_ArgPh"
+' 18-Feb-2011 fsr: fixed a small bug in the ComplexSqrt when argument was purely real and negative
+' 29-Sep-2010 mku: added rtanh, rcoth
+' 17-Sep-2010 fsr: added complex sin and cos, log, asin, acos
+' 14-Jun-2010 ube: renamed Sub Main into Main_COMPLEX_LIB
+' 31-Aug-2009 mku: included zexp; modified ztanh, zcoth
+' 15-May-2009 fhi: added ComplexMatrixInv3x3, ComplexMatrixInv2x2, AssignComplex
+' 26-Mar-2009 mku: included zsinh, zcosh, ztanh, zcoth, rsinh, rcosh
+' 23-Jul-2008 msy: included complex sqrt function ComplexSqrt
+' 12-Oct-2005 ube: Changed "MsgBox" to "ReportError"
+' 10-Oct-2005 imu: Changed "Error" to "MsgBox"
+' First version: imu 08.01.2004
+'------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Type Complex
+	re As Double
+	im As Double
+End Type
+
+Type ComplexMagPh	' complex by argument and phase
+	mag As Double
+	ph As Double
+End Type
+
+'---------------------------------------------------------------------------------------------------------
+Function InsertComplexIntoArray( ByRef ArrayOfComplex() As Complex, i As Long, ByRef c As Complex)
+	ArrayOfComplex(i).re = c.re
+	ArrayOfComplex(i).im = c.im
+End Function
+
+'---------------------------------------------------------------------
+Function InsertComplexMagPhIntoArray( ByRef ArrayOfComplexMagPh() As ComplexMagPh, i As Long, ByRef c As ComplexMagPh)
+	ArrayOfComplexMagPh(i).mag = c.mag
+	ArrayOfComplexMagPh(i).ph = c.ph
+End Function
+
+'---------------------------------------------------------------------
+Function zlog (vx As Complex) As Complex
+	' complex log is periodic with n*j*2*pi, this function returns only the solution with n=0
+	zlog.re = Log(absolute(vx))
+	zlog.im = arc_theta(vx)
+End Function
+
+'---------------------------------------------------------------------
+Function zsin (vx As Complex) As Complex
+	zsin.re = Sin(vx.re)*rcosh(vx.im)
+	zsin.im = Cos(vx.re)*rsinh(vx.im)
+End Function
+
+'---------------------------------------------------------------------
+Function zasin (vx As Complex) As Complex
+	Dim ztmp As Complex
+	' z = -i*log(i*z+sqrt(1-z^2))
+	ztmp = mult(AssignComplex(0,-1),zlog(plus(mult(AssignComplex(0,1),vx),ComplexSqrt(minus(AssignComplex(1,0),mult(vx,vx))))))
+	zasin.re = ztmp.re
+	zasin.im = ztmp.im
+End Function
+
+'---------------------------------------------------------------------
+Function zcos (vx As Complex) As Complex
+	zcos.re = Cos(vx.re)*rcosh(vx.im)
+	zcos.im = -Sin(vx.re)*rsinh(vx.im)
+End Function
+
+'---------------------------------------------------------------------
+Function zacos (vx As Complex) As Complex
+	Dim ztmp As Complex
+	' z = pi/2+i*log(i*z+sqrt(1-z^2))
+	ztmp = plus(AssignComplex(Pi/2,0),mult(AssignComplex(0,1),zlog(plus(mult(AssignComplex(0,1),vx),ComplexSqrt(minus(AssignComplex(1,0),mult(vx,vx)))))))
+	zacos.re = ztmp.re
+	zacos.im = ztmp.im
+End Function
+
+'---------------------------------------------------------------------
+Function ztan (vx As Complex) As Complex
+	' tangent of complex argument
+	ztan = div(zsin(vx),zcos(vx))
+End Function
+
+'---------------------------------------------------------------------
+Function zatn (vx As Complex) As Complex
+	' arctangent of complex argument
+	' atn(z) = asin(z/sqr(z^2+1))
+	zatn = zasin(div(vx,ComplexSqrt(plus(mult(vx,vx),AssignComplex(1,0)))))
+End Function
+
+'---------------------------------------------------------------------
+Function zatn2 (vx As Complex, vy As Complex) As Complex
+	' atan2 of 2 complex arguments, atan2 by definition ignores the imaginary parts of its arguments
+	zatn2.re = atn2(vx.re, vy.re)
+	zatn2.im = 0
+End Function
+
+'---------------------------------------------------------------------
+
+Function zexp (vx As Complex) As Complex
+       zexp.re = Exp(vx.re)*Cos(vx.im)
+       zexp.im = Exp(vx.re)*Sin(vx.im)
+End Function
+'---------------------------------------------------------------------
+
+Function zsinh (vx As Complex) As Complex
+       zsinh.re = rsinh(vx.re)*Cos(vx.im)
+       zsinh.im = rcosh(vx.re)*Sin(vx.im)
+End Function
+'---------------------------------------------------------------------
+
+Function zasinh (vx As Complex) As Complex
+	Dim ztmp As Complex
+	' z = log(z+sqrt(1+z^2))
+	ztmp = zlog(plus(vx,ComplexSqrt(plus(AssignComplex(1,0),mult(vx,vx)))))
+	zasinh.re = ztmp.re
+	zasinh.im = ztmp.im
+End Function
+'---------------------------------------------------------------------
+
+Function zcosh (vx As Complex) As Complex
+        zcosh.re = rcosh(vx.re)*Cos(vx.im)
+        zcosh.im = rsinh(vx.re)*Sin(vx.im)
+End Function
+'---------------------------------------------------------------------
+
+Function zacosh (vx As Complex) As Complex
+	Dim ztmp As Complex
+	' z = log(z+sqrt(-1+z^2))
+	ztmp = zlog(plus(vx,ComplexSqrt(plus(AssignComplex(-1,0),mult(vx,vx)))))
+	zacosh.re = ztmp.re
+	zacosh.im = ztmp.im
+End Function
+'---------------------------------------------------------------------
+
+Function ztanh (vx As Complex) As Complex
+        Dim sum1 As Complex
+        Dim sum2 As Complex
+        Dim zone As Complex
+        Dim zarg As Complex
+	zarg.re = -2*vx.re
+	zarg.im = -2*vx.im
+        zone.re = 1.0
+        zone.im = 0.0
+
+        sum1 = minus(zone,zexp(zarg))
+        sum2 = plus(zone,zexp(zarg))
+        ztanh = div(sum1,sum2)
+'        ztanh = div(zsinh(vx),zcosh(vx))
+End Function
+'---------------------------------------------------------------------
+
+Function zcoth (vx As Complex) As Complex
+        Dim sum1 As Complex
+        Dim sum2 As Complex
+        Dim zone As Complex
+        Dim zarg As Complex
+	zarg.re = -2*vx.re
+	zarg.im = -2*vx.im
+        zone.re = 1.0
+        zone.im = 0.0
+
+        sum1 = plus(zone,zexp(zarg))
+        sum2 = minus(zone,zexp(zarg))
+        zcoth = div(sum1,sum2)
+'         zcoth = div(zcosh(vx),zsinh(vx))
+End Function
+'---------------------------------------------------------------------
+
+Function rsinh (rx As Double) As Double
+        rsinh = 0.5*(Exp(rx)-Exp(-rx))
+End Function
+'---------------------------------------------------------------------
+
+Function rcosh (rx As Double) As Double
+        rcosh = 0.5*(Exp(rx)+Exp(-rx))
+End Function
+'---------------------------------------------------------------------
+
+Function rtanh (rx As Double) As Double
+        rtanh = rsinh(rx) / rcosh(rx)
+End Function
+'---------------------------------------------------------------------
+
+Function rcoth (rx As Double) As Double
+        rcoth = rcosh(rx) / rsinh(rx)
+End Function
+'---------------------------------------------------------------------
+
+Function neg (vx As Complex) As Complex
+	Dim tmp As Complex
+	tmp.re = -vx.re
+	tmp.im = -vx.im
+	neg = tmp
+End Function
+
+Function neg_MagPh (vx As ComplexMagPh) As ComplexMagPh
+	Dim tmp As ComplexMagPh
+	tmp.mag = vx.mag
+	tmp.ph = vx.ph+Pi
+	neg_MagPh = tmp
+End Function
+
+' FSR: Implementation below causes problems with Linux, commented out
+'Function neg (vx As Variant) As Variant
+'	Dim tmp As Complex
+'	Dim tmp1 As ComplexMagPh
+'
+'	Debug.Print VarType(vx)
+'	Debug.Print TypeName(vx)
+'	If TypeName(vx) = "Complex" Then
+'		tmp.re = -vx.re
+'		tmp.im = -vx.im
+'		neg = tmp
+'	ElseIf TypeName(vx) = "ComplexMagPh" Then
+'		tmp1.arg = vx.arg
+'		tmp1.ph = vx.ph+Pi
+'		neg = tmp1
+'	End If
+'End Function
+'---------------------------------------------------------------------
+' FSR: Duplicate of "neg"
+'Function neg1 (vx As Complex) As Complex
+'	neg1.re = -vx.re
+'	neg1.im = -vx.im
+'End Function
+'---------------------------------------------------------------------
+' END FSR
+
+Function conj (vx As Complex) As Complex
+	conj.re = vx.re
+	conj.im = -vx.im
+End Function
+'---------------------------------------------------------------------
+
+Function absolute (vx As Complex) As Double
+	absolute = Sqr(vx.re * vx.re + vx.im * vx.im)
+End Function
+'---------------------------------------------------------------------
+
+Function absolute2 (vx As Complex) As Double
+	absolute2 = vx.re * vx.re + vx.im * vx.im
+End Function
+
+'---------------------------------------------------------------------
+Function arc_theta (vx As Complex) As Double
+	' Returns the phase of the complex number - strange name to avoid naming issues with arg/arc/theta/phase/...
+	arc_theta = Atn2(vx.im,vx.re)
+End Function
+
+'---------------------------------------------------------------------
+
+Function MagPh2ReIm (vx As ComplexMagPh) As Complex
+	MagPh2ReIm.re = vx.mag * Cos(vx.ph)
+	MagPh2ReIm.im = vx.mag * Sin(vx.ph)
+End Function
+'---------------------------------------------------------------------
+
+Function MagPh2ReIm_2 (vx As Double, vy As Double) As Complex
+	MagPh2ReIm_2.re = vx * Cos(vy)
+	MagPh2ReIm_2.im = vx * Sin(vy)
+End Function
+'---------------------------------------------------------------------
+
+Function ReIm2MagPh (vx As Complex) As ComplexMagPh
+	ReIm2MagPh.mag = absolute(vx)
+	ReIm2MagPh.ph = Atn2(vx.im, vx.re)
+End Function
+'---------------------------------------------------------------------
+Function AssignComplex (vx As Double, vy As Double) As Complex
+	AssignComplex.re = vx
+	AssignComplex.im = vy
+End Function
+'================================================================
+
+Function plus (vx As Complex, vy As Complex) As Complex
+	plus.re = vx.re + vy.re
+	plus.im = vx.im + vy.im
+End Function
+'---------------------------------------------------------------------
+
+Function minus (vx As Complex, vy As Complex) As Complex
+	minus.re = vx.re - vy.re
+	minus.im = vx.im - vy.im
+End Function
+'---------------------------------------------------------------------
+
+Function mult (vx As Complex, vy As Complex) As Complex
+	mult.re = vx.re*vy.re - vx.im*vy.im
+	mult.im = vx.re*vy.im + vx.im*vy.re
+End Function
+'---------------------------------------------------------------------
+
+Function div (vx As Complex, vy As Complex) As Complex
+	Dim tmp As Complex
+	tmp = mult(vx, conj(vy))
+	div = divsc(tmp, absolute2(vy))
+End Function
+'---------------------------------------------------------------------
+
+Function multsc (vx As Complex, a As Double) As Complex
+	multsc.re = vx.re*a
+	multsc.im = vx.im*a
+End Function
+'---------------------------------------------------------------------
+
+Function divsc (vx As Complex, a As Double) As Complex
+	divsc.re = vx.re / a
+	divsc.im = vx.im / a
+End Function
+'---------------------------------------------------------------------
+
+'================================================================
+Function RealMatrix2Complex (a() As Variant, ByRef b() As Complex) As Boolean
+
+	Dim m1 As Long, m2 As Long
+	Dim n1 As Long, n2 As Long
+
+	m1 = LBound(a,1): m2 = LBound(a, 2)
+	n1 = UBound(a,1): n2 = UBound(a, 2)
+
+	' If b is a dynamic array, we need to initalize it. If it is static, ReDim will fail but we can still continue -> Temporarily disable error handling
+	On Error Resume Next
+		ReDim b(m1 To n1, m2 To n2)
+	On Error GoTo 0
+	' Double check dimensions
+	If ((UBound(b, 1) - LBound(b, 1) <> (n1 - m1)) Or ((UBound(b, 2) - LBound(b, 2) <> (n2 - m2)))) Then
+		ReportError("complex::RealMatrix2Complex::Dimensions of target matrix do not agree with result dimensions.")
+		Exit All
+	End If
+
+	Dim iii As Long, jjj As Long
+	For iii = m1 To n1
+		For jjj = m2 To n2
+			b(iii, jjj) = AssignComplex(a(iii, jjj), 0)
+		Next jjj
+	Next iii
+
+End Function
+
+'================================================================
+Function MatrixReIm2MagPh (a() As Complex, ByRef b() As ComplexMagPh) As Boolean
+	Dim m1 As Long, m2 As Long, m3 As Long, m4 As Long
+	Dim n1 As Long, n2 As Long, n3 As Long, n4 As Long
+
+	m1 = LBound(a,1): m2 = LBound(a, 2): m3 = LBound(b,1): m4 = LBound(b,2)
+	n1 = UBound(a,1): n2 = UBound(a, 2): n3 = UBound(b,1): n4 = UBound(b,2)
+	' Check dimensions here
+
+	' If b is a dynamic array, we need to initalize it. If it is static, ReDim will fail but we can still continue -> Temporarily disable error handling
+	On Error Resume Next
+		ReDim b(m1 To n1, m2 To n2)
+	On Error GoTo 0
+	' Double check dimensions
+	If ((UBound(b, 1) - LBound(b, 1) <> (n1 - m1)) Or ((UBound(b, 2) - LBound(b, 2) <> (n2 - m2)))) Then
+		ReportError("complex::MatrixReIm2MagPh::Dimensions of target matrix do not agree with result dimensions.")
+		Exit All
+	End If
+
+	Dim iii As Long, jjj As Long
+	Dim tmpap As ComplexMagPh
+
+	For iii = m1 To n1
+		For jjj = m2 To n2
+			tmpap = ReIm2MagPh (a(iii, jjj))
+			b(iii, jjj).mag = tmpap.mag
+			b(iii, jjj).ph = tmpap.ph
+		Next jjj
+	Next iii
+
+End Function
+
+'================================================================
+
+Function RealMatrixMult (a() As Variant, b() As Variant, ByRef mn() As Variant) As Boolean
+
+	' Re-use code from ComplexMatrixMult
+	Dim cComplexA() As Complex, cComplexB() As Complex, cComplexMN() As Complex
+	Dim i As Long, j As Long
+
+	RealMatrix2Complex(a, cComplexA)
+	RealMatrix2Complex(b, cComplexB)
+
+	RealMatrixMult = ComplexMatrixMult(cComplexA(), cComplexB(), cComplexMN())
+
+	' If mn is a dynamic array, we need to initalize it. If it is static, ReDim will fail but we can still continue -> Temporarily disable error handling
+	On Error Resume Next
+		ReDim mn(LBound(cComplexMN, 1) To UBound(cComplexMN, 1), LBound(cComplexMN, 2) To UBound(cComplexMN, 2))
+	On Error GoTo 0
+	' Double check dimensions
+	If ((UBound(mn, 1) - LBound(mn, 1) <> (UBound(cComplexMN, 1) - LBound(cComplexMN, 1))) Or ((UBound(mn, 2) - LBound(mn, 2) <> (UBound(cComplexMN, 2) - LBound(cComplexMN, 2))))) Then
+		ReportError("complex::RealMatrixMult::Dimensions of target matrix do not agree with result dimensions.")
+		Exit All
+	End If
+
+	For i = LBound(cComplexMN, 1) To UBound(cComplexMN, 1)
+		For j = LBound(cComplexMN, 2) To UBound(cComplexMN, 2)
+			mn(i, j) = cComplexMN(i, j).re
+		Next
+	Next
+
+End Function
+
+'---------------------------------------------------------------------
+
+Function ComplexMatrixMult (ByVal a() As Complex, ByVal b() As Complex, ByRef mn() As Complex) As Boolean
+	Dim m1 As Long, m2 As Long, m3 As Long, m4 As Long
+	Dim n1 As Long, n2 As Long, n3 As Long, n4 As Long
+
+	m1 = LBound(a,1): m2 = LBound(a, 2): m3 = LBound(b,1): m4 = LBound(b,2)
+	n1 = UBound(a,1): n2 = UBound(a, 2): n3 = UBound(b,1): n4 = UBound(b,2)
+
+	If ( (n2-m2) <> (n3-m3) ) Then
+		ReportError("complex:ComplexMatrixMult:Matrix dimensions incompatible for multiplication!")
+		Exit All
+	End If
+	If ( m2 <> m3 ) Then
+		ReportError("complex:ComplexMatrixMult:Matrix dimensions incompatible for multiplication!")
+		Exit All
+	End If
+
+	Dim iii As Long, jjj As Long, kkk As Long
+
+	' If mn is a dynamic array, we need to initalize it. If it is static, ReDim will fail but we can still continue -> Temporarily disable error handling
+	On Error Resume Next
+		ReDim mn(m1 To n1, m4 To n4)
+	On Error GoTo 0
+	' Double check dimensions
+	If ((UBound(mn, 1) - LBound(mn, 1) <> (n1 - m1)) Or ((UBound(mn, 2) - LBound(mn, 2) <> (n4 - m4)))) Then
+		ReportError("complex::ComplexMatrixMult::Dimensions of target matrix do not agree with result dimensions.")
+		Exit All
+	End If
+
+	Dim tmp As Complex
+
+	For iii = m1 To n1
+		For jjj = m4 To n4
+			tmp.re = 0.0: tmp.im = 0.0
+			For kkk = m2 To n2
+'				tmp = tmp + a(iii, kkk)*b(kkk, jjj)
+				tmp = plus(tmp, mult(a(iii, kkk),b(kkk, jjj)) )
+			Next kkk
+			mn(iii, jjj) = tmp
+		Next jjj
+	Next iii
+
+	ComplexMatrixMult = True
+
+End Function
+'---------------------------------------------------------------------
+
+Function ComplexRealMatrixMult (a() As Complex, b() As Double, ByRef mn() As Complex) As Boolean
+
+	' Re-use code from ComplexMatrixMult
+	Dim cComplexB() As Complex, i As Long, j As Long
+
+	' Need to copy manually, Real2Complex expects a Variant array, not a Double array
+	ReDim cComplexB(LBound(b, 1) To UBound(b, 1), LBound(b, 2) To UBound(b, 2))
+	For i = LBound(b, 1) To UBound(b, 1)
+		For j = LBound(b, 2) To UBound(b, 2)
+			cComplexB(i, j) = AssignComplex(b(i, j), 0)
+		Next
+	Next
+
+	ComplexRealMatrixMult = ComplexMatrixMult(a(), cComplexB(), mn())
+
+End Function
+
+'---------------------------------------------------------------------
+
+Function RealComplexMatrixMult (a() As Double, b() As Complex, ByRef mn() As Complex) As Boolean
+
+	' Re-use code from ComplexMatrixMult
+	Dim cComplexA() As Complex, i As Long, j As Long
+
+	' Need to copy manually, Real2Complex expects a Variant array, not a Double array
+	ReDim cComplexA(LBound(a, 1) To UBound(a, 1), LBound(a, 2) To UBound(a, 2))
+	For i = LBound(a, 1) To UBound(a, 1)
+		For j = LBound(a, 2) To UBound(a, 2)
+			cComplexA(i, j) = AssignComplex(a(i, j), 0)
+		Next
+	Next
+
+	RealComplexMatrixMult = ComplexMatrixMult(cComplexA(), b(), mn())
+
+End Function
+'---------------------------------------------------------------------
+
+Function ComplexMatrixPower(a() As Complex, nPower As Long, ByRef mn() As Complex) As Boolean
+
+	Dim n As Long, n2 As Long, i As Long, j As Long
+	Dim cTemp() As Complex, cTemp2() As Complex
+
+	If (nPower = 0) Then
+		' Unity matrix
+		cTemp = a
+		For i = LBound(a, 1) To UBound(a, 1)
+			For j = LBound(a, 2) To UBound(a, 2)
+				If (i = j) Then
+					cTemp(i, j) = AssignComplex(1, 0)
+				Else
+					cTemp(i, j) = AssignComplex(0, 0)
+				End If
+			Next
+		Next
+	ElseIf (nPower = 1) Then
+		cTemp = a ' return original matrix
+	Else
+		' FSR: Only implemented the first stage of an exponential algorithm: highest order first ,then all first order
+		' full implementation would continue to multiply with next lowest order, then continuously decrease order
+		ComplexMatrixMult(a, a, cTemp)
+		n2 = 2
+		While (2*n2 <= nPower)
+			ComplexMatrixMult(cTemp, cTemp, cTemp)
+			n2 = 2*n2
+		Wend
+		For n = n2 + 1 To nPower
+			ComplexMatrixMult(cTemp, a, cTemp)
+		Next
+	End If
+
+	' If mn is a dynamic array, we need to initalize it. If it is static, ReDim will fail but we can still continue -> Temporarily disable error handling
+	On Error Resume Next
+		ReDim mn(LBound(cTemp, 1) To UBound(cTemp, 1), LBound(cTemp, 2) To UBound(cTemp, 2))
+	On Error GoTo 0
+	' Double check dimensions
+	If ((UBound(mn, 1) - LBound(mn, 1) <> (UBound(cTemp, 1) - LBound(cTemp, 1))) Or ((UBound(mn, 2) - LBound(mn, 2) <> (UBound(cTemp, 2) - LBound(cTemp, 2))))) Then
+		ReportError("complex::ComplexMatrixPower::Dimensions of target matrix do not agree with result dimensions.")
+		Exit All
+	End If
+
+	' Need to use for loop, in case mn is static and not dynamic
+	For i = LBound(cTemp, 1) To UBound(cTemp, 1)
+		For j = LBound(cTemp, 2) To UBound(cTemp, 2)
+			mn(i, j) = cTemp(i, j)
+		Next
+	Next
+
+End Function
+
+'---------------------------------------------------------------------
+
+Function ComplexMatrixTransp (a() As Complex, ByRef b() As Complex) As Boolean
+	Dim m1 As Long, m2 As Long, m3 As Long, m4 As Long
+	Dim n1 As Long, n2 As Long, n3 As Long, n4 As Long
+
+	m1 = LBound(a,1): m2 = LBound(a, 2): m3 = LBound(b,1): m4 = LBound(b,2)
+	n1 = UBound(a,1): n2 = UBound(a, 2): n3 = UBound(b,1): n4 = UBound(b,2)
+
+	If ( (n2-m2) <> (n4-m4) ) Then
+		ReportError("Matrix dimensions incompatible for transposition!")
+		Exit All
+	End If
+	If ( (n1-m1) <> (n3-m3) ) Then
+		ReportError("Matrix dimensions incompatible for transposition!")
+		Exit All
+	End If
+
+	Dim iii As Long, jjj As Long
+	' If b is a dynamic array, we need to initalize it. If it is static, ReDim will fail but we can still continue -> Temporarily disable error handling
+	On Error Resume Next
+		ReDim b(m1 To n1, m4 To n4)
+	On Error GoTo 0
+	' Double check dimensions
+	If ((UBound(b, 1) - LBound(b, 1) <> (n1 - m1)) Or ((UBound(b, 2) - LBound(b, 2) <> (n4 - m4)))) Then
+		ReportError("complex::ComplexMatrixTransp::Dimensions of target matrix do not agree with result dimensions.")
+		Exit All
+	End If
+
+	For iii = m1 To n1
+		For jjj = m4 To n4
+			b(iii, jjj) = a(jjj, iii)
+		Next jjj
+	Next iii
+
+	ComplexMatrixTransp = True
+
+End Function
+'---------------------------------------------------------------------
+
+Function ComplexSqrt (vz As Complex) As Complex
+
+	ComplexSqrt.re = Sqr((Sqr(vz.re*vz.re+vz.im*vz.im)+vz.re)/2)
+
+	If (vz.im >= 0) Then
+		ComplexSqrt.im = Sqr((Sqr(vz.re*vz.re+vz.im*vz.im)-vz.re)/2)
+	End If
+
+	If (vz.im < 0) Then
+		ComplexSqrt.im = -Sqr((Sqr(vz.re*vz.re+vz.im*vz.im)-vz.re)/2)
+	End If
+
+End Function
+
+' --------------------------------------------------------------------
+
+Function ComplexPowerReal(vz As Complex, dPower As Double) As Complex
+
+	' Raises the complex number vz to the real power dPower
+
+	Dim vzMagPh As ComplexMagPh
+
+	vzMagPh = ReIm2MagPh(vz)
+	vzMagPh.mag = vzMagPh.mag^dPower
+	vzMagPh.ph = dPower * vzMagPh.ph
+
+	ComplexPowerReal = MagPh2ReIm(vzMagPh)
+
+End Function
+
+'---------------------------------------------------------------------
+Function ComplexMatrixInv2x2 (a() As Complex , ByRef mn() As Complex) As Boolean
+
+	Dim m1 As Long, m2 As Long, m3 As Long, m4 As Long
+	Dim n1 As Long, n2 As Long, n3 As Long, n4 As Long
+	Dim  determinante As Complex, a1 As Complex, b1 As Complex, c1 As Complex, d1 As Complex
+
+	determinante= minus(mult(a(1,1),a(2,2)),mult(a(2,1),a(1,2)))
+    a1 = a(1,1) : b1 = a(1,2) : c1 = a(2,1) : d1 = a(2,2)
+
+    ' If mn is a dynamic array, we need to initalize it. If it is static, ReDim will fail but we can still continue -> Temporarily disable error handling
+	On Error Resume Next
+		ReDim mn(1 To 2, 1 To 2)
+	On Error GoTo 0
+	' Double check dimensions
+	If ((UBound(mn, 1) - LBound(mn, 1) <> 1) Or ((UBound(mn, 2) - LBound(mn, 2) <> 1))) Then
+		ReportError("complex::ComplexMatrixInv2x2::Dimensions of target matrix do not agree with result dimensions.")
+		Exit All
+	End If
+
+	mn(1,1) = div (d1,determinante)
+	mn(2,2) = div (a1,determinante)
+	mn(1,2) = div (neg(b1),determinante)
+	mn(2,1) = div (neg(c1),determinante)
+
+	ComplexMatrixInv2x2 = True
+
+End Function
+Function det2x2 (a() As Complex) As Complex
+		det2x2= minus(mult(a(1,1),a(2,2)),mult(a(2,1),a(1,2)))
+End Function
+
+Function ComplexMatrixInv3x3 (a() As Complex , ByRef mn() As Complex) As Boolean
+
+    Dim d(1 To 2, 1 To 2) As Complex
+	Dim  determinante As Complex, a1 As Complex, b1 As Complex, c1 As Complex, d1 As Complex
+	Dim  determinante_tmp1 As Complex,determinante_tmp2 As Complex,determinante_tmp3 As Complex
+	Dim  determinante_tmp4 As Complex,determinante_tmp5 As Complex,determinante_tmp6 As Complex
+
+	'Sarrus
+	determinante_tmp1= mult(mult(a(1,1),a(2,2)),a(3,3))
+	determinante_tmp2= mult(mult(a(1,2),a(2,3)),a(3,1))
+	determinante_tmp3= mult(mult(a(1,3),a(2,1)),a(3,2))
+	determinante_tmp4= mult(mult(a(3,1),a(2,2)),a(1,3))
+	determinante_tmp5= mult(mult(a(3,2),a(2,3)),a(1,1))
+	determinante_tmp6= mult(mult(a(3,3),a(2,1)),a(1,2))
+	determinante = minus(minus(minus(plus(plus(determinante_tmp1,determinante_tmp2),determinante_tmp3),determinante_tmp4),determinante_tmp5),determinante_tmp6)
+
+	' If mn is a dynamic array, we need to initalize it. If it is static, ReDim will fail but we can still continue -> Temporarily disable error handling
+	On Error Resume Next
+		ReDim mn(1 To 3, 1 To 3)
+	On Error GoTo 0
+	' Double check dimensions
+	If ((UBound(mn, 1) - LBound(mn, 1) <> 2) Or ((UBound(mn, 2) - LBound(mn, 2) <> 2))) Then
+		ReportError("complex::ComplexMatrixInv2x2::Dimensions of target matrix do not agree with result dimensions.")
+		Exit All
+	End If
+
+    d(1,1) = a(2,2) : d(1,2) = a(2,3) : d(2,1) = a(3,2) : d(2,2) = a(3,3)
+    mn(LBound(mn, 1) + 0, LBound(mn, 2) + 0) = div(det2x2(d()),determinante)
+
+    d(1,1) = a(2,1) : d(1,2) = a(2,3) : d(2,1) = a(3,1) : d(2,2) = a(3,3)
+    mn(LBound(mn, 1) + 0, LBound(mn, 2) + 1) = neg(div(det2x2(d()),determinante))
+
+    d(1,1) = a(2,1) : d(1,2) = a(2,2) : d(2,1) = a(3,1) : d(2,2) = a(3,2)
+    mn(LBound(mn, 1) + 0, LBound(mn, 2) + 2) = div(det2x2(d()),determinante)
+
+	d(1,1) = a(1,2) : d(1,2) = a(1,3) : d(2,1) = a(3,2) : d(2,2) = a(3,3)
+    mn(LBound(mn, 1) + 1, LBound(mn, 2) + 0) = neg(div(det2x2(d()),determinante))
+
+	d(1,1) = a(1,1) : d(1,2) = a(1,3) : d(2,1) = a(3,1) : d(2,2) = a(3,3)
+    mn(LBound(mn, 1) + 1, LBound(mn, 2) + 1) = div(det2x2(d()),determinante)
+
+    d(1,1) = a(1,1) : d(1,2) = a(1,2) : d(2,1) = a(3,1) : d(2,2) = a(3,2)
+    mn(LBound(mn, 1) + 1, LBound(mn, 2) + 2) = neg(div(det2x2(d()),determinante))
+
+    d(1,1) = a(1,2) : d(1,2) = a(1,3) : d(2,1) = a(2,2) : d(2,2) = a(2,3)
+    mn(LBound(mn, 1) + 2, LBound(mn, 2) + 0) = div(det2x2(d()),determinante)
+
+    d(1,1) = a(1,1) : d(1,2) = a(1,3) : d(2,1) = a(2,1) : d(2,2) = a(2,3)
+    mn(LBound(mn, 1) + 2, LBound(mn, 2) + 1) = neg(div(det2x2(d()),determinante))
+
+    d(1,1) = a(1,1) : d(1,2) = a(1,2) : d(2,1) = a(2,1) : d(2,2) = a(2,2)
+    mn(LBound(mn, 1) + 2, LBound(mn, 2) + 2) = div(det2x2(d()),determinante)
+
+	ComplexMatrixInv3x3 = True
+
+End Function
+
+Function AreMatricesEqual(a() As Complex, b() As Complex, Optional dTolerance As Double)
+
+	Dim i As Long, j As Long
+
+	' Returns true if matrices a and b are equal, false otherwise
+	If (dTolerance <= 0) Then dTolerance = 1e-15
+
+	If ((LBound(a, 1) <> LBound(b, 1)) Or (UBound(a, 1) <> UBound(b, 1))) Then
+		AreMatricesEqual = False
+		Exit Function
+	ElseIf ((LBound(a, 2) <> LBound(b, 2)) Or (UBound(a, 2) <> UBound(b, 2))) Then
+		AreMatricesEqual = False
+		Exit Function
+	Else
+		AreMatricesEqual = True ' Assume true for now
+	End If
+
+	For i = LBound(a, 1) To UBound(a, 1)
+		For j = LBound(a, 2) To UBound(a, 2)
+			If ((Abs(a(i, j).re - b(i, j).re) > dTolerance) Or (Abs(a(i, j).im - b(i, j).im) > dTolerance)) Then
+				MsgBox(CStr(i) & "," & Cstr(j) & vbNewLine _
+						& CStr(a(i,j).re) & " + j*" & CStr(a(i,j).im) & vbNewLine _
+						& CStr(b(i,j).re) & " + j*" & CStr(b(i,j).im) & vbNewLine _
+						& CStr(a(i, j).re - b(i, j).re) & " + j*" & CStr(a(i, j).im - b(i, j).im))
+				AreMatricesEqual = False
+				Exit Function
+			End If
+		Next
+	Next
+
+End Function
+
+Function DisplayComplexMatrix(cMatrix() As Complex, Optional sMatrixName As String) As Boolean
+
+	Dim sDisplayString As String
+	Dim i As Long, j As Long
+
+	If sMatrixName = "" Then sMatrixName = "Display Complex Matrix"
+
+	sDisplayString = ""
+	For i = LBound(cMatrix, 1) To UBound(cMatrix, 1)
+		For j = LBound(cMatrix, 2) To UBound(cMatrix, 2)
+			sDisplayString = sDisplayString & CStr(cMatrix(i, j).re) & " + j*" & CStr(cMatrix(i, j).im) & vbTab & vbTab
+		Next
+		sDisplayString = sDisplayString & vbNewLine
+	Next
+
+	MsgBox(sDisplayString, sMatrixName)
+
+End Function
+
+Sub Main_COMPLEX_LIB
+
+	Dim aa As Complex, ab As Complex, ac As Complex
+	Dim bb As ComplexMagPh, bc As ComplexMagPh
+	Dim tmp As Double
+
+	Dim a (1 To 2, 1 To 2) As Variant, b (1 To 2, 1 To 2) As Variant
+	Dim c (1 To 2, 1 To 2) As Variant
+
+	a(1,1) = 1: a(1,2) = 2: a(2,1)=3: a(2,2) = 5
+	b(1,1)=1: b(1,2)=-1: b(2,1)=-1:b(2,2)=2
+	RealMatrixMult(a(),b(),c())
+
+	Dim d(1 To 2, 1 To 2) As Complex, f(1 To 2, 1 To 2) As Complex, g() As Complex
+	Dim h(1 To 2, 1 To 2) As Double, m() As Complex
+	h(1,1)=1: h(1,2)=-1: h(2,1)=-1:h(2,2)=2
+
+	RealMatrix2Complex(a,d)
+	RealMatrix2Complex(b,f)
+	ComplexMatrixMult(d(),f(),g())
+	ComplexRealMatrixMult(d(),h(),m())
+
+	ComplexMatrixMult(f(),d(),g())
+	RealComplexMatrixMult(h(),d(),m())
+
+	'Dim a (1 To 1, 1 To 3) As Variant, b (1 To 3, 1 To 1) As Variant
+	'ReDim c (1 To 1, 1 To 1) As Variant
+
+'	a(1,1) = 1: a(1,2) = 2: a(1,3)=3
+'	b(1,1)=1: b(2,1)=1: b(3,1)=1
+'	CmplxMatrixMult(a(),b(),c())
+
+
+
+	aa.re = 1:	aa.im = 1
+	ab.re = 2:  ab.im = -1
+
+	bb.mag = 2
+	bb.ph = 1
+
+	ac = neg(aa):	MsgBox (CStr(ac.re) + " " + CStr(ac.im))
+	ac = conj(aa):	MsgBox (CStr(ac.re) + " " + CStr(ac.im))
+	tmp = absolute(aa):	MsgBox (CStr(tmp))
+	tmp = absolute2(aa):	MsgBox (CStr(tmp))
+
+	ac = plus(aa,ab):	MsgBox (CStr(ac.re) + " " + CStr(ac.im))
+	ac = minus(aa,ab):	MsgBox (CStr(ac.re) + " " + CStr(ac.im))
+	ac = div(aa,ab):	MsgBox (CStr(ac.re) + " " + CStr(ac.im))
+	ac = mult(aa,ab):	MsgBox (CStr(ac.re) + " " + CStr(ac.im))
+	ac = divsc(aa,2.0):	MsgBox (CStr(ac.re) + " " + CStr(ac.im))
+
+
+
+'	bc = neg(bbb)
+'	MsgBox (CStr(ab.mag) + " " + CStr(ab.ph))
+
+End Sub

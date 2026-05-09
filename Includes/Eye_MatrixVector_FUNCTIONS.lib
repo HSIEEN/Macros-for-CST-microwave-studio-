@@ -1,0 +1,435 @@
+' ================================================================================================
+' Copyright 2016-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================
+' History of Changes
+' ------------------------------------------------------------------------------------------------
+' 27-Dec-2016 ubr: First version
+' ================================================================================================
+
+Function Matrix_GetFirstNonzeroLine(mat() As Double, Optional StartFrom1 As Boolean, Optional ByRef imax As Long, Optional ByRef jmax As Long, Optional WithoutZero As Boolean) As Double
+	Dim m1 As Long, n1 As Long
+	Dim m2 As Long, n2 As Long
+	Dim iii As Long, jjj As Long
+	Dim mymin As Double, s As Double
+
+	m1 = LBound(mat, 1)
+	n1 = LBound(mat, 2)
+	m2 = UBound(mat, 1)
+	n2 = UBound(mat, 2)
+
+	If StartFrom1 = True Then
+		m1 = 1
+		n1 = 1
+	End If
+	For iii = m1 To m2
+		s = 0
+		For jjj = n1 To n2
+			s = s + Abs(mat(iii,jjj))
+		Next
+		If s > 0 Then Exit For
+	Next
+	Matrix_GetFirstNonzeroLine = iii
+End Function
+
+Function Matrix_GetLastNonzeroLine(mat() As Double, Optional StartFrom1 As Boolean, Optional ByRef imax As Long, Optional ByRef jmax As Long, Optional WithoutZero As Boolean) As Double
+	Dim m1 As Long, n1 As Long
+	Dim m2 As Long, n2 As Long
+	Dim iii As Long, jjj As Long
+	Dim mymin As Double, s As Double
+
+	m1 = LBound(mat, 1)
+	n1 = LBound(mat, 2)
+	m2 = UBound(mat, 1)
+	n2 = UBound(mat, 2)
+
+	If StartFrom1 = True Then
+		m1 = 1
+		n1 = 1
+	End If
+	For iii = m2 To m1 STEP -1
+		s = 0
+		For jjj = n1 To n2
+			s = s + Abs(mat(iii,jjj))
+		Next
+		If s > 0 Then Exit For
+	Next
+	Matrix_GetLastNonzeroLine = iii
+End Function
+
+Function Vector_sum(mat() As Double) As Double
+	Dim m1 As Long, m2 As Long
+	Dim iii As Long, jjj As Long
+	Dim mymax As Double
+	' For testing
+	Dim imax As Long, jmax As Long
+
+	m1 = LBound(mat, 1)
+	m2 = UBound(mat, 1)
+
+	mymax = 0
+	For iii = m1 To m2
+		mymax = mymax + mat(iii)
+	Next
+	Vector_sum = mymax
+End Function
+
+Function Vector_GetGlobalMaximum(mat() As Double, Optional ByRef idx) As Double
+	Dim m1 As Long, m2 As Long
+	Dim iii As Long, jjj As Long
+	Dim mymax As Double
+	' For testing
+	Dim imax As Long, jmax As Long
+
+	m1 = LBound(mat, 1)
+	m2 = UBound(mat, 1)
+
+	mymax = -1e20
+	For iii = m1 To m2
+		If mat(iii) > mymax Then
+			mymax = mat(iii)
+			imax = iii
+			jmax = jjj
+		End If
+	Next
+	Vector_GetGlobalMaximum = mymax
+	idx = imax
+End Function
+
+Function Vector_Sort_Descending(mat() As Double, idx() As Double) As Double()
+	Dim m1 As Long, m2 As Long
+	Dim iii As Long, jjj As Long
+	Dim mymax As Double
+	' For testing
+	Dim imax As Long, jmax As Long
+
+	Dim v1() As Double
+
+	m1 = LBound(mat, 1)
+	m2 = UBound(mat, 1)
+
+	ReDim v1(m1 To m2)
+	ReDim idx(m1 To m2)
+
+	For iii = m1 To m2
+		idx(iii) = iii
+		v1(iii) = mat(iii)
+	Next
+
+
+	mymax = -1e20
+	For iii = m1 To m2-1
+		For jjj = iii+1 To m2
+			If v1(iii) < v1(jjj) Then	' Permute them
+				mymax = v1(iii)
+				v1(iii) = v1(jjj)
+				v1(jjj) = mymax
+
+				imax = idx(iii)
+				idx(iii) = idx(jjj)
+				idx(jjj) = imax
+			End If
+		Next jjj
+	Next iii
+	Vector_Sort_Descending = v1
+End Function
+
+Function Vector_Sort_Ascending(mat() As Double, idx() As Double) As Double()
+	Dim m1 As Long, m2 As Long
+	Dim iii As Long, jjj As Long
+	Dim mymax As Double
+	' For testing
+	Dim imax As Long, jmax As Long
+
+	Dim v1() As Double
+
+	m1 = LBound(mat, 1)
+	m2 = UBound(mat, 1)
+
+	ReDim v1(m1 To m2)
+	ReDim idx(m1 To m2)
+
+	For iii = m1 To m2
+		idx(iii) = iii
+		v1(iii) = mat(iii)
+	Next
+
+
+	mymax = -1e20
+	For iii = m1 To m2-1
+		For jjj = iii+1 To m2
+			If v1(iii) > v1(jjj) Then	' Permute them
+				mymax = v1(iii)
+				v1(iii) = v1(jjj)
+				v1(jjj) = mymax
+
+				imax = idx(iii)
+				idx(iii) = idx(jjj)
+				idx(jjj) = imax
+			End If
+		Next jjj
+	Next iii
+	Vector_Sort_Ascending = v1
+End Function
+
+Function Vector_Sort_Ascending_Nonzero(mat() As Double, idx() As Double) As Double()
+	Dim m1 As Long, m2 As Long
+	Dim iii As Long, jjj As Long
+	Dim mymax As Double	' It now means "mymin"
+	' For testing
+	Dim imax As Long, jmax As Long
+
+	Dim v1() As Double
+
+	m1 = LBound(mat, 1)
+	m2 = UBound(mat, 1)
+
+	ReDim v1(m1 To m2)
+	ReDim idx(m1 To m2)
+
+	For iii = m1 To m2
+		idx(iii) = iii
+		v1(iii) = mat(iii)
+		If v1(iii) = 0 Then v1(iii) = 1e20
+	Next
+
+	mymax = 1e20
+	For iii = m1 To m2-1
+		For jjj = iii+1 To m2
+			If v1(iii) > v1(jjj) Then	' Permute them
+				mymax = v1(jjj)
+				v1(jjj) = v1(iii)
+				v1(iii) = mymax
+
+				imax = idx(jjj)
+				idx(jjj) = idx(iii)
+				idx(iii) = imax
+			End If
+		Next jjj
+	Next iii
+
+	For iii = m1 To m2-1
+		If v1(iii) = 1e20 Then v1(iii) = 0
+	Next
+
+	Vector_Sort_Ascending_Nonzero = v1
+End Function
+
+Function Vector_GetGlobalMinimum(mat() As Double, Optional ByRef idx As Long, Optional ByRef idx_last As Long) As Double
+	Dim m1 As Long, m2 As Long
+	Dim iii As Long, jjj As Long
+	Dim mymin As Double, iiimin As Long, iiimin_last
+
+	m1 = LBound(mat, 1)
+	m2 = UBound(mat, 1)
+
+	mymin = 1e20
+	iiimin = m1-1
+	For iii = m1 To m2
+		If Abs(mat(iii) - mymin) < 1e-6 Then
+			iiimin_last = iii
+		End If
+		If mat(iii) < mymin Then
+			mymin = mat(iii)
+			iiimin = iii
+		End If
+	Next
+	Vector_GetGlobalMinimum = mymin
+	idx = iiimin
+	idx_last = iiimin_last
+End Function
+
+Function Vector_GetGlobalMinimum_Nonzero(mat() As Double, Optional ByRef idx As Long, Optional ByRef idx_last As Long) As Double
+	' Same as previous, but does not consider the 0 values
+	Dim m1 As Long, m2 As Long
+	Dim iii As Long, jjj As Long
+	Dim mymin As Double, iiimin As Long, iiimin_last
+
+	m1 = LBound(mat, 1)
+	m2 = UBound(mat, 1)
+
+	mymin = 1e20
+	For iii = m1 To m2
+		If Abs(mat(iii) - mymin) < 1e-6 Then
+			iiimin_last = iii
+		End If
+		If mat(iii) < mymin And Abs(mat(iii)) > 1e-27 Then
+			mymin = mat(iii)
+			iiimin = iii
+		End If
+	Next
+	Vector_GetGlobalMinimum_Nonzero = mymin
+	idx = iiimin
+	idx_last = iiimin_last
+End Function
+
+Function Vector_GetGlobalMinimum_Partial(mat() As Double, m1 As Long, m2 As Long) As Double
+	' Same as previous, but only checks part of the vector: could put m1 and m2 as optional parameters in Vector_GetGlobalMinimum
+	'Dim m1 As Long, m2 As Long
+	Dim iii As Long, jjj As Long
+	Dim mymin As Double
+
+	'm1 = LBound(mat, 1)
+	'm2 = UBound(mat, 1)
+
+	mymin = 1e20
+	For iii = m1 To m2
+		If mat(iii) < mymin Then mymin = mat(iii)
+	Next
+	Vector_GetGlobalMinimum_Partial= mymin
+End Function
+
+Function Vector_GetGlobalMinimum_Index_Partial(mat() As Double, m1 As Long, m2 As Long) As Double
+	' Same as previous, but only checks part of the vector: could put m1 and m2 as optional parameters in Vector_GetGlobalMinimum
+	'Dim m1 As Long, m2 As Long
+	Dim iii As Long, jjj As Long
+	Dim mymin As Double
+	Dim idxmin As Long
+
+	'm1 = LBound(mat, 1)
+	'm2 = UBound(mat, 1)
+
+	mymin = 1e20
+	idxmin = m1
+	For iii = m1 To m2
+		If mat(iii) < mymin Then 
+			mymin = mat(iii)
+			idxmin = iii
+		end if
+	Next
+	Vector_GetGlobalMinimum_Index_Partial = idxmin
+End Function
+
+Function Matrix_GetGlobalMaximum(mat() As Double, Optional StartFrom1 As Boolean) As Double
+	Dim m1 As Long, n1 As Long
+	Dim m2 As Long, n2 As Long
+	Dim iii As Long, jjj As Long
+	Dim mymax As Double
+	' For testing
+	Dim imax As Long, jmax As Long
+
+	m1 = LBound(mat, 1)
+	n1 = LBound(mat, 2)
+	m2 = UBound(mat, 1)
+	n2 = UBound(mat, 2)
+
+	If StartFrom1 = True Then
+		m1 = 1
+		n1 = 1
+	End If
+
+	mymax = -1e20
+	For iii = m1 To m2
+		For jjj = n1 To n2
+			If mat(iii, jjj) > mymax Then
+				mymax = mat(iii, jjj)
+				imax = iii
+				jmax = jjj
+			End If
+		Next
+	Next
+	Matrix_GetGlobalMaximum = mymax
+End Function
+
+Function Matrix_GetGlobalMinimum(mat() As Double, Optional StartFrom1 As Boolean, Optional ByRef imax As Long, Optional ByRef jmax As Long, Optional WithoutZero As Boolean) As Double
+	Dim m1 As Long, n1 As Long
+	Dim m2 As Long, n2 As Long
+	Dim iii As Long, jjj As Long
+	Dim mymin As Double
+
+	m1 = LBound(mat, 1)
+	n1 = LBound(mat, 2)
+	m2 = UBound(mat, 1)
+	n2 = UBound(mat, 2)
+
+	If StartFrom1 = True Then
+		m1 = 1
+		n1 = 1
+	End If
+	mymin = 1e20
+	For iii = m1 To m2
+		For jjj = n1 To n2
+			If WithoutZero = False Then
+				If mat(iii, jjj) < mymin Then
+					mymin = mat(iii, jjj)
+					imax = iii
+					jmax = jjj
+				End If
+			Else
+				If mat(iii, jjj) < mymin And mat(iii,jjj) <> 0 Then
+					mymin = mat(iii, jjj)
+					imax = iii
+					jmax = jjj
+				End If
+			End If
+		Next
+	Next
+	Matrix_GetGlobalMinimum = mymin
+End Function
+
+
+Function vector_subpart(y() As Double, istart As Long, istop As Long, istep As Long) As Double()
+	Dim x() As Double
+	Dim nn As Long
+
+	Dim iii As Long, kkk As Long
+
+	nn = Fix((istop - istart)/istep) +1
+	ReDim x(1 To nn)
+
+	For iii = 1 To nn
+
+	Next
+
+	kkk = 0
+	For iii = istart To istop STEP istep
+		kkk = kkk+1
+		x(kkk) = y(iii)
+	Next
+	vector_subpart = x
+End Function
+
+Function binmat_subpart(mat() As Double, istartx As Long, istopx As Long, istepx As Long, istarty As Long, istopy As Long, istepy As Long) As Double()
+	' binmat is a bin matrix, with special settings on the first line and column
+
+	Dim m1 As Long, n1 As Long
+	Dim m2 As Long, n2 As Long
+	Dim iii As Long, jjj As Long, kkk As Long, lll As Long
+	Dim newmat() As Double
+	Dim nx As Long, ny As Long
+
+	m1 = LBound(mat, 1)
+	n1 = LBound(mat, 2)
+	m2 = UBound(mat, 1)
+	n2 = UBound(mat, 2)
+
+	nx = Fix((istopx - istartx)/istepx) +1
+	ny = Fix((istopy - istarty)/istepy) +1
+
+	ReDim newmat(0 To ny, 0 To nx)
+
+
+	' First fill in the first line and column
+	kkk = 0
+	For iii = istartx To istopx STEP istepx
+		kkk = kkk+1
+		newmat(0, kkk) = mat(0,iii)
+	Next
+	kkk = 0
+	For iii = istarty To istopy STEP istepy
+		kkk = kkk+1
+		newmat(kkk,0) = mat(iii,0)
+	Next
+
+	' Now fill in the rest of the matrix
+	lll = 0
+	For iii = istarty To istopy STEP istepy
+		lll = lll+1
+		kkk = 0
+		For jjj = istartx To istopx STEP istepx
+			kkk = kkk+1
+			newmat(lll,kkk) = mat(iii,jjj)
+		Next
+	Next
+
+	binmat_subpart = newmat
+End Function

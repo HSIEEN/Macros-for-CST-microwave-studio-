@@ -1,0 +1,328 @@
+
+'#Language "WWB-COM"
+'a'#include "complex.lib"
+
+'Option Explicit
+' ================================================================================================
+' Copyright 2016-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================
+' History of Changes
+' ------------------------------------------------------------------------------------------------
+' 27-Dec-2016  ube: First version
+' ================================================================================================
+
+' lin_systems.lib
+' Contains functions for matrix inversion and solution of linear systems of equations
+' Additionally, contains functions for matrix operations and for displaying matrices and  vectors
+' The version for real matrices works well.
+' The one for complex matrices should work, but needs further testing
+
+' Matrix inversion: done "in place", the inverse replaces the original matrix
+' Solution of linear systems of equations: on input, matrix contains the system matrix on the first n columns, 
+	' and the right-hand sides on the next m columns
+	' After the execution of the code, the matrix is overwritten with the upper-triangular one, 
+	' and the last m columns contain the solution(s)
+
+' Usage:
+'	gauss_m(n,m,a)	' Number of rows, number of right-hand sides, matrix a(n, n+m)
+'	invmat(n, a)	' Matrix dimension, matrix a(n,n)
+
+'22-Dec-2016 imu: commented out "Option Explicit"
+'20-jan-2013 imu: first version; based on own C-code from the TU Bucharest time
+
+
+'===========================================================================
+Sub invmat(N As Long, a As Variant)
+	'elimination
+	Dim i As Long, j As Long, IsSuccess As Boolean
+
+	Dim anew As Variant
+	anew = a
+
+	ReDim Preserve anew(1 To N, 1 To 2*N)
+
+	Select Case TypeName(a)
+	Case "Double()"
+		For i = 1 To N
+			anew(i,i+N) = 1
+		Next
+		IsSuccess = gauss_m(N,N,anew)
+	Case "Complex()"
+		For i = 1 To N
+			anew(i,i+N).re = 1
+		Next
+		IsSuccess = gauss_m_complex(N,N,anew)
+	Case Else
+		MsgBox "Unknown type"
+		Exit All
+	End Select
+	If IsSuccess = False Then
+		MsgBox("Matrix is singular.")
+		Exit All
+	End If
+
+	For i = 1 To N
+		For j = 1 To N
+			a(i,j) = anew(i, j+N)
+		Next
+	Next
+
+End Sub
+
+'===========================================================================
+Function gauss_m(N As Long, n1 As Long, a() As Double) As Boolean
+' Gauss with multiple right-hand sides
+
+'	double a(n,n+m)
+Dim k As Long, i As Long, j As Long
+Dim p As Double, s As Double
+
+' For pivoting
+Dim max As Long, temp As Double, m As Long
+
+
+	'elimination
+	For k = 1 To N-1				'elimination stages
+			max = k
+			For m = k+1 To N
+				If Abs(a(m,k)) > Abs(a(max,k)) Then max = m
+			Next m
+			If a(max,k)=0 Then
+				gauss_m =  False	' error
+				Exit Function
+			End If
+			If max <> k Then  		' permute lines max,k
+				For m = k To N+n1	' Put  For m = k To n   for Gauss
+					temp = a(k,m)
+					a(k,m) = a(max,m)
+					a(max,m) = temp
+				Next m
+			End If
+
+		For i = k+1 To N			' column below the pivot
+			p = a(i,k)/a(k,k)
+			For j = k+1 To N+n1		' line i, to the right of pivot
+				a(i,j) = a(i,j) - a(k,j)*p
+			Next j
+		Next i
+	Next k
+	'retrosubstitution
+	For k = N+1 To N+n1				' right-hand sides
+		a(N,k) = a(N,k)/a(N,N)
+		For i = N-1 To 1 Step -1
+			s = a(i,k)
+			For j = N To i+1 Step -1
+				s = s - a(i,j)* a(j,k)
+			Next j
+			a(i,k) = s/a(i,i)
+		Next i
+	Next k
+
+	gauss_m = True
+End Function
+
+'===========================================================================
+Function gauss_m_complex(N As Long, n1 As Long, a() As complex) As Boolean
+' Gauss with multiple right-hand sides, complex variables
+
+'	double a(n,n+m)
+Dim k As Long, i As Long, j As Long
+Dim p As complex, s As complex
+
+' For pivoting
+Dim max As Long, temp As complex, m As Long
+
+	'elimination
+	For k = 1 To N-1				'elimination stages
+			max = k
+			For m = k+1 To N
+				If Absolute(a(m,k)) > Absolute(a(max,k)) Then max = m
+			Next m
+			If Absolute(a(max,k))=0 Then
+				gauss_m_complex =  False	' error
+				Exit Function
+			End If
+			If max <> k Then  		' permute lines max,k
+				For m = k To N+n1	' Put  For m = k To n   for Gauss
+					temp = a(k,m)
+					a(k,m) = a(max,m)
+					a(max,m) = temp
+				Next m
+			'	temp = b(k)			' permute righthand side
+			'	b(k) = b(max)
+			'	b(max) = temp
+			End If
+
+		For i = k+1 To N			'column below the pivot
+'			p = A(i,k)/A(k,k)
+			p = div(a(i,k), a(k,k)) 			'pivot
+			For j = k+1 To N+n1		'parcurge lin.i,la 	dreapta pivotului
+'				A(i,j) = A(i,j) - A(k,j)*p
+				a(i,j) = minus(a(i,j), mult(a(k,j),p))
+			Next j
+		Next i
+	Next k
+	'backsubstitution
+	For k = N+1 To N+n1				' go through right-hand sides
+'		A(n,k) = A(n,k)/A(n,n)
+		a(N,k) = div(a(N,k),a(N,N))
+		For i = N-1 To 1 Step -1
+			s = a(i,k)
+			For j = N To i+1 Step -1
+'				s = s - A(i,j)* A(j,k)
+				s = minus(s,  mult( a(i,j), a(j,k) )  )
+			Next j
+'			A(i,k) = s/A(i,i)
+			a(i,k) = div(s,a(i,i))
+		Next i
+	Next k
+	gauss_m_complex = True
+End Function
+
+'===========================================================================
+Sub display_real_mat(m() As Double, N As Long, mystr1 As String)
+	Dim mystr As String, iii As Long, jjj As Long
+
+	For iii = 1 To N
+		For jjj = 1 To N
+			mystr = mystr + CStr(m(iii, jjj)) + vbTab	'" "
+		Next
+		mystr = mystr + vbCrLf
+	Next
+	MsgBox( mystr1 + vbCrLf + mystr )
+End Sub
+
+'===========================================================================
+Sub display_real_vec(m() As Double, N As Long, mystr1 As String)
+	Dim mystr As String, iii As Long, jjj As Long
+
+	For iii = 1 To N
+		mystr = mystr + CStr(m(iii))
+		mystr = mystr + vbCrLf
+	Next
+	MsgBox( mystr1 + vbCrLf + mystr )
+End Sub
+
+'===========================================================================
+Sub 	matrix_vector_mult(N As Long, a() As Double, x() As Double, b() As Double)
+	Dim iii As Long, jjj As Long
+
+	For iii = 1 To N
+		b(iii) = 0
+		For jjj = 1 To N
+			b(iii) = b(iii) + a(iii, jjj) * x(jjj)
+		Next
+	Next
+End Sub
+
+'===========================================================================
+Sub 	matrix_vector_gen_mult(n1 As Long, M1 As Long, a() As Double, x() As Double, b() As Double)
+	Dim iii As Long, jjj As Long
+
+	For iii = 1 To n1
+		b(iii) = 0
+		For jjj = 1 To M1
+			b(iii) = b(iii) + a(iii, jjj) * x(jjj)
+		Next
+	Next
+End Sub
+
+'===========================================================================
+Sub 	matrix_matrix_mult(N As Long, a() As Double, a1() As Double, b() As Double)
+	Dim iii As Long, jjj As Long, kkk As Long, tmp As Double
+
+	For iii = 1 To N	' Rows of result
+		For jjj = 1 To N	' Columns of result
+			tmp = 0
+			For kkk = 1 To N	' Columns in matrix a1
+				tmp = tmp + a(iii, kkk) * a1(kkk,jjj)
+			Next kkk
+			b(iii, jjj) = tmp
+		Next jjj
+	Next iii
+End Sub
+
+'===========================================================================
+Sub 	matrix_matrix_gen_mult(n1 As Long, M1 As Long, N2 As Long, M2 As Long, a() As Double, a1() As Double, b() As Double)
+' More general formula
+' All have to be initialized
+If M1 <> N2 Then
+	MsgBox "Wrong dimensions in matrix-matrix multiplication. Please contact CST support"
+	Exit All
+End If
+	Dim iii As Long, jjj As Long, kkk As Long, tmp As Double
+
+	For iii = 1 To n1	' Rows of result
+		For jjj = 1 To M2	' Columns of result
+			tmp = 0
+			For kkk = 1 To M1	' Columns in matrix a1
+				tmp = tmp + a(iii, kkk) * a1(kkk,jjj)
+			Next kkk
+			b(iii, jjj) = tmp
+		Next jjj
+	Next iii
+End Sub
+
+'===========================================================================
+Sub 	matrix_transpose(n1 As Long, M1 As Long, a() As Double, b() As Double)
+' More general formula
+' All have to be initialized
+
+	Dim iii As Long, jjj As Long, kkk As Long, tmp As Double
+
+	For iii = 1 To M1	' Rows of result
+		For jjj = 1 To n1	' Columns of result
+			b(iii, jjj) = a(jjj,iii)
+		Next jjj
+	Next iii
+End Sub
+
+'===========================================================================
+'===========================================================================
+
+Sub Main2
+' Example of usage for real matrix inversion and solution of equation system with real coefficients
+' Complex should also work
+	Dim N As Double		' Number of equations
+	Dim m As Long		' Number of right-hand sides
+
+	' Indices start at 1 !!
+	Dim a() As Double	' Matrix, containing the system matrix on the first n columns, and the right-hand sides on the next m columns
+						' After the execution of the code, the last m columns contain the solutions
+	Dim b() As Double, x() As Double	' Right-hand side, unknown vector
+
+	Dim iii As Long, jjj As Long
+
+
+	' Test of eq. system solution
+	'==================================
+	N = 3
+	m = 1
+	ReDim a(1 To N, 1 To N+m), b(1 To N), x(1 To N)
+
+	Randomize
+	For iii = 1 To N	' Rows
+		For jjj = 1 To N+m	' Columns
+			a(iii, jjj) = Rnd
+		Next jjj
+	Next iii
+
+'-------------------
+	gauss_m(N,m,a)
+'-------------------
+
+	For iii = 1 To N
+		x(iii) = a(iii, N+1)	' Vector of solutions
+	Next
+	display_real_vec(x, N, "Solution x")
+
+
+	' Test of matrix inversion
+	'==================================
+	ReDim Preserve a(1 To N, 1 To N)
+
+'-------------------
+	invmat (N, a)	' Inversion is made "in place": after code execution, a contains the inverse
+'-------------------
+
+End Sub

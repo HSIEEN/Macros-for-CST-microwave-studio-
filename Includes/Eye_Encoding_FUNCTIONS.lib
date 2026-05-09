@@ -1,0 +1,906 @@
+' ================================================================================================
+' Copyright 2016-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================
+' History of Changes
+' ------------------------------------------------------------------------------------------------
+' 19-Apr-2017 imu: Correct return array in scramble_mult_selfSynch, some cleaning up.
+' 07-Nov-2017 imu: Added more encoding schemes: 64b/66b-Code, 128b/130b  and 128b/132b-Codes. May need to change the scrambling later, to initialize the buffer after each packet.
+' 23-Feb-2017 imu: Added duobinary. Corrections in Encode_PAMx
+' 23-Dec-2016 imu: Correction in QAM16 - correct redim of digtmp
+' 25-Nov-2016 imu: Added DBI (Data bus inversion) encoding
+
+' Encoding theory e.g. in the books "High speed Serdes devices and applications" by D. Stauffer et al., "Digital electronics" by A.P.Godse and D.A. Godse, Technical Publications Pune, 2008, "Digital Communications" by Proakis and Salehi
+
+Function Encode_8b10b(digseq() As Byte) As Byte()
+	Dim dig1() As Byte, digtmp() As Byte
+	Dim iii As Long, jjj As Long
+	Dim crttmp As Byte, crt1 As Long
+	Dim n As Long, n1 As Long	' Length of unencoded and of encoded sequence; Indexing starts at 1
+	Dim DR As Integer	' Disparity rule
+
+	Dim d1str As String, d2str As String
+	Dim d1dec As Byte, d2dec As Byte
+
+	Dim d1enc As String, d2enc As String
+
+	n = UBound(digseq)
+
+	' Possibly pad with zeros to get an integer number of bytes to encode
+	If (n Mod 8) <> 0 Then
+		ReDim Preserve digseq(1 To n + 8-(n Mod 8))
+		n = n + 8 - (n Mod 8)
+	End If
+	n1 = n/8*10
+	ReDim dig1(1 To n1)
+
+	ReDim digtmp(1 To 10)
+
+	DR = -1	' Transmitter starts with negative DR
+	iii = 1
+	crttmp = 1
+	crt1 = 1	' Index in the final dig1
+	While iii <= n
+		digtmp(crttmp) = digseq(iii)
+		iii = iii+1
+		crttmp = crttmp +1
+		If crttmp = 9 Then	' We have read another character (byte)
+			crttmp = 1
+			' Perform the encoding
+			' ====================
+			d1dec = digtmp(4)*2^4 + digtmp(5)*2^3 + digtmp(6)*2^2 + digtmp(7)*2^1 + digtmp(8)*2^0
+			d1str = cstr(digtmp(4)) + cstr(digtmp(5)) + cstr(digtmp(6)) + cstr(digtmp(7)) + cstr(digtmp(8))
+			d2dec = digtmp(1)*2^2 + digtmp(2)*2^1 + digtmp(3)*2^0
+			d2str = cstr(digtmp(1)) + cstr(digtmp(2)) + cstr(digtmp(3))
+
+			d1enc = Encode_5b6b(d1dec, DR)
+			' ==>Set disparity
+			' Count ones and zeros
+			Dim nones As Byte, nzeros As Byte
+			nones = 0: nzeros =0
+			For jjj = 1 To 6
+				If Mid(d1enc,jjj,1) = "0" Then
+					nzeros = nzeros+1
+				Else
+					nones = nones+1
+				End If
+			Next
+			If nones > nzeros Then DR = 1
+			If nones < nzeros Then DR = -1
+			If d1enc = "000111" Then DR = 1
+			If d1enc = "111000" Then DR = -1
+			' In other cases DR remains unchanged
+
+			' Deal with the group of 3
+			If (DR = -1 And (d1dec = 17 Or d1dec = 18 Or d1dec = 20)) Or (DR = 1 And (d1dec = 11 Or d1dec = 13 Or d1dec = 14)) Then
+				d2enc = Encode_3b4b(d2dec, DR, True)
+			Else
+				d2enc = Encode_3b4b(d2dec, DR, False)
+			End If
+						' ==>Set disparity
+			' Count ones and zeros
+			nones = 0: nzeros =0
+			For jjj = 1 To 4
+				If Mid(d2enc,jjj,1) = "0" Then
+					nzeros = nzeros+1
+				Else
+					nones = nones+1
+				End If
+			Next
+			If nones > nzeros Then DR = 1
+			If nones < nzeros Then DR = -1
+			If d2enc = "0011" Then DR = 1
+			If d2enc = "1100" Then DR = -1
+			' In other cases DR remains unchanged
+
+			jjj = 0
+
+			' Now fill in the bytes in dig1
+			For jjj = 6 To 1 Step -1
+				dig1(crt1) = Val(Mid(d1enc,7-jjj,1))
+				crt1 = crt1+1
+			Next
+			For jjj = 4 To 1 Step -1
+				dig1(crt1) = Val(Mid(d2enc,5-jjj,1))
+				crt1 = crt1+1
+			Next
+		End If
+	Wend
+	Encode_8b10b = dig1
+
+End Function
+
+Function Encode_5b6b(digtmp As Byte, DR As Integer) As String
+	Dim chars As Variant, chars_enc_minus As Variant, chars_enc_plus As Variant
+	chars = Array ( _
+		"00000", "00001","00010","00011","00100","00101","00110","00111", _
+		"01000", "01001","01010","01011","01100","01101","01110","01111", _
+		"10000", "10001","10010","10011","10100","10101","10110","10111", _
+		"11000", "11001","11010","11011","11100","11101","11110","11111")
+	chars_enc_minus = Array (  _
+		"100111", "011101","101101","110001","110101","101001","011001","111000", _
+		"111001", "100101","010101","110100","001101","101100","011100","010111", _
+		"011011", "100011","010011","110010","001011","101010","011010","111010", _
+		"110011", "100110","010110","110110","001110","101110","011110","101011")
+	chars_enc_plus = Array (  _
+		"011000", "100010","010010","110001","001010","101001","011001","000111", _
+		"000110", "100101","010101","110100","001101","101100","011100","101000", _
+		"100100", "100011","010011","110010","001011","101010","011010","000101", _
+		"001100", "100110","010110","001001","001110","010001","100001","010100")
+	If DR = 1 Then
+		Encode_5b6b = chars_enc_plus(digtmp)
+	Else
+		Encode_5b6b = chars_enc_minus(digtmp)
+	End If
+End Function
+
+Function Encode_3b4b(digtmp As Byte, DR As Integer, alternate As Boolean) As String
+	Dim chars As Variant, chars_enc_minus As Variant, chars_enc_plus As Variant, chars_enc_minus_alt As Variant, chars_enc_plus_alt As Variant
+	chars = Array ( _
+		"000", "001","010","011","100","101","110","111")
+	chars_enc_minus = Array  (  _
+		"1011", "1001","0101","1100","1101","1010","0110","1110")
+	chars_enc_plus = Array (  _
+		"0100", "1001","0101","0011","0010","1010","0110","0001")
+	chars_enc_minus_alt = Array (  _
+		"1011", "1001","0101","1100","1101","1010","0110","0111")
+	chars_enc_plus_alt = Array (  _
+		"0100", "1001","0101","0011","0010","1010","0110","1000")
+	If DR = 1 Then
+		If alternate = False Then
+			Encode_3b4b = chars_enc_plus(digtmp)
+		Else
+			Encode_3b4b = chars_enc_plus_alt(digtmp)
+		End If
+	Else
+		If alternate = False Then
+			Encode_3b4b = chars_enc_minus(digtmp)
+		Else
+			Encode_3b4b = chars_enc_minus_alt(digtmp)
+		End If
+	End If
+End Function
+
+Function DeEncode_8b10b(digseq() As Byte) As Byte()
+	Dim dig1() As Byte, digtmp() As Byte
+	Dim iii As Long, jjj As Long
+	Dim crttmp As Byte, crt1 As Long
+	Dim n As Long, n1 As Long	' Length of unencoded and of encoded sequence; Indexing starts at 1
+	Dim DR As Integer	' Disparity rule
+
+	Dim d1str As String, d2str As String
+	Dim d1dec As Byte, d2dec As Byte
+
+	Dim d1enc As String, d2enc As String
+
+	n = UBound(digseq)
+
+	' Possibly pad with zeros to get an integer number of bytes to decode
+	If (n Mod 10) <> 0 Then
+		ReDim Preserve digseq(1 To n + 8-(n Mod 8))
+		n = n + 10 - (n Mod 10)
+	End If
+	n1 = n/10*8
+	ReDim dig1(1 To n1)
+
+	ReDim digtmp(1 To 10)
+
+	DR = -1	' Transmitter starts with negative DR
+	iii = 1
+	crttmp = 1
+	crt1 = 1	' Index in the final dig1
+	While iii <= n
+		digtmp(crttmp) = digseq(iii)
+		iii = iii+1
+		crttmp = crttmp +1
+		If crttmp = 11 Then	' We have read another character (byte)
+			crttmp = 1
+			' Perform the decoding
+			' ====================
+			d1dec = digtmp(1)*2^5 + digtmp(2)*2^4 + digtmp(3)*2^3 + digtmp(4)*2^2 + digtmp(5)*2^1 + digtmp(6)*2^0
+			d1str = cstr(digtmp(1)) + cstr(digtmp(2)) + cstr(digtmp(3)) + cstr(digtmp(4))+ cstr(digtmp(5))+ cstr(digtmp(6))
+			d2dec = digtmp(7)*2^3 + digtmp(8)*2^2 + digtmp(9)*2^1 + digtmp(10)*2^0
+			d2str = cstr(digtmp(7)) + cstr(digtmp(8)) + cstr(digtmp(9)) + cstr(digtmp(10))
+
+			d1enc = DeEncode_5b6b(d1str, DR)
+
+			' ==>Set disparity	- place it before the deencoding?
+			' Count ones and zeros
+			Dim nones As Byte, nzeros As Byte
+			nones = 0: nzeros =0
+			For jjj = 1 To 6
+				If Mid(d1str,jjj,1) = "0" Then
+					nzeros = nzeros+1
+				Else
+					nones = nones+1
+				End If
+			Next
+			If nones > nzeros Then DR = 1
+			If nones < nzeros Then DR = -1
+			If d1str = "000111" Then DR = 1
+			If d1str = "111000" Then DR = -1
+			' In other cases DR remains unchanged
+
+			Dim d1encdec As Byte
+			d1encdec = Val(Mid(d1enc,1,1))*2^0 + Val(Mid(d1enc,2,1))*2^1 +Val(Mid(d1enc,3,1))*2^2 +Val(Mid(d1enc,4,1))*2^3 +Val(Mid(d1enc,5,1))*2^4
+ 			d1encdec = Val(Mid(d1enc,1,1))*2^4 + Val(Mid(d1enc,2,1))*2^3 +Val(Mid(d1enc,3,1))*2^2 +Val(Mid(d1enc,4,1))*2^1 +Val(Mid(d1enc,5,1))*2^0
+
+			' Deal with the group of 3
+			If (DR = -1 And (d1encdec = 17 Or d1encdec = 18 Or d1encdec = 20)) Or (DR = 1 And (d1encdec = 11 Or d1encdec = 13 Or d1encdec = 14)) Then
+				d2enc = DeEncode_3b4b(d2str, DR, True)
+			Else
+				d2enc = DeEncode_3b4b(d2str, DR, False)
+			End If
+						' ==>Set disparity
+			' Count ones and zeros
+			nones = 0: nzeros =0
+			For jjj = 1 To 4
+				If Mid(d2str,jjj,1) = "0" Then
+					nzeros = nzeros+1
+				Else
+					nones = nones+1
+				End If
+			Next
+			If nones > nzeros Then DR = 1
+			If nones < nzeros Then DR = -1
+			If d2str = "0011" Then DR = 1
+			If d2str = "1100" Then DR = -1
+			' In other cases DR remains unchanged
+
+			jjj = 0
+
+			' Now fill in the bytes in dig1
+			For jjj = 1 To 3
+				dig1(crt1) = Val(Mid(d2enc,jjj,1))
+				crt1 = crt1+1
+			Next
+			For jjj = 1 To 5
+				dig1(crt1) = Val(Mid(d1enc,jjj,1))
+				crt1 = crt1+1
+			Next
+		End If
+	Wend
+	DeEncode_8b10b = dig1
+
+End Function
+
+Function DeEncode_5b6b(digtmp As String, DR As Integer) As String
+	Dim chars As Variant, chars_enc_minus As Variant, chars_enc_plus As Variant
+	Dim mychars As Variant, iii As Integer
+
+	chars = Array ( _
+		"00000", "00001","00010","00011","00100","00101","00110","00111", _
+		"01000", "01001","01010","01011","01100","01101","01110","01111", _
+		"10000", "10001","10010","10011","10100","10101","10110","10111", _
+		"11000", "11001","11010","11011","11100","11101","11110","11111")
+	chars_enc_minus = Array (  _
+		"100111", "011101","101101","110001","110101","101001","011001","111000", _
+		"111001", "100101","010101","110100","001101","101100","011100","010111", _
+		"011011", "100011","010011","110010","001011","101010","011010","111010", _
+		"110011", "100110","010110","110110","001110","101110","011110","101011")
+	chars_enc_plus = Array (  _
+		"011000", "100010","010010","110001","001010","101001","011001","000111", _
+		"000110", "100101","010101","110100","001101","101100","011100","101000", _
+		"100100", "100011","010011","110010","001011","101010","011010","000101", _
+		"001100", "100110","010110","001001","001110","010001","100001","010100")
+	If DR = 1 Then
+		mychars = chars_enc_plus
+	Else
+		mychars = chars_enc_minus
+	End If
+	For iii = 0 To 31
+		If StrComp(mychars(iii), digtmp) = 0 Then Exit For
+	Next
+	DeEncode_5b6b = chars(iii)
+End Function
+
+Function DeEncode_3b4b(digtmp As String, DR As Integer, alternate As Boolean) As String
+	Dim chars As Variant, chars_enc_minus As Variant, chars_enc_plus As Variant, chars_enc_minus_alt As Variant, chars_enc_plus_alt As Variant
+	Dim mychars As Variant, iii As Integer
+
+	chars = Array ( _
+		"000", "001","010","011","100","101","110","111")
+	chars_enc_minus = Array  (  _
+		"1011", "1001","0101","1100","1101","1010","0110","1110")
+	chars_enc_plus = Array (  _
+		"0100", "1001","0101","0011","0010","1010","0110","0001")
+	chars_enc_minus_alt = Array (  _
+		"1011", "1001","0101","1100","1101","1010","0110","0111")
+	chars_enc_plus_alt = Array (  _
+		"0100", "1001","0101","0011","0010","1010","0110","1000")
+	If DR = 1 Then
+		If alternate = False Then
+			mychars = chars_enc_plus
+		Else
+			mychars = chars_enc_plus_alt
+		End If
+	Else
+		If alternate = False Then
+			mychars = chars_enc_minus
+		Else
+			mychars = chars_enc_minus_alt
+		End If
+	End If
+	For iii = 0 To 7
+		If StrComp(mychars(iii), digtmp) = 0 Then Exit For
+	Next
+	DeEncode_3b4b = chars(iii)
+End Function
+
+Function Encode_PAM4(digseq() As Byte) As Byte()
+	Dim dig1() As Byte, digtmp() As Byte
+	Dim iii As Long, jjj As Long
+	Dim crttmp As Byte, crt1 As Long
+	Dim n As Long, n1 As Long	' Length of unencoded and of encoded sequence; Indexing starts at 1
+	Dim DR As Integer	' Disparity rule
+
+	Dim PAM_n As Long
+	PAM_n = 2
+
+	Dim d1str As String, d2str As String
+	Dim d1dec As Byte, d2dec As Byte
+
+	Dim d1enc As String, d2enc As String
+
+	n = UBound(digseq)
+
+	' Possibly pad with zeros to get an integer number of bytes to encode
+	If (n Mod PAM_n) <> 0 Then
+		ReDim Preserve digseq(1 To n + PAM_n-(n Mod PAM_n))
+		n = n + PAM_n - (n Mod PAM_n)
+	End If
+	n1 = n/PAM_n
+	ReDim dig1(1 To n1)
+
+	ReDim digtmp(1 To 2)
+
+	DR = -1	' Transmitter starts with negative DR
+	iii = 1
+	crttmp = 1
+	crt1 = 1	' Index in the final dig1
+	While iii <= n
+		digtmp(crttmp) = digseq(iii)
+		iii = iii+1
+		crttmp = crttmp +1
+		If crttmp = PAM_n+1 Then	' We have read another character (byte)
+			crttmp = 1
+			' Perform the encoding - gray
+			' ====================
+			If digtmp(1) = 0 And digtmp(2) = 0 Then dig1(crt1) = 0	'	0'0
+			If digtmp(1) = 0 And digtmp(2) = 1 Then dig1(crt1) = 1	'2'1
+			If digtmp(1) = 1 And digtmp(2) = 0 Then dig1(crt1) = 3	'6'
+			If digtmp(1) = 1 And digtmp(2) = 1 Then dig1(crt1) = 2	'4'3
+			crt1 = crt1 +1
+		End If
+	Wend
+
+	Encode_PAM4 = dig1
+
+End Function
+
+Function Encode_PAMx(digseq() As Byte, nlev As Long) As Byte()
+	' Gray encoding
+	Dim dig1() As Byte, digtmp() As Byte
+	Dim iii As Long, jjj As Long
+	Dim crttmp As Byte, crt1 As Long
+	Dim n As Long, n1 As Long	' Length of unencoded and of encoded sequence; Indexing starts at 1
+	Dim DR As Integer	' Disparity rule
+
+	Dim PAM_n As Long
+	PAM_n = Log(nlev)/Log(2)
+
+	Dim d1str As String, d2str As String
+	Dim d1dec As Byte, d2dec As Byte
+
+	Dim d1enc As String, d2enc As String
+
+	n = UBound(digseq)
+
+	' Possibly pad with zeros to get an integer number of bytes to encode
+	If (n Mod PAM_n) <> 0 Then
+		ReDim Preserve digseq(1 To n + PAM_n-(n Mod PAM_n))
+		n = n + PAM_n - (n Mod PAM_n)
+	End If
+	n1 = n/PAM_n
+	ReDim dig1(1 To n1)
+
+	ReDim digtmp(1 To 2)
+	ReDim digtmp(1 To PAM_n)
+
+	iii = 1
+	crttmp = 1
+	crt1 = 1	' Index in the final dig1
+
+	' Generate the binary coding
+	Dim kkk As Long, plev As Byte, nrcrt As Byte, nrenc As Byte
+
+	plev = Log(nlev)/Log(2)
+'ReportInformationToWindow "plev = " + cstr(plev)	' Unnecessary display for the user. Kept here for debugging
+	kkk = 0
+	While kkk < n
+		nrcrt = 0
+		For iii = 1 To plev
+			kkk = kkk+1
+			nrcrt = nrcrt*2 + digseq(kkk)
+'			nrcrt = nrcrt*PAM_n + digseq(kkk)
+		Next
+		nrenc = nrcrt Xor Int(nrcrt/2)
+'		nrenc = nrcrt Xor Int(nrcrt/PAM_n)
+		dig1(kkk/plev) = nrenc
+	Wend
+
+If 1 = 0 Then
+
+	While iii <= n
+		digtmp(crttmp) = digseq(iii)
+		iii = iii+1
+		crttmp = crttmp +1
+		If crttmp = PAM_n+1 Then	' We have read another character (byte)
+			crttmp = 1
+			' Perform the encoding - gray
+			' ====================
+			If digtmp(1) = 0 And digtmp(2) = 0 Then dig1(crt1) = 0	'	0'0
+			If digtmp(1) = 0 And digtmp(2) = 1 Then dig1(crt1) = 1	'2'1
+			If digtmp(1) = 1 And digtmp(2) = 0 Then dig1(crt1) = 3	'6'
+			If digtmp(1) = 1 And digtmp(2) = 1 Then dig1(crt1) = 2	'4'3
+			crt1 = crt1 +1
+		End If
+	Wend
+End If
+
+	Encode_PAMx = dig1
+
+End Function
+
+Sub Encode_QAM4(digseq() As Byte, seq_I() As Byte, seq_Q() As Byte)
+	Dim dig1() As Byte, dig2() As Byte, digtmp() As Byte
+	Dim iii As Long, jjj As Long
+	Dim crttmp As Byte, crt1 As Long
+	Dim n As Long, n1 As Long	' Length of unencoded and of encoded sequence; Indexing starts at 1
+	Dim DR As Integer	' Disparity rule
+
+	Dim PAM_n As Long
+	PAM_n = 2
+
+	Dim d1str As String, d2str As String
+	Dim d1dec As Byte, d2dec As Byte
+
+	Dim d1enc As String, d2enc As String
+
+	n = UBound(digseq)
+
+	' Possibly pad with zeros to get an integer number of bytes to encode
+	If (n Mod PAM_n) <> 0 Then
+		ReDim Preserve digseq(1 To n + PAM_n-(n Mod PAM_n))
+		n = n + PAM_n - (n Mod PAM_n)
+	End If
+	n1 = n/PAM_n
+	ReDim dig1(1 To n1)
+	ReDim dig2(1 To n1)
+
+	ReDim digtmp(1 To 2)
+
+	DR = -1	' Transmitter starts with negative DR
+	iii = 1
+	crttmp = 1
+	crt1 = 1	' Index in the final dig1
+	While iii <= n
+		digtmp(crttmp) = digseq(iii)
+		iii = iii+1
+		crttmp = crttmp +1
+		If crttmp = PAM_n+1 Then	' We have read another character (byte)
+			crttmp = 1
+			' Perform the encoding
+			' ====================
+			If digtmp(1) = 0 Then dig1(crt1) = 1	'	0'0
+			If digtmp(1) = 1 Then dig1(crt1) = 0	'2'1
+
+			If digtmp(2) = 0 Then dig2(crt1) = 1	'	0'0
+			If digtmp(2) = 1 Then dig2(crt1) = 0	'2'1
+			crt1 = crt1 +1
+		End If
+	Wend
+
+	'Encode_PAM4 = dig1
+	seq_I = dig1
+	seq_Q = dig2
+
+End Sub
+
+Sub Encode_QAM16(digseq() As Byte, seq_I() As Byte, seq_Q() As Byte)
+	Dim dig1() As Byte, dig2() As Byte, digtmp() As Byte
+	Dim iii As Long, jjj As Long
+	Dim crttmp As Byte, crt1 As Long
+	Dim n As Long, n1 As Long	' Length of unencoded and of encoded sequence; Indexing starts at 1
+	Dim DR As Integer	' Disparity rule
+
+	Dim PAM_n As Long
+	PAM_n = 2*2
+
+	Dim d1str As String, d2str As String
+	Dim d1dec As Byte, d2dec As Byte
+
+	Dim d1enc As String, d2enc As String
+
+	n = UBound(digseq)
+
+	' Possibly pad with zeros to get an integer number of bytes to encode
+	If (n Mod PAM_n) <> 0 Then
+		ReDim Preserve digseq(1 To n + PAM_n-(n Mod PAM_n))
+		n = n + PAM_n - (n Mod PAM_n)
+	End If
+	n1 = n/PAM_n
+	ReDim dig1(1 To n1)
+	ReDim dig2(1 To n1)
+
+	ReDim digtmp(1 To PAM_n)
+
+	DR = -1	' Transmitter starts with negative DR
+	iii = 1
+	crttmp = 1
+	crt1 = 1	' Index in the final dig1
+	While iii <= n
+		digtmp(crttmp) = digseq(iii)
+		iii = iii+1
+		crttmp = crttmp +1
+		If crttmp = PAM_n+1 Then	' We have read another character (byte)
+			crttmp = 1
+			' Perform the encoding - gray
+			' ====================
+			If digtmp(1) = 0 And digtmp(2) = 0 Then dig1(crt1) = 0	'	0'0
+			If digtmp(1) = 0 And digtmp(2) = 1 Then dig1(crt1) = 1	'2'1
+			If digtmp(1) = 1 And digtmp(2) = 0 Then dig1(crt1) = 3	'6'
+			If digtmp(1) = 1 And digtmp(2) = 1 Then dig1(crt1) = 2	'4'3
+
+			If digtmp(3) = 0 And digtmp(4) = 0 Then dig2(crt1) = 0	'	0'0
+			If digtmp(3) = 0 And digtmp(4) = 1 Then dig2(crt1) = 1	'2'1
+			If digtmp(3) = 1 And digtmp(4) = 0 Then dig2(crt1) = 3	'6'
+			If digtmp(3) = 1 And digtmp(4) = 1 Then dig2(crt1) = 2	'4'3
+			crt1 = crt1 +1
+		End If
+	Wend
+
+	'Encode_PAM4 = dig1
+	seq_I = dig1
+	seq_Q = dig2
+
+End Sub
+
+Function Encode_DBI8(digseq() As Byte) As Byte()
+	' Performs an 8-bit data bus inversion coding
+
+	Dim dig1() As Byte, digtmp() As Byte
+	Dim iii As Long, jjj As Long
+	Dim crttmp As Byte, crt1 As Long
+	Dim n As Long, n1 As Long	' Length of unencoded and of encoded sequence; Indexing starts at 1
+	Dim DR As Integer	' Disparity rule
+
+	Dim d1str As String, d2str As String
+	Dim d1dec As Byte, d2dec As Byte
+
+	Dim d1enc As String, d2enc As String
+
+	Dim nzeros As Byte
+
+	n = UBound(digseq)
+
+	' Possibly pad with zeros to get an integer number of bytes to encode
+	If (n Mod 8) <> 0 Then
+		ReDim Preserve digseq(1 To n + 8-(n Mod 8))
+		n = n + 8 - (n Mod 8)
+	End If
+
+
+	n1 = n/8*10
+	n1 = n
+	ReDim dig1(1 To n1)	' ???
+
+	ReDim digtmp(1 To 8)
+
+	iii = 1
+	crttmp = 1
+	crt1 = 1	' Index in the final dig1
+	nzeros = 0
+	While iii <= n
+		dig1(iii) = digseq(iii)
+		digtmp(crttmp) = digseq(iii)
+		If digtmp(crttmp) = 0 Then nzeros = nzeros+1
+		iii = iii+1
+		crttmp = crttmp +1
+		If crttmp = 9 Then	' We are at the end of a byte, we will have read another character (byte)
+			crttmp = 1
+			' Perform the encoding
+			' ====================
+			If nzeros > 4 Then ' We need to invert all bits
+				For jjj = 1 To 8
+					If digtmp(jjj) = 0 Then
+						dig1(iii-8) = 1
+					Else
+						dig1(iii-8) = 0
+					End If
+				Next jjj
+			End If
+			nzeros = 0
+		End If	'If crttmp = 9
+	Wend
+	Encode_DBI8 = dig1
+
+End Function
+
+Function Encode_DuoBinary(digseq() As Byte) As Byte()
+	' Maps the original -1 0 1 levels to 0 1 2, in order to take advantage of the "byte" data type. The shift back to -1 is done in the main algorithm
+	Dim dig1() As Byte, digtmp() As Byte
+	Dim iii As Long, jjj As Long
+	Dim crttmp As Byte, crt1 As Long
+	Dim n As Long, n1 As Long	' Length of unencoded and of encoded sequence; Indexing starts at 1
+	Dim DR As Integer	' Disparity rul,
+
+	Dim d1str As String, d2str As String
+	Dim d1dec As Byte, d2dec As Byte
+
+	Dim crtbit As Integer
+	Dim prevbit As Integer	' Prev Bk
+	Dim prevdbit As Integer	' Prev Dk
+
+	n = UBound(digseq)
+	ReDim dig1(1 To n)
+
+	iii = 1
+	crtbit = 1
+	prevbit = 0
+	prevdbit = -1
+	For iii = 1 To n
+		crtbit = digseq(iii)
+		If crtbit = 0 Then
+			crtbit = 1
+		Else
+			crtbit = 0
+		End If
+		crtbit = prevbit Xor crtbit
+		prevbit = crtbit
+		crtbit = 2*crtbit-1
+		crtbit = (crtbit + prevdbit)
+		prevdbit = crtbit - prevdbit
+		If crtbit <> 0 Then crtbit = crtbit/2
+
+		dig1(iii) = crtbit+1
+	Next iii
+	Encode_DuoBinary = dig1
+
+End Function
+
+Function scramble_mult_selfSynch(z() As Byte, g() As Byte, n As Integer, ng As Integer, DO_INIT As Boolean, shiftreg() As Byte, ByRef pos_shiftreg As Integer) As Byte()
+	' Multiplicative scrambler, self-synchronizing (the scrambled bit itself is pushed into the shift register)
+	' init contains the bit sequence to scramble, length n
+	' g contains the information about the scrambling polynome, length ng
+	' shiftreg will contain the shift register values
+	Dim z1() As Byte	' Output bit sequence
+
+	Dim kkk As Long,i As Long, q As Byte,j As Long
+
+	ReDim z1(1 To n)
+
+	Dim n1 As Integer
+	n1 = g(ng)	'n		' Shift reg length
+	ReDim Preserve shiftreg(1 To 3*n1)
+
+	' Initialize the shift register data structure with 0
+	If DO_INIT = True Then
+		For i = 1 To 3*n1	' Make the shift register longer, so that we do not shift all values each time
+			shiftreg(i) = 0
+		Next i
+	End If
+
+	kkk = 0
+
+	Dim crt As Integer, crt1 As Integer
+	If DO_INIT = True Or pos_shiftreg = 0 Then
+		crt = n1+1
+	Else
+		crt = pos_shiftreg
+	End If
+
+	For i= 1 To n	' Go through all bits
+		crt1 = crt + 2*n1
+		q=shiftreg(crt+g(1))
+		For j=2 To ng
+			q= q Xor shiftreg(crt+g(j))
+		Next j
+		kkk = kkk+1
+		z1(kkk)=q Xor z(i)
+		shiftreg(crt) = z1(kkk)
+		If crt1 <= 3*n1 And crt1 > 2 * n1 Then  shiftreg(crt1) = shiftreg(crt)
+
+		If IS_DEBUG Then
+			Dim tmpstr As String, tmpstr1 As String
+			tmpstr = ""
+			For j = crt To crt+n1-1	'1 To 3*n1
+				tmpstr = tmpstr + CStr(shiftreg(j))
+			Next
+			tmpstr1 = ""
+			For j = 1 To 3*n1	'1 To 3*n1
+				tmpstr1 = tmpstr1 + CStr(shiftreg(j))
+				If j = n1 Or j = 2*n1 Then tmpstr1 = tmpstr1 + " "
+			Next
+		End If
+
+		crt = crt - 1
+		If crt < 1 Then crt = crt + 2*n1
+
+	Next i
+	pos_shiftreg = crt
+	scramble_mult_selfSynch = z1
+
+End Function
+
+Function Encode_64b66b(digseq() As Byte) As Byte()
+	Dim g() As Byte, ng As Byte
+	Dim ninit As Long, nfin As Long
+	Dim preamble As String
+	Dim digseq_new() As Byte
+
+	ninit = 64
+	nfin = 66
+
+	ng = 2
+	ReDim g(1 To ng)
+	g(1) = 39: g(2) = 58
+
+	' Preamble: 01 = Following bits are data (control sequences are not implemented)
+	preamble = "01"	' Only data
+
+
+	' For testing
+	If IS_DEBUG Then
+		ng = 2
+		ReDim g(1 To ng)
+		g(1) = 3: g(2) = 4
+		ninit = 4
+		nfin = 4
+		preamble = ""
+	End If
+
+	digseq_new = Encode_XXbYYb(digseq, ninit, nfin, g, preamble)
+
+	Encode_64b66b = digseq_new
+
+End Function
+
+Function Encode_128b130b(digseq() As Byte) As Byte()
+' Used in PCIe starting with version 3.0
+	Dim g() As Byte, ng As Byte
+	Dim ninit As Long, nfin As Long
+	Dim preamble As String
+	Dim digseq_new() As Byte
+
+	ninit = 128
+	nfin = 130
+
+	ng = 6
+	ReDim g(1 To ng)
+	g(1) = 2: g(2) = 5: g(3) = 8: g(4) = 16: g(5) = 21: g(6) = 23
+
+	' Preamble: 01 = Following bits are data (control sequences are not implemented)
+	preamble = "01"	' Only data
+
+
+	' For testing
+	If IS_DEBUG Then
+		ng = 2
+		ReDim g(1 To ng)
+		g(1) = 3: g(2) = 4
+		ninit = 4
+		nfin = 4
+		preamble = ""
+	End If
+
+	digseq_new = Encode_XXbYYb(digseq, ninit, nfin, g, preamble)
+
+	Encode_128b130b = digseq_new
+
+
+End Function
+
+Function Encode_128b132b(digseq() As Byte) As Byte()
+	' Used in USB3.1
+	Dim g() As Byte, ng As Byte
+	Dim ninit As Long, nfin As Long
+	Dim preamble As String
+	Dim digseq_new() As Byte
+
+	ninit = 128
+	nfin = 132
+
+	ng = 6
+	ReDim g(1 To ng)
+	g(1) = 2: g(2) = 5: g(3) = 8: g(4) = 16: g(5) = 21: g(6) = 23
+
+	' Preamble: 01 doubled = Following bits are data (control sequences are not implemented)
+	preamble = "0101"	' Only data
+
+	' For testing
+	If IS_DEBUG Then
+		ng = 2
+		ReDim g(1 To ng)
+		g(1) = 3: g(2) = 4
+		ninit = 4
+		nfin = 4
+		preamble = ""
+	End If
+
+	digseq_new = Encode_XXbYYb(digseq, ninit, nfin, g, preamble)
+
+	Encode_128b132b = digseq_new
+
+
+End Function
+
+
+Function Encode_XXbYYb(digseq() As Byte, ninit As Byte, nfin As Byte, g() As Byte, preamble As String) As Byte()
+	' Used in conjunction with the following encoding types: 64b66b, 128b130b, 128b132b
+	Dim dig1() As Byte, digtmp() As Byte
+	Dim iii As Long, jjj As Long
+	Dim crttmp As Byte, crt1 As Long
+	Dim n As Long, n1 As Long	' Length of unencoded and of encoded sequence; Indexing starts at 1
+
+	Dim ng As Integer	' Number of nonzero elements in the scrambling polynomial
+
+	Dim d1str As String, d2str As String
+	Dim d1dec As Byte, d2dec As Byte
+
+	Dim shiftreg() As Byte
+
+	Dim d1enc() As Byte
+	Dim pos_shiftreg As Integer	' Position in the shift register. Memorize it here, for the case that the register is not re-initialized after each frame, but rather continuously used
+	pos_shiftreg = 0
+
+	'Dim ninit As Long, nfin As Long
+	'ninit = 64
+	'nfin = 66
+
+	n = UBound(digseq)
+	ng = UBound(g)
+
+	' Possibly pad with zeros to get an integer number of bytes to encode
+	If (n Mod ninit) <> 0 Then
+		ReDim Preserve digseq(1 To n + ninit-(n Mod ninit))
+		n = n + ninit - (n Mod ninit)
+	End If
+	n1 = n/ninit*nfin
+	ReDim dig1(1 To n1)
+
+	ReDim digtmp(1 To ninit)
+
+	iii = 1
+	crttmp = 1
+	crt1 = 1	' Index in the final dig1
+	While iii <= n
+		digtmp(crttmp) = digseq(iii)
+		iii = iii+1
+		crttmp = crttmp +1
+		If crttmp = ninit+1 Then	' We have finished reading another frame
+			crttmp = 1
+			' Perform the encoding
+			' ====================
+			d1enc = scramble_mult_selfSynch(digtmp, g, ninit, ng, False, shiftreg, pos_shiftreg)	' DO NOT INITIALIZE shiftreg - TO CHECK
+
+			jjj = 0
+
+			' Now fill in the bytes in dig1
+
+			' Preamble: 01 = Following bits are data (control sequences are not implemented)
+			For jjj = 1 To Len(preamble)
+				dig1(crt1) = Val(Mid(preamble, jjj, 1))
+				crt1 +=1
+			Next jjj
+
+			' Data
+			For jjj = 1 To ninit
+				dig1(crt1) = d1enc(jjj)
+				crt1 = crt1+1
+			Next jjj
+
+		End If
+	Wend
+	Encode_XXbYYb = dig1
+
+End Function

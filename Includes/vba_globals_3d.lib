@@ -1,0 +1,3010 @@
+'
+' This lib contains function for macros and templates that help with 3D functionality. Should only be included if Macro/Template is intended to run in 3D environment (MWS/EMS/MPS/PS, not DS)
+'
+' Copyright 2007-2023 Dassault Systemes Deutschland GmbH
+'-----------------------------------------------------------------------------------------------------------------------------------------------------------
+' History of Changes
+' ------------------------------------------------------------------------------------------------
+' 22-May-2025 pgl: Classify particle surface collision losses as scalar quantities
+' 06-May-2025 set: Fix usage in pure DES context
+' 24-Apr-2025 mha: Added additional options / buttons to "SelectSolids_LIB", allowing to take over selection from navigation tree / play selection back to
+'                  navigation tree. New public function: "GetAllSelectedShapes_LIB", new private functions: ShapeComponentOrOther_LIB, Convert2ShapeName_LIB, Convert2ComponentName_LIB
+' 12-Apr-2024 mha: Made dialog from "SelectSolids_LIB" a little bit wider.
+' 06-Jan-2023 pon: Fixed error in function "bScalarField"
+' 27-Jan-2022 pon: Fixed error in function "bScalarField"
+' 21-Jun-2021 pon: Extended function "bScalarField" to explicitly query for plasma frequency form the drift diffusion solver
+' 26-Apr-2021 pon: Extended function "bScalarField" to explicitly query for currents form the drift diffusion solver
+' 31-Mar-2021 pon: Extended function "bScalarField" to explicitly query some scalar results from the drift diffusion solver
+' 06-Jan-2021 mha: Extended function "bScalarField" to explicitly query some scalar results from the CHT solver
+' 07-Jul-2020 ube: use SelectModelView in addition to SelectTreeItem "Components" (to ensure, 2d3dplot windows become inactive)
+' 13-Jan-2020 mbr: GetAll2D3DResults now uses GetTreeResults to find 2D/3D Results
+' 06-Jan-2020 mbr: PushBrowse2D3DResults now uses GetTreeResults to find 2D/3D Results
+' 30-Dec-2019 ube: LoadSignalFiles, now skipping cutofffrequ_.sig files which were failing
+' 16-Jan-2019 fsr: GetAll2D3DResults: Updated result signature for thermal results (now part of MPS); added mechanical solver results
+' 10-Dec-2018 fsr: Added a workaround for ResultMap usage in combination with simulation projects
+' 29-Nov-2018 fsr: Added SP selection support to Select2D3DFieldInTree, Set2D3DFreqOrTimeSamples, PushBrowse2D3DResults, and PushBrowseAll2D3D
+' 30-Mar-2018 fsr: Included all ports > 1 and Floquet ports in anticipated fields within GetAll2D3DResults; adjusted combine result exc. string to AC1
+' 14-Mar-2018 fsr: Removed checkbox in SetTime/Freq dialog to streamline usability
+' 14-Jun-2017 fsr: Fixed a bug in Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB for FloquetPorts with Theta/Pi <> 0/0
+' 21-Feb-2017 thn,ube: Pressure is now recognized as scalarfield
+' 27-Dec-2016 ube: LoadSignalFiles adapted to load complex data instead of apd.sig, which were removed for v2017
+' 24-Jun-2016 fsr: Select2D3DFieldInTree now works properly for Theta/Phi periodic boundary conditions (fields stored as result map with single sample)
+' 25-May-2016 fsr: Select2D3DFieldInTree now works properly for PhaseX/PhaseY periodic boundary conditions (fields stored as result map with single sample)
+' 23-May-2016 fsr: Select2D3DFieldInTree now has an optional return value for the selected plot ID within a result map
+' 26-Apr-2016 fsr: Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB now supports EigenModes; added title to return object
+' 18-Jan-2016 fsr: Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB now supports default names of 2D monitors
+' 02-Dec-2015 fsr: Discrete broadband monitors can now also be tagged by wavelength (lambda=...); improved settings recovery for some abort situations
+' 17-Nov-2015 ube: LoadSignalFiles, now skipping files "amr(#", which are internal FD-TET adaptation files
+' 09-Oct-2015 fsr,ube: Fixed bug in SelectSolids_LIB for Case 4 ( <==== )
+' 05-Oct-2015 fsr: Evaluate0D1DCForDiscreteMonitors now correctly supports complex and M0D results
+' 23-Sep-2015 fsr: Store global data values CST_FREQ_SWEEP_DISCR_MONITORS_INDEX and CST_FREQ_SWEEP_DISCR_MONITORS_FREQ for synchronized data access
+'					across two templates that both employ the discrete monitor frequency sweep.
+' 28-Aug-2015 ube: LoadSignalFiles, now skipping farfield.sig files which were failing
+' 03-Aug-2015 fsr: Made sWarningTemplateName Public for better debugging
+' 17-Mar-2015 fsr: Discrete broadband monitors can now also be tagged by wavelength (wl=...)
+' 16-Feb-2015 ube: Format of "Model.res" has been changed
+' 26-Nov-2014 ube: LoadSignalFiles was not able to load complex sig files anymore, this is fixed now
+' 24-Oct-2014 fsr: Improved performance of DrawXYZPoints
+' 08-Apr-2014 fsr: GetAll2D3DResults added some empty lines in the result list in some cases, fixed. Added some extra checks to catch this in future
+' 31-Mar-2014 fsr: Fixed a problem with GetAll2D3DResults that would yield an empty list in EMS if no results were present; fixed index problem
+' 03-Feb-2014 ube: always activate global coord-system in DrawXYZPickPoints (WCS.ActivateWCS "global")
+' 04-Nov-2013 fsr: Added function to evaluate a function (typically Evaluate0D/1D/1DC) for all discrete frequency monitors
+' 16-Jul-2013 fsr: GetAll2D3DResults and PushBrowse2D3DResults now use GrepAllPatterns for improved performance
+' 18-Jun-2013 ube: dialogue change in SelectSolids_LIB: increased width for solid-lists, for nested trees: component1/component2/solid2
+' 27-Sep-2012 fsr: SelectTreeItem in "Select2D3DFieldInTree" only called when field is not already selected for improved performance
+' 03-Aug-2012 fsr: new function to parse all material names and folders (GetMaterialFoldersAndNames_LIB)
+' 06-Dec-2011 ube: workaround/error handling for impedance reading from dsn-file, now takes 50 Ohms if failing
+' 09-Nov-2011 fsr: PushBrowse*/GetAll* functions now use dynamic arrays, no more static (999, 9999,...) limits for results
+' 06-Sep-2011 ube: template abort handling added in Select2D3DFieldInTree (GetTemplateAborted)
+' 06-Jun-2011 ube: added SelectMaterials_LIB (with identical infrastructure as SelectSolids)
+' 01-Dec-2010 fsr: rewrote SelectSolids
+' 09-Aug-2010 ube: sWarningTemplateName now defined in lib
+' 08-Aug-2010 ube: Browse all index-loop corrected (now from 0 to n-1)
+' 04-Aug-2009 ube: moved some functions for 2d3dfield result templates to share between result templates
+' 30-Jul-2009 ube: Split replaced by CSTSplit, since otherwise compeating with standard VBA-Split function
+' 21-Jul-2008 ube: bugfix in Handle_0D_Results
+' 11-Feb-2007 ube: bScalarField now includes SAR fields
+' 11-Feb-2007 ube: bugfix for polar and smithchart
+' 07-Nov-2007 ube: new simultaneous port file notation changed in 2008:
+'					error handling added: see -> _polar_no_smithchart_pfile_does_not_exist
+' 25-Oct-2007 ube: read impedance for smithchart from Model.dsn file
+'-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Public sWarningTemplateName As String
+Public Const cExcludeSeperator = ":::"
+
+
+Sub CollectAll2D3DResultsFromTree( fieldList() As String, numberOfResults As Long, filterQuery As String)
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	numberOfResults = 0
+
+	Dim rootPath As String
+	rootPath = "2D/3D Results"
+
+	Dim paths As Variant, types As Variant, files As Variant, info As Variant, nResults As Long
+	
+	If ((sSelectedSPName <> "") And (sSelectedSPName <> "3D Tab")) Then
+		'SP case: 3D Results of a SP
+		'we don't know the full tree path (e.g. Sweep1\SP1), so grab all results, extract the first one containing SP name as root path
+
+		' together with the hardwired treepath modification below, this transforms e.g.
+		'	"Tasks\Seq1\Block1 [iris_filter_2]\3D Model Results\2D/3D Results\E-Field\e-field (f=32)" to "E-Field\e-field (f=32)"
+
+		nResults = DSResultTree.GetTreeResults("Tasks",filterQuery,"",paths,types,files,info)
+		Dim TempSelectedSPName As String
+		TempSelectedSPName= "\" + sSelectedSPName + "\"
+		
+		Dim sp_strpos As Long
+		sp_strpos = 0
+		Dim n As Long
+		For n = 0 To nResults-1
+			sp_strpos = InStr(paths(n),TempSelectedSPName)
+			If sp_strpos <> 0 Then
+				rootPath = Left$(paths(n), sp_strpos + Len(TempSelectedSPName)-2)
+				'hardwire to fulfill the caller's expectations: a 3D result and relative to their own 2D/2D Results folder
+				rootPath = rootPath + "\3D Model Results\2D/3D Results"
+				Exit For
+			End If
+		Next
+
+		If sp_strpos = 0 Then
+			Exit Sub
+		End If
+
+		'now redo the query limited to the treepath of the desired SP
+		ReDim paths(0)
+		ReDim types(0)
+		ReDim files(0)
+		ReDim info(0)
+		nResults = DSResultTree.GetTreeResults(rootPath,filterQuery,"",paths,types,files,info)
+	Else
+		'3D case (Modeler)
+		nResults = ResultTree.GetTreeResults(rootPath,filterQuery,"",paths,types,files,info)
+	End If
+
+	Dim i As Long
+	i = 0
+	If nResults > 0 Then
+		numberOfResults = nResults
+		ReDim fieldList(nResults-1)
+		For i = 0 To nResults-1
+			'take only the part after "2D/3D Results"
+			fieldList(i) = Mid$(Trim$(paths(i)),14+InStr(Trim$(paths(i)),"2D/3D Results"))
+		Next
+	End If
+End Sub
+
+
+' -------------------------------------------------------------------------------------------------
+' GetAll2D3DResults : This subroutine is collecting all available 2D/3D Results from the .res file
+'
+'	Before the simulation, all freq-monitors, modes, static, ... fields are collected/estimated
+'
+' -------------------------------------------------------------------------------------------------
+Sub GetAll2D3DResults (sListArray() As String, n2D3DFields As Integer, Optional sFilterQuery As String)
+	Dim aField() As String
+	ReDim aField(0)
+	
+	Dim numberOfResultsFound As Long
+	numberOfResultsFound = 0
+	
+	If sFilterQuery = "" Then sFilterQuery = "2D/3D recursive"
+	CollectAll2D3DResultsFromTree(aField, numberOfResultsFound, sFilterQuery)
+	
+	Dim bResultsPresent As Boolean
+	bResultsPresent = False
+	If numberOfResultsFound > 0 Then bResultsPresent = True
+
+	Dim nIndex As Integer
+	Dim i As Long
+
+	Dim icount As Long
+	icount = numberOfResultsFound
+
+	If Not bResultsPresent Then
+
+		' no calculation has been performed so far, therefore take default list
+		' different for MWS and EMS
+
+		'ReportInformationToWindow(IIf(bMWS, "MWS", "No MWS"))
+		'ReportInformationToWindow(IIf(bDS, "DS", "No DS"))
+
+		If (bMWS Or bDS) Then
+
+			' each monitor with excitation at port 1 (=> extension " [1]")
+			' skip farfield and time domain monitors
+
+			Dim sMoniName As String
+			Dim bTakeIt As Boolean
+
+			With oSelectedSP.Monitor
+				For nIndex= 0 To .GetNumberOfMonitors-1
+					bTakeIt = True
+					sMoniName = .GetMonitorNameFromIndex(nIndex)
+
+					Select Case	Mid(.GetMonitorTypeFromIndex(nIndex),1,8)
+						Case "Farfield"
+							bTakeIt = False
+						Case "E-Field "
+							sMoniName = "E-Field\" + sMoniName
+						Case "H-Field "
+							If (.GetMonitorDomainFromIndex(nIndex) <> "Time") Then
+								' besides standard H-Field also take Surface Current
+								' The first 2 Floquet modes are common
+								If (oSelectedSP.Resulttree.DoesTreeItemExist("Ports\Zmin")) Then
+									ReDim Preserve aField(icount)
+									aField(icount) = "Surface Current\" + " [Zmin(1)]"
+									icount  = icount + 1
+									ReDim Preserve aField(icount)
+									aField(icount) = "Surface Current\" + " [Zmin(2)]"
+									icount  = icount + 1
+								End If
+								If (oSelectedSP.Resulttree.DoesTreeItemExist("Ports\Zmax")) Then
+									ReDim Preserve aField(icount)
+									aField(icount) = "Surface Current\" + " [Zmax(1)]"
+									icount  = icount + 1
+									ReDim Preserve aField(icount)
+									aField(icount) = "Surface Current\" + " [Zmax(2)]"
+									icount  = icount + 1
+								End If
+
+								For i = 1 To oSelectedSP.Port.StartPortNumberIteration
+									ReDim Preserve aField(icount)
+									aField(icount) = "Surface Current\" + " [" & CStr(i) & "]"
+									icount  = icount + 1
+								Next
+
+								If bDS Then
+									ReDim Preserve aField(icount)
+									aField(icount) = "Surface Current\" + sMoniName + " [AC1]"
+									icount  = icount + 1
+								End If
+							End If
+							sMoniName = "H-Field\" + sMoniName
+						Case "Powerflo"
+							sMoniName = "Power Flow\" + sMoniName
+						Case "Loss den"
+							sMoniName = "Power Loss Dens.\" + sMoniName
+						Case "E-Energy"
+							sMoniName = "El. Energy Dens.\" + sMoniName
+						Case "H-Energy"
+							sMoniName = "Mag. Energy Dens.\" + sMoniName
+					End Select
+
+					If (.GetMonitorDomainFromIndex(nIndex) = "Time") Then
+
+						bTakeIt = False
+
+					End If
+
+					If bTakeIt Then
+
+						' The first 2 Floquet modes are common
+						If (oSelectedSP.Resulttree.DoesTreeItemExist("Ports\Zmin")) Then
+							ReDim Preserve aField(icount)
+							aField(icount) = sMoniName + " [Zmin(1)]"
+							icount  = icount + 1
+							ReDim Preserve aField(icount)
+							aField(icount) = sMoniName + " [Zmin(2)]"
+							icount  = icount + 1
+						End If
+						If (oSelectedSP.Resulttree.DoesTreeItemExist("Ports\Zmax")) Then
+							ReDim Preserve aField(icount)
+							aField(icount) = sMoniName + " [Zmax(1)]"
+							icount  = icount + 1
+							ReDim Preserve aField(icount)
+							aField(icount) = sMoniName + " [Zmax(2)]"
+							icount  = icount + 1
+						End If
+
+						For i = 1 To oSelectedSP.Port.StartPortNumberIteration
+							ReDim Preserve aField(icount)
+							aField(icount) = sMoniName + " [" & CStr(i) & "]"
+							icount  = icount + 1
+						Next
+
+						If bDS Then
+							ReDim Preserve aField(icount)
+							aField(icount) = sMoniName + " [AC1]"
+							icount  = icount + 1
+						End If
+
+					End If
+
+				Next
+			End With
+
+			If Not bDS Then
+				For nIndex= 1 To oSelectedSP.Solver.AKSGetNumberOfModes
+
+					' also take for each mode
+					ReDim Preserve aField(icount)
+					aField(icount) = "Modes\Mode " + CStr(nIndex) + "\e"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Modes\Mode " + CStr(nIndex) + "\h"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Modes\Mode " + CStr(nIndex) + "\Surface Current"
+					icount  = icount + 1
+
+				Next
+			End If
+		End If ' bMWS or bDS
+
+		If (bEMS Or bPS) Then
+
+			' in EMS take the static fields
+
+			ReDim Preserve aField(icount)
+			aField(icount) = "E-Field [Es]"
+			icount  = icount + 1
+			ReDim Preserve aField(icount)
+			aField(icount) = "D-Field [Es]"
+			icount  = icount + 1
+			ReDim Preserve aField(icount)
+			aField(icount) = "Potential [Es]"
+			icount  = icount + 1
+			ReDim Preserve aField(icount)
+			aField(icount) = "E-Field [Js]"
+			icount  = icount + 1
+			ReDim Preserve aField(icount)
+			aField(icount) = "Cond. Current Dens. [Js]"
+			icount  = icount + 1
+			ReDim Preserve aField(icount)
+			aField(icount) = "Potential [Js]"
+			icount  = icount + 1
+			ReDim Preserve aField(icount)
+			aField(icount) = "B-Field [Ms]"
+			icount  = icount + 1
+			ReDim Preserve aField(icount)
+			aField(icount) = "H-Field [Ms]"
+			icount  = icount + 1
+			ReDim Preserve aField(icount)
+			aField(icount) = "Material [Ms]"
+			icount  = icount + 1
+			ReDim Preserve aField(icount)
+			aField(icount) = "Permanent Flux [Ms]"
+			icount  = icount + 1
+
+			If (Not bPS) Then
+				ReDim Preserve aField(icount)
+				aField(icount) = "Source Current Dens. [Ms]"
+				icount  = icount + 1
+
+				' once VBA-commands for FD-frequencies exist, also include those fields
+
+				' EMS-FD Solver .GetNumberOfFrequencies
+				' .GetCalculationFrequency (index)  , index = 0... .GetNumberOfFrequencies-1
+
+				Dim dFrequency As Double
+				Dim sFrequency As String
+
+				Dim nFreq_LFSolver_CST As Integer
+				Dim iFreq_CST As Integer
+
+				nFreq_LFSolver_CST = oSelectedSP.LFSolver.GetNumberOfFrequencies
+
+				For iFreq_CST = 0 To nFreq_LFSolver_CST-1
+
+					dFrequency = oSelectedSP.LFSolver.GetCalculationFrequency(iFreq_CST)
+
+					' MsgBox CStr(iFreq_CST) + ".  ==>   Frq = " + CStr(dFrequency)
+
+					sFrequency = "[" + CStr(dFrequency) + "]"
+
+					ReDim Preserve aField(icount)
+					aField(icount) = "Source Current Dens." + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Cond. Current Dens." + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Total Current Dens." + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "D-Field " + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "E-Field " + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "B-Field " + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "H-Field " + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "El. Energy Dens. " + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Mag. Energy Dens. " + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "El. Loss Dens. " + sFrequency
+					icount  = icount + 1
+
+				Next iFreq_CST
+
+				If nFreq_LFSolver_CST = 0 Then
+
+					' take 50 Hz as default
+
+					dFrequency = 50
+					sFrequency = "[" + CStr(dFrequency) + "]"
+
+					ReDim Preserve aField(icount)
+					aField(icount) = "Source Current Dens." + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Cond. Current Dens." + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Total Current Dens." + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "D-Field " + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "E-Field " + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "B-Field " + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "H-Field " + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "El. Energy Dens. " + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Mag. Energy Dens. " + sFrequency
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "El. Loss Dens. " + sFrequency
+					icount  = icount + 1
+				End If
+			End If
+		End If
+
+		If (bPS) Then
+			' in PS additionally take the particle space charge and current fields
+			ReDim Preserve aField(icount)
+			aField(icount) = "Particle Current"
+			icount  = icount + 1
+
+			ReDim Preserve aField(icount)
+			aField(icount) = "Particle Space Charge"
+			icount  = icount + 1
+		End If
+
+		If bMPS Then
+			' Multiphysics Studio - thermal and mechanical solvers
+			Select Case oSelectedSP.GetSolverType
+				Case "Thermal Steady State"
+					ReDim Preserve aField(icount)
+					aField(icount) = "Heat Flow Density [THs]"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Temperature [THs]"
+					icount  = icount + 1
+				Case "Thermal Transient"
+					ReDim Preserve aField(icount)
+					aField(icount) = "Heat Flow Density [THt]\Start Heat Flow Density"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Temperature [THt]\Start Temperature"
+					icount  = icount + 1
+				Case "Conjugate Heat Transfer"
+					ReDim Preserve aField(icount)
+					aField(icount) = "Heat source densities"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Pressure"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Temperature"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Velocity"
+					icount  = icount + 1
+				Case "Mechanics"
+					ReDim Preserve aField(icount)
+					aField(icount) = "Strain\Components\XX"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Strain\Components\XY"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Strain\Components\XZ"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Strain\Components\YY"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Strain\Components\YZ"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Strain\Components\ZZ"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Strain\Volumetric"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Stress\Components\XX"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Stress\Components\XY"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Stress\Components\XZ"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Stress\Components\YY"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Stress\Components\YZ"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Stress\Components\ZZ"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Stress\First Principal Stress"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Stress\Hydrostatic"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Stress\Von Mises"
+					icount  = icount + 1
+					ReDim Preserve aField(icount)
+					aField(icount) = "Displacement"
+					icount  = icount + 1
+			End Select
+		End If
+	End If
+
+	n2D3DFields = icount
+	sListArray = aField
+End Sub
+
+
+Function bScalarField (sField As String) As Boolean
+	If (InStr(sField,"Dens.")>0 And InStr(sField,"Current")=0) Or (InStr(sField,"Electron")>0) Or (InStr(sField,"Potential")>0) Or (InStr(sField,"Temperature")>0) Or (InStr(sField,"Pressure")>0) Or (InStr(sField,"Material")>0) Or (InStr(sField,"Space Charge")>0) Or (InStr(sField,"SAR")>0) Then
+		bScalarField = True
+	Else
+		bScalarField = False
+	End If
+	
+	If (InStr(LCase(sField),"particle surface collision losses\")>0) Then
+		bScalarField = True
+	End If
+
+	' special handling for CHT solver (beyond "Temperature", "Pressure")
+	If (InStr(LCase(sField),"specific dissipation rate")>0) Or (InStr(LCase(sField),"eddy viscosity")>0) Or (InStr(LCase(sField),"turbulence kinetic energy")>0) Or (InStr(LCase(sField),"kinematic eddy viscosity")>0) Or (InStr(LCase(sField),"heat source densities")>0) Or (InStr(LCase(sField),"convective heat transfer coefficient")>0) Then
+		bScalarField = True
+	End If
+	
+	' special handling for drift diffusion solver 
+	If (InStr(sField,"Carrier Density\Hole")>0) Or (InStr(sField,"Doping Density")>0) Or (InStr(sField,"Total Charge Density")>0) Or (InStr(sField,"Generation-Recombination\")>0) Or (InStr(sField,"Plasma Frequency")>0) Or (InStr(sField,"Carrier Mobility")>0)  Then
+		bScalarField = True
+	End If
+	
+	If (InStr(sField,"Current Density\Electron")>0) Or (InStr(sField,"Current Density\Hole")>0) Then
+		bScalarField = False
+	End If
+
+	' special handling for mech stress solver
+	If (InStr(sField,"Force Dens.")>0) Then
+		bScalarField = False
+	End If
+	If (InStr(sField,"Strain\")=1 Or InStr(sField,"Stress\")=1) Then
+		bScalarField = True
+	End If
+
+	' special handling for nonlinear material monitors
+	If (InStr(sField,"Materials\")>0 And InStr(sField,"Nonlinear\")>0) Then
+		bScalarField = False
+	End If
+
+	' special handling for spatially varying material monitors
+	If (InStr(sField,"Materials\")>0 And InStr(sField,"\Spatially Varying")>0) Then
+		bScalarField = False
+	End If
+End Function
+
+
+Sub PushBrowse2D3DResults(snewname As String, sExcludeString As String, Optional sFilterQuery As String)
+	' via sExcludeString entries can be excluded from selection, e.g. surface currents
+	
+	If sFilterQuery = "" Then sFilterQuery = "2D/3D recursive"
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	snewname = ""
+
+	Dim tokensToBeExcluded() As String
+	tokensToBeExcluded = Split(sExcludeString,cExcludeSeperator)
+	Dim nTokens As Long
+	nTokens = UBound(tokensToBeExcluded) + 1
+
+	Dim rootPath As String
+	rootPath = "2D/3D Results"
+
+	Dim paths As Variant, types As Variant, files As Variant, info As Variant, nResults As Long
+
+	If ((sSelectedSPName <> "") And (sSelectedSPName <> "3D Tab")) Then
+		'SP case: 3D Results of a SP
+		'we don't know the full tree path (e.g. Sweep1\SP1), so grab all results, extract the first one containing SP name as root path
+
+		' together with the hardwired treepath modification below, this transforms e.g.
+		'	"Tasks\Seq1\Block1 [iris_filter_2]\3D Model Results\2D/3D Results\E-Field\e-field (f=32)" to "E-Field\e-field (f=32)"
+
+		nResults = DSResultTree.GetTreeResults("Tasks",sFilterQuery,"",paths,types,files,info)
+		Dim TempSelectedSPName As String
+		TempSelectedSPName= "\" + sSelectedSPName + "\"
+
+		Dim sp_strpos As Long
+		sp_strpos = 0
+		Dim n2 As Long
+		For n2 = 0 To nResults-1
+			sp_strpos = InStr(paths(n2),TempSelectedSPName)
+			If sp_strpos <> 0 Then
+				rootPath = Left$(paths(n2), sp_strpos + Len(TempSelectedSPName)-2 )
+				' all callers expect path to be
+				'a) a 3D result and
+				'b) relative to their own 2D/3D Results folder
+				'so hardwire it here to fulfill the caller's expectations
+				rootPath = rootPath + "\3D Model Results\2D/3D Results"
+				Exit For
+			End If
+		Next
+
+		If sp_strpos = 0 Then
+			MsgBox "No 2D/3D Result of """ + sSelectedSPName + """ is calculated so far, which can be evaluated here."
+			Exit Sub
+		End If
+
+		'now redo the query limited to the treepath of the desired SP
+
+		ReDim paths(0)
+		ReDim types(0)
+		ReDim files(0)
+		ReDim info(0)
+		nResults = DSResultTree.GetTreeResults(rootPath,sFilterQuery,"",paths,types,files,info)
+	Else
+		'3D case (Modeler)
+		nResults = ResultTree.GetTreeResults(rootPath,sFilterQuery,"",paths,types,files,info)
+	End If
+
+	' sort out the unwanted patterns on the full tree path
+	Dim i As Long
+	Dim aField() As String
+	Dim icount As Integer
+	icount = 0
+
+	For i = 0 To nResults-1
+		Dim nToken As Long
+		For nToken = 0 To nTokens - 1
+			If (InStr(paths(i),tokensToBeExcluded(nToken)) <> 0) Then Exit For
+		Next
+		If nToken=nTokens Then ' For loop ran through w/o early exit, so take this entry
+			ReDim Preserve aField(icount)
+			aField(icount) = paths(i)
+			icount  = icount + 1
+		End If
+	Next
+
+	'cut of root path part of string, caller expects only results below "2D/3D Results" folder
+	Dim n As Long
+	For n = 0 To icount-1
+		aField( n ) =  Mid$(aField( n ), Len(rootPath) + 2 )
+	Next
+
+	' sort afield()-vector alphabetically
+	If icount > 2 Then
+		Dim j As Long, imin As Long, s2 As String
+		For i = 0 To icount-2
+			imin = i
+			For j = i+1 To icount-1
+				If aField(j) < aField(imin) Then
+					imin = j
+				End If
+			Next j
+			If (imin <> i) Then
+				s2 = aField(i)
+				aField(i) = aField(imin)
+				aField(imin) = s2
+			End If
+		Next i
+	End If
+
+	If (icount = 0) Then
+		MsgBox "No 2D/3D Result is calculated so far, which can be evaluated here."
+		Exit Sub
+	End If
+	Begin Dialog UserDialog 480,308,"Choose 2D/3D Result" ' %GRID:10,7,1,1
+		OKButton      20, 280,  90,  21
+		CancelButton 120, 280,  90,  21
+		ListBox       10,  14, 460, 259, aField(), .ListBox1
+	End Dialog
+	Dim dlg As UserDialog
+
+	If (Dialog(dlg) <> 0) Then
+		snewname = aField(dlg.ListBox1)
+	End If
+End Sub
+
+
+Sub PushBrowseAll2D3D(snewname As String, sExcludeString As String, Optional sFilterQuery As String)
+	If sFilterQuery = "" Then sFilterQuery = "2D/3D recursive"
+
+	' via sExcludeString entries can be excluded from selection, e.g. surface currents
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	snewname = ""
+
+	Dim s3 As String, i3 As Integer, i4 As Integer, nSep As Integer
+	s3 = sExcludeString
+	i4 = Len(cExcludeSeperator)
+
+	nSep = 0
+	While s3 <> ""
+		nSep = nSep+1
+		i3 = InStr(s3,cExcludeSeperator)
+		If i3>0 Then
+			s3 = Mid(s3, i3+i4)
+		Else
+			s3 = ""
+		End If
+	Wend
+
+	Dim iii As Long, icount As Long
+
+	Dim aField() As String, s2array() As String
+	Dim n2D3DFields As Integer, bTakeThisLine As Boolean
+
+	GetAll2D3DResults(s2array(), n2D3DFields, sFilterQuery)
+
+	icount = 0
+	For iii = 0 To n2D3DFields-1
+		bTakeThisLine = True
+		For i3=1 To nSep
+			If ((s2array(iii) = "") Or (InStr(s2array(iii),Split(sExcludeString,cExcludeSeperator)(i3-1)))) <> 0 Then
+				bTakeThisLine = False
+				Exit For
+			End If
+		Next
+		If bTakeThisLine Then
+			ReDim Preserve aField(icount)
+			aField(icount)=s2array(iii)
+			' ReportInformationToWindow(CStr(icount)+": "+aField(icount))
+			icount = icount + 1
+		End If
+	Next
+
+	Begin Dialog UserDialog 470,294,"Select Field" ' %GRID:10,3,1,1
+		OKButton 10,266,90,21
+		CancelButton 110,266,90,21
+		ListBox 12,9,440,255,aField(),.ListBox1
+	End Dialog
+	Dim dlg As UserDialog
+
+	If (Dialog(dlg) <> 0) Then
+		snewname = aField(dlg.ListBox1)
+	End If
+End Sub
+
+
+' -------------------------------------------------------------------------------------------------
+' DialogFunction: This function defines the dialog box behaviour. It is automatically called
+'                 whenever the user changes some settings in the dialog box, presses any button
+'                 or when the dialog box is initialized.
+' -------------------------------------------------------------------------------------------------
+Private Function DialogFunctionFrqTime2D3D(DlgItem$, Action%, SuppValue&) As Boolean
+	If (Action%=1) Or (Action%=2) Then
+
+		Dim bActive As Boolean
+		bActive = (DlgValue("GroupConstSweep")<>6)
+
+		DlgEnable "tfstepsize", bActive
+		DlgEnable "tflow", bActive
+		DlgEnable "tfhigh", bActive
+
+		If bActive Then
+
+			Dim nFrqTimeSweep As Integer
+			nFrqTimeSweep = DlgValue("GroupConstSweep")
+
+			If nFrqTimeSweep<3 Then
+				DlgText("Text2","Frequency =")
+			Else
+				DlgText("Text2","Time =")
+			End If
+
+			Select Case nFrqTimeSweep
+
+			Case 0,3 ' const
+				DlgEnable "tfstepsize", False
+				DlgEnable "tflow", True
+				DlgEnable "tfhigh", False
+
+			Case 1,4 ' sweep all
+				DlgEnable "tfstepsize", False
+				DlgEnable "tflow", False
+				DlgEnable "tfhigh", False
+
+			Case 2,5 ' sweep userdef
+				DlgEnable "tfstepsize", True
+				DlgEnable "tflow", True
+				DlgEnable "tfhigh", True
+
+			End Select
+		End If
+
+		If (DlgItem = "OK") Then
+			' The user pressed the Ok button. Check the settings and display an error message if some required
+			' fields have been left blank.
+
+			If (False) Then
+				MsgBox "0D Result template only works for constant frequency or time.", vbCritical
+				DialogFunctionFrqTime2D3D = True			' There is an error in the settings -> Don't close the dialog box.
+			End If
+		End If
+	End If
+End Function
+
+
+Sub PushSetFrqTime2D3D(sText As String)
+	Dim sDlgFrqTime As String
+	sDlgFrqTime="Frequency ="
+	Begin Dialog UserDialog 450,288,"Time/Frequency Settings",.DialogFunctionFrqTime2D3D ' %GRID:10,3,1,1
+		GroupBox 10,21,430,159,"",.GroupBox1
+		GroupBox 10,183,430,66,"",.GroupBox2
+		Text 10,6,430,15,"Note: only for results, containing multiple time or frequency samples.",.Text1
+		OKButton 10,258,90,21
+		CancelButton 110,258,90,21
+		OptionGroup .GroupConstSweep
+			OptionButton 30,54,150,12,"fixed frequency",.OptionButton1
+			OptionButton 30,75,400,12,"sweep frequency (evaluate all available samples/modes)",.OptionButton2
+			OptionButton 30,96,300,12,"sweep frequency (userdefined samples)",.OptionButton3
+			OptionButton 30,117,170,12,"fixed time",.OptionButton4
+			OptionButton 30,138,340,12,"sweep time (evaluate all available samples)",.OptionButton5
+			OptionButton 30,159,300,12,"sweep time (userdefined samples)",.OptionButton6
+			OptionButton 30,33,190,12,"currently displayed field",.OptionButton0 ' displayed on top in GUI, but must be at end of list in code to keep proper order, bwc
+		Text 30,222,90,15,sDlgFrqTime,.Text2
+		TextBox 130,216,90,21,.tflow
+		TextBox 230,216,90,21,.tfhigh
+		TextBox 330,216,90,21,.tfstepsize
+		Text 130,198,90,15,"From:",.Text3
+		Text 230,198,90,15,"To:",.Text4
+		Text 330,198,90,15,"Stepsize:",.Text5
+
+	End Dialog
+	Dim dlg As UserDialog
+
+	If (GetScriptSetting("CheckBoxFrqTimeActive", "0") = "0") Then ' Setting for old checkbox. If it has no setting or was off, currently displayed field is to be used
+		dlg.GroupConstSweep = 6
+	Else ' checkbox was active, use corresponding selection in list
+		dlg.GroupConstSweep =  CInt(GetScriptSetting("GroupConstSweep",0))
+	End If
+
+	dlg.tflow =  GetScriptSetting("tflow","0")
+	dlg.tfhigh =  GetScriptSetting("tfhigh","0")
+	dlg.tfstepsize =  GetScriptSetting("tfstepsize","0")
+
+	If (Dialog(dlg) <> 0) Then
+		StoreScriptSetting("GroupConstSweep", CStr(dlg.GroupConstSweep))
+		StoreScriptSetting("GroupConstSweep_ORIG", CStr(dlg.GroupConstSweep))  ' store this twice as a backup; needed since GroupConstSweep is modified dynamically in some cases
+
+		StoreScriptSetting("CheckBoxFrqTimeActive", CStr(IIf(dlg.GroupConstSweep = 6, 0, 1))) ' needs to be stored in this way for bwc, even if original checkbox does not exist anymore
+
+		StoreScriptSetting("tflow", dlg.tflow)
+		StoreScriptSetting("tfhigh", dlg.tfhigh)
+		StoreScriptSetting("tfstepsize", dlg.tfstepsize)
+
+		If dlg.GroupConstSweep = 6 Then
+			sText = ""
+		Else
+			Select Case dlg.GroupConstSweep
+			Case 0
+				sText = "frq = "+dlg.tflow
+			Case 1
+				sText = "frq-sweep all"
+			Case 2
+				sText = "frq-sweep userdef"
+			Case 3
+				sText = "time = "+dlg.tflow
+			Case 4
+				sText = "time-sweep all"
+			Case 5
+				sText = "time-sweep userdef"
+			End Select
+		End If
+	End If
+End Sub
+
+
+Function Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB(ByRef sResultKey As String, ByRef sFunctionName As String, Optional ByRef ncount As Long, Optional dFrequency As Double) As Object
+	' This function will take a function (typically Evaluate0D Or Evaluate1D) and a tree entry as input.
+	' It will then go through all frequencies of all tree entries with the same signature as stored in sResultKey, evaluate sFunctionName and return the result as a 1D object
+	' sResultSignature needs to contain '(f=' to flag the frequency or '(wl=' or '(lambda=' to flag the wavelength or "\Mode " to flag an eigenmode
+	' sResultKey is the name of the script setting that sResultSignature is stored under
+	' ncount from within the EvaluateMultiple framework
+	' dFreq will contain the frequency for EvaluateMultiple operations
+	' Use of the mechanism provided by PushSetFrqTime2D3D in this lib is assumed.
+
+	' Store name parts left and right of frequency entry in result name
+	Dim sResultSignature As String, sResultSignatureFull As String, sResultSignatureLeft As String, sResultSignatureRight As String
+	Dim sResultSignatureFolder As String, sCurrentTreeEntry As String
+	Dim sTag As String, sCloseTag As String, sTagValue As String
+	Dim sTitle As String ' this will be assigned as title to the return object
+
+	Dim EvaluateMultiple0DResults() As Object, sName As String, sTableNames() As String, i As Long, nM0DResults As Long
+
+	ReDim EvaluateMultiple0DResults(0)
+	ReDim sTableNames(0)
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	If (GetScriptSetting("CheckBoxFrqTimeActive", "0") = "0") Then
+		' frequency sweep should only be triggered if GroupConstSweep<>0 AND checkbox is active!
+		ReportError("CheckBoxFrqTimeActive is not active but this sweep function was called. Missing check?")
+	End If
+	If (GetScriptSetting("GroupConstSweep", "0") <> "1") Then
+		ReportError("This function should only be called for frequency sweep 'all frequencies'.")
+	Else
+		' temporarily switch to 'single frequency'
+		StoreScriptSetting("GroupConstSweep", "0")
+	End If
+
+	sResultSignature = GetScriptSetting(sResultKey, "EMPTY")
+	If (InStr(sResultSignature, "2D/3D Results\")<>1) Then
+		sResultSignatureFull = "2D/3D Results\" + sResultSignature
+	Else
+		sResultSignatureFull = sResultSignature
+	End If
+
+	If (InStr(sResultSignatureFull, "(f=")>0) Then
+		sTag = "(f="
+	ElseIf (InStr(sResultSignatureFull, "(wl=")>0) Then
+		sTag = "(wl="
+	ElseIf (InStr(sResultSignatureFull, "(lambda=")>0) Then
+		sTag = "(lambda="
+	ElseIf (InStr(sResultSignatureFull, "\Mode ")>0) Then
+		sTag = "\Mode "
+	Else
+		ReportError("Evaluate discrete monitors at all frequencies: Cannot find tag 'f=' or 'wl=' or 'lambda=' in monitor name.")
+	End If
+
+	' Determine closing of sTag; Usually, this should be ')'. For 2D monitors, it will be ';'. For Eigenmode modes, it will be "\"
+	If sTag = "\Mode " Then
+		sCloseTag = "\"
+	ElseIf ((InStr(InStr(sResultSignatureFull, sTag), sResultSignatureFull, ";") > 0) And (InStr(InStr(sResultSignatureFull, sTag), sResultSignatureFull, ";") < InStr(InStr(sResultSignatureFull, sTag), sResultSignatureFull, ")"))) Then
+		sCloseTag = ";"
+	Else
+		sCloseTag = ")"
+	End If
+
+	sResultSignatureFolder = Left(sResultSignatureFull, InStrRev(sResultSignatureFull, "\", InStr(sResultSignatureFull, sTag)))
+	sResultSignatureLeft = Split(sResultSignatureFull, sTag)(0)
+	sResultSignatureRight = Mid(Split(sResultSignatureFull, sTag)(1), InStr(Split(sResultSignatureFull, sTag)(1), sCloseTag) + 1)
+
+	' ReportInformationToWindow(sResultSignatureFolder & ":" & sResultSignatureLeft & ":" & sResultSignatureRight)
+
+	If (InStr(sFunctionName, "Complex")) Then
+		Set Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB = Result1DComplex("")
+	Else
+		Set Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB = Result1D("")
+	End If
+
+	' Go through all monitors; if name matches signature, perform evaluation and add to plot or return if ncount=nResultsFound
+	' Start at beginning only if ncount = 0 or 1 (0D or first 1D evaluation), or if signature does not match currently selected tree entry, e.g. if user clicked around in tree during macro execution
+	sCurrentTreeEntry = oSelectedSP.GetSelectedTreeItem()
+	If ((ncount < 2) Or (sResultSignatureLeft <> Split(sCurrentTreeEntry, sTag)(0))) Then
+		sCurrentTreeEntry = oSelectedSP.Resulttree.GetFirstChildName(sResultSignatureFolder)
+	End If
+	' When parsing eigenmodes, we need to parse one folder above the actual result level; it is then necessary to add the right part of the signature before checking if a valid tree entry has been found
+	If ((sTag = "\Mode ") And InStr(InStr(sCurrentTreeEntry, sTag) + 1, sCurrentTreeEntry, "\")=0) Then
+		' If the currently selected folder contains an entry matching the right signature, adjust sCurrentTreeEntry accordingly
+		sCurrentTreeEntry = IIf(oSelectedSP.Resulttree.DoesTreeItemExist(sCurrentTreeEntry & "\" & sResultSignatureRight), sCurrentTreeEntry & "\" & sResultSignatureRight, sCurrentTreeEntry)
+	End If
+	' ReportInformationToWindow(CStr(ncount) & ":" & sCurrentTreeEntry)
+	If ((InStr(sCurrentTreeEntry, sTag) = 0) Or (InStr(sCurrentTreeEntry, sCloseTag) = 0) Or (InStr(sCurrentTreeEntry, sResultSignatureLeft) = 0) Or (InStr(sCurrentTreeEntry, sResultSignatureRight) = 0) _
+		Or ((sCloseTag = ")") And (InStr(InStr(sCurrentTreeEntry, sTag)+1, sCurrentTreeEntry, ";") > 0) And (InStr(InStr(sCurrentTreeEntry, sTag)+1, sCurrentTreeEntry, ";") < InStr(InStr(sCurrentTreeEntry, sTag)+1, sCurrentTreeEntry, sCloseTag)))) Then
+		' Do nothing if any part of signature or tag are missing, or if there is an extra semicolon between sTag and sCloseTag
+	ElseIf ((ncount < 2) _
+		And (sResultSignatureLeft = Split(sCurrentTreeEntry, sTag)(0)) _
+		And (sResultSignatureRight = Mid(Split(sCurrentTreeEntry, sTag)(1), InStr(Split(sCurrentTreeEntry, sTag)(1), sCloseTag) + 1))) Then
+			sTagValue = Split(Split(sCurrentTreeEntry, sTag)(1), sCloseTag)(0)
+			If (sTag = "(f=") Then
+				dFrequency = Evaluate(sTagValue)
+				sTitle = CStr(Evaluate(sTagValue)) & " " & oSelectedSP.Units.GetUnit("Frequency")
+			ElseIf (sTag = "(wl=") Or (sTag = "(lambda=") Then
+				' remove unit tag, if present (macro adds this tag); need to divide/multiply with project units for cases where no unit tag is provided
+				sTitle = sTagValue
+				sTagValue = Replace(sTagValue, " nm", "*1e-9/" & CStr(oSelectedSP.Units.GetGeometryUnitToSI))
+				sTagValue = Replace(sTagValue, " um", "*1e-6/" & CStr(oSelectedSP.Units.GetGeometryUnitToSI))
+				sTagValue = Replace(sTagValue, " mm", "*1e-3/" & CStr(oSelectedSP.Units.GetGeometryUnitToSI))
+				sTagValue = Replace(sTagValue, " cm", "*1e-2/" & CStr(oSelectedSP.Units.GetGeometryUnitToSI))
+				sTagValue = Replace(sTagValue, " m", "*1/" & CStr(oSelectedSP.Units.GetGeometryUnitToSI))
+				If Len(sTitle) <> Len(sTagValue) Then sTitle = CStr(Evaluate(sTagValue)) & " " & oSelectedSP.Units.GetUnit("Length")
+				dFrequency = CLight/(Evaluate(sTagValue)*oSelectedSP.Units.GetGeometryUnitToSI)/oSelectedSP.Units.GetFrequencyUnitToSI
+			ElseIf (sTag = "\Mode ") Then
+				dFrequency = oSelectedSP.EigenmodeSolver.GetModeFrequencyInHz(sTagValue)/oSelectedSP.Units.GetFrequencyUnitToSI
+				sTitle = "Mode " & sTagValue
+			Else
+				ReportError("Discrete broadband samples: Unknown tag.")
+			End If
+			' sResultSignature might contain the full or reduced path, store value accordingly
+			If (InStr(sResultSignature, "2D/3D Results\")>0) Then
+				StoreScriptSetting(sResultKey, sCurrentTreeEntry)
+			Else
+				StoreScriptSetting(sResultKey, Replace(sCurrentTreeEntry, "2D/3D Results\", ""))
+			End If
+			SetGlobalData("CST_FREQ_SWEEP_DISCR_MONITORS_FREQ", dFrequency)
+			If (ncount=0) Then ' 0D->1D
+				SetGlobalData("CST_FREQ_SWEEP_DISCR_MONITORS_INDEX", Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB.GetN())
+				' This construction (CallByName) is necessary to ensure the library still works with files that do not have a function named according to sFunctionName (e.g., macros and Evaluate0D)
+				Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB.AppendXY(dFrequency, CallByName(Me, sFunctionName, vbMethod))
+			ElseIf (InStr(sFunctionName, "Evaluate1D")) Then ' 1D(C)->M1D(C)
+				SetGlobalData("CST_FREQ_SWEEP_DISCR_MONITORS_INDEX", ncount)
+				Set Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB = CallByName(Me, sFunctionName, vbMethod)
+				Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB.Title(sTitle)
+				StoreScriptSetting("GroupConstSweep", "1")
+				StoreScriptSetting(sResultKey, sResultSignature)
+				Exit Function
+			ElseIf ((ncount=1) And (InStr(sFunctionName, "EvaluateMultiple0D"))) Then ' M0D -> M1D
+				SetGlobalData("CST_FREQ_SWEEP_DISCR_MONITORS_INDEX", ncount)
+				' Extract all M0D curves for all frequencies when ncount = 1; release the first M1D curve immediately, then one with each increment of ncount
+				nM0DResults = 0
+				Do
+					nM0DResults = nM0DResults + 1
+					' First run, nM0DResults increases steadily -> Uncritical to always ReDim Preserve and create a new Result1D in new slot
+					ReDim Preserve EvaluateMultiple0DResults(nM0DResults)
+					Set EvaluateMultiple0DResults(nM0DResults) = Result1D("")
+					ReDim Preserve sTableNames(nM0DResults)
+					EvaluateMultiple0DResults(nM0DResults).AppendXY(dFrequency, CallByName(Me, sFunctionName, vbMethod, nM0DResults, sName, sTableNames(nM0DResults)))
+				Loop Until (sTableNames(nM0DResults) = "")
+			End If
+	End If
+	If ((sTag = "\Mode ") And InStr(InStr(sCurrentTreeEntry, sTag) + 1, sCurrentTreeEntry, "\")>0) Then
+		' Remove right signature again before parsing to next tree entry for EigenModes
+		sCurrentTreeEntry = Left(sCurrentTreeEntry & "\" & sResultSignatureRight, Len(sCurrentTreeEntry) - Len(sResultSignatureRight) - 1)
+	End If
+	' ReportInformationToWindow(CStr(ncount) & ":" & sCurrentTreeEntry & " (before while)")
+	While(oSelectedSP.Resulttree.GetNextItemName(sCurrentTreeEntry)<>"")
+		sCurrentTreeEntry = oSelectedSP.Resulttree.GetNextItemName(sCurrentTreeEntry)
+		' When parsing eigenmodes, we need to parse one folder above the actual result level; it is then necessary to add the right part of the signature before checking if a valid tree entry has been found
+		If ((sTag = "\Mode ") And InStr(InStr(sCurrentTreeEntry, sTag) + 1, sCurrentTreeEntry, "\")=0) Then
+			' If the currently selected folder contains an entry matching the right signature, adjust sCurrentTreeEntry accordingly
+			sCurrentTreeEntry = IIf(oSelectedSP.Resulttree.DoesTreeItemExist(sCurrentTreeEntry & "\" & sResultSignatureRight), sCurrentTreeEntry & "\" & sResultSignatureRight, sCurrentTreeEntry)
+		End If
+		' ReportInformationToWindow(CStr(ncount) & ":" & sCurrentTreeEntry & " (within while)")
+		If ((InStr(sCurrentTreeEntry, sTag) = 0) Or (InStr(sCurrentTreeEntry, sCloseTag) = 0) Or (InStr(sCurrentTreeEntry, sResultSignatureLeft) = 0) Or (InStr(sCurrentTreeEntry, sResultSignatureRight) = 0) _
+			Or ((sCloseTag = ")") And (InStr(InStr(sCurrentTreeEntry, sTag)+1, sCurrentTreeEntry, ";") > 0) And (InStr(InStr(sCurrentTreeEntry, sTag)+1, sCurrentTreeEntry, ";") < InStr(InStr(sCurrentTreeEntry, sTag)+1, sCurrentTreeEntry, sCloseTag)))) Then
+			' Do nothing if any part of signature or tag are missing, or if there is an extra semicolon between sTag and sCloseTag
+		ElseIf ((sResultSignatureLeft = Split(sCurrentTreeEntry, sTag)(0)) _
+			And (sResultSignatureRight = Mid(Split(sCurrentTreeEntry, sTag)(1), InStr(Split(sCurrentTreeEntry, sTag)(1), sCloseTag) + 1))) Then
+			sTagValue = Split(Split(sCurrentTreeEntry, sTag)(1), sCloseTag)(0)
+			If (sTag = "(f=") Then
+				dFrequency = Evaluate(sTagValue)
+				sTitle = CStr(Evaluate(sTagValue)) & " " & oSelectedSP.Units.GetUnit("Frequency")
+			ElseIf (sTag = "(wl=") Or (sTag = "(lambda=") Then
+				' remove unit tag, if present (macro adds this tag); need to divide/multiply with project units for cases where no unit tag is provided
+				sTitle = sTagValue
+				sTagValue = Replace(sTagValue, " nm", "*1e-9/" & CStr(oSelectedSP.Units.GetGeometryUnitToSI))
+				sTagValue = Replace(sTagValue, " um", "*1e-6/" & CStr(oSelectedSP.Units.GetGeometryUnitToSI))
+				sTagValue = Replace(sTagValue, " mm", "*1e-3/" & CStr(oSelectedSP.Units.GetGeometryUnitToSI))
+				sTagValue = Replace(sTagValue, " cm", "*1e-2/" & CStr(oSelectedSP.Units.GetGeometryUnitToSI))
+				sTagValue = Replace(sTagValue, " m", "*1/" & CStr(oSelectedSP.Units.GetGeometryUnitToSI))
+				If Len(sTitle) <> Len(sTagValue) Then sTitle = CStr(Evaluate(sTagValue)) & " " & oSelectedSP.Units.GetUnit("Length")
+				dFrequency = CLight/(Evaluate(sTagValue)*oSelectedSP.Units.GetGeometryUnitToSI)/oSelectedSP.Units.GetFrequencyUnitToSI
+			ElseIf (sTag = "\Mode ") Then
+				dFrequency = oSelectedSP.EigenmodeSolver.GetModeFrequencyInHz(sTagValue)/oSelectedSP.Units.GetFrequencyUnitToSI
+				sTitle = "Mode " & sTagValue
+			Else
+				ReportError("Discrete broadband samples: Unknown tag.")
+			End If
+			' sResultSignature might contain the full or reduced path, store value accordingly
+			If (InStr(sResultSignature, "2D/3D Results\")>0) Then
+				StoreScriptSetting(sResultKey, sCurrentTreeEntry)
+			Else
+				StoreScriptSetting(sResultKey, Replace(sCurrentTreeEntry, "2D/3D Results\", ""))
+			End If
+			SetGlobalData("CST_FREQ_SWEEP_DISCR_MONITORS_FREQ", dFrequency)
+			If (ncount=0) Then ' 0D->1D
+				SetGlobalData("CST_FREQ_SWEEP_DISCR_MONITORS_INDEX", Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB.GetN())
+				' This construction (CallByName) is necessary to ensure the library still works with files that do not have a function named according to sFunctionName (e.g., macros and Evaluate0D)
+				Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB.AppendXY(dFrequency, CallByName(Me, sFunctionName, vbMethod))
+			ElseIf (InStr(sFunctionName, "Evaluate1D")) Then ' 1D(C)->M1D(C)
+				SetGlobalData("CST_FREQ_SWEEP_DISCR_MONITORS_INDEX", ncount)
+				Set Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB = CallByName(Me, sFunctionName, vbMethod)
+				StoreScriptSetting("GroupConstSweep", "1")
+				StoreScriptSetting(sResultKey, sResultSignature)
+				Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB.Title(sTitle)
+				Exit Function
+			ElseIf ((ncount=1) And (InStr(sFunctionName, "EvaluateMultiple0D"))) Then ' M0D -> M1D
+				SetGlobalData("CST_FREQ_SWEEP_DISCR_MONITORS_INDEX", ncount)
+				' Extract all M0D curves for all frequencies when ncount = 1; release the first M1D curve immediately, then one with each increment of ncount
+				nM0DResults = 0
+				Do
+					nM0DResults = nM0DResults + 1
+					' Only define new object if array size increased to avoid resetting existing results
+					If (UBound(EvaluateMultiple0DResults) < nM0DResults) Then
+						ReDim Preserve EvaluateMultiple0DResults(nM0DResults)
+						Set EvaluateMultiple0DResults(nM0DResults) = Result1D("")
+						ReDim Preserve sTableNames(nM0DResults)
+					End If
+					EvaluateMultiple0DResults(nM0DResults).AppendXY(dFrequency, CallByName(Me, sFunctionName, vbMethod, nM0DResults, sName, sTableNames(nM0DResults)))
+				Loop Until (sTableNames(nM0DResults) = "")
+			End If
+		End If
+		If GetTemplateAborted Then Exit While
+		If ((sTag = "\Mode ") And InStr(InStr(sCurrentTreeEntry, sTag) + 1, sCurrentTreeEntry, "\")>0) Then
+			' Remove right signature again before parsing to next tree entry for EigenModes
+			sCurrentTreeEntry = Left(sCurrentTreeEntry & "\" & sResultSignatureRight, Len(sCurrentTreeEntry) - Len(sResultSignatureRight) - 1)
+		End If
+	Wend
+
+	' For M0D->M1D case, store all results and return the first for ncount = 1; after that, load and return one result at a time
+	If (InStr(sFunctionName, "EvaluateMultiple0D")) Then
+		If (ncount = 1) Then
+			StoreScriptSetting("M0DTableName_1", sTableNames(1))
+			Set Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB = EvaluateMultiple0DResults(1)
+			For i = 2 To UBound(sTableNames)
+				StoreScriptSetting("M0DTableName_" & CStr(i), sTableNames(i))
+				EvaluateMultiple0DResults(i).Save(GetProjectPath("Result") & "EvaluateMultiple0D_" & CStr(i))
+			Next
+		Else
+			If (GetScriptSetting("M0DTableName_" & CStr(ncount), "") <> "") Then
+				Set Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB = Result1D(GetProjectPath("Result") & "EvaluateMultiple0D_" & CStr(ncount))
+			Else
+				Set Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB = Nothing ' Needs to be set explicitly to Nothing; otherwise, at least an empty object will exist
+			End If
+		End If
+		Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB.Title(sTitle)
+	ElseIf ((oSelectedSP.Resulttree.GetNextItemName(sCurrentTreeEntry)="") And (ncount>0)) Then
+		' Return 'Nothing' if end of tree entries was reached and EvaluateMultiple1D(C)
+		Set Evaluate0D1DCForAllDiscreteMonitorFrequencies_LIB = Nothing
+	End If
+
+	' Switch back to 'all frequencies', restore original sResultKey value
+	StoreScriptSetting("GroupConstSweep", GetScriptSetting("GroupConstSweep_ORIG", "1"))
+	StoreScriptSetting(sResultKey, sResultSignature)
+End Function
+
+
+Function Select2D3DFieldInTree(s2D3DField As String, bScalar As Boolean, sfrqtime As String, dvalue As Double, Optional nResultMapID As Long) As Boolean
+	' dvalue is given in project units, not in SI-units!
+	' ResultMapID is used to return the result map ID
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	If (GetTemplateAborted) Then
+		Exit Function
+	End If
+
+	oSelectedSP.Mesh.ViewMeshMode  False
+
+	If Not oSelectedSP.GetSelectedTreeItem = "2D/3D Results\"+ s2D3DField Then
+		If (Not oSelectedSP.SelectTreeItem("2D/3D Results\"+ s2D3DField)) Then
+			ReportWarning sWarningTemplateName + "Result not available: 2D/3D Results\"+ s2D3DField
+			Select2D3DFieldInTree = False
+			Exit Function
+		End If
+	End If
+
+	oSelectedSP.Plot3DPlotsOn2DPlane False
+	bScalar = bScalarField(s2D3DField)
+
+	' FSR: Outsourced the following functionality into a separate function. This way, the samples can be set/determined without the need to select the field first
+	Select2D3DFieldInTree = Set2D3DFreqOrTimeSample(s2D3DField, bScalar, sfrqtime, dvalue, nResultMapID)
+End Function
+
+
+Function Set2D3DFreqOrTimeSample(s2D3DField As String, bScalar As Boolean, sfrqtime As String, dvalue As Double, nResultMapID As Long) As Boolean
+	Dim dfreqValue As Double, dTimeValue As Double, i As Long
+	Dim sListOfMapParameters As String, nNumberOfMapParameters As Long
+	Dim dPhaseXValue As Double, dPhaseYValue As Double, dThetaValue As Double, dPhiValue As Double
+	Dim nTempValue As Long
+
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(GetScriptSetting("SPName", ""))
+
+	nResultMapID = -1 ' no valid ID
+
+	Select Case sfrqtime
+		Case "frq"
+			dfreqValue = dvalue*oSelectedSP.Units.GetFrequencyUnitToSI
+			With oSelectedSP.ResultMap("")
+				.LoadFrequencyList(oSelectedSP.ResultTree.GetFileFromTreeItem("2D/3D Results\"+ s2D3DField)) ' 12/6/2018 fsr: When called through an object, ResultMap needs this explicit Load call to initialize properly
+				If .IsValid Then
+					If (.GetItemCount < 1) Then
+						ReportError("Set2D3DFreqOrTimeSample: ResultMap does not contain any results.")
+					End If
+					sListOfMapParameters = .GetItemParameters(1)
+					nNumberOfMapParameters = UBound(Split(sListOfMapParameters, ";")) + 1
+
+					.BeginSearch
+					If ((nNumberOfMapParameters = 1) And (InStr(sListOfMapParameters, "Frequency") > 0)) Then
+						.AddSearchParameter "Frequency", dfreqValue, dfreqValue*1e-5  ' tolerance is 1e-5
+					ElseIf ((nNumberOfMapParameters = 3) And (InStr(sListOfMapParameters, "Frequency") > 0) And (InStr(sListOfMapParameters, "PhaseX") > 0) And (InStr(sListOfMapParameters, "PhaseY") > 0)) Then
+						' 6/24/16 FSR: Currently, PhaseX and PhaseY should always have the same combination of values in a result map
+						dPhaseXValue = Evaluate(Mid(sListOfMapParameters, InStr(sListOfMapParameters, "PhaseX=")+7, IIf(InStr(InStr(sListOfMapParameters, "PhaseX=")+7, sListOfMapParameters, ";") > 0, InStr(InStr(sListOfMapParameters, "PhaseX=")+7, sListOfMapParameters, ";")-InStr(sListOfMapParameters, "PhaseX=")-7, Len(sListOfMapParameters))))
+						dPhaseYValue = Evaluate(Mid(sListOfMapParameters, InStr(sListOfMapParameters, "PhaseY=")+7, IIf(InStr(InStr(sListOfMapParameters, "PhaseY=")+7, sListOfMapParameters, ";") > 0, InStr(InStr(sListOfMapParameters, "PhaseY=")+7, sListOfMapParameters, ";")-InStr(sListOfMapParameters, "PhaseY=")-7, Len(sListOfMapParameters))))
+						.AddSearchParameter "Frequency", dfreqValue, dfreqValue*1e-5  ' tolerance is 1e-5
+						.AddSearchParameter "PhaseX", dPhaseXValue, dPhaseXValue*1e-5  ' tolerance is 1e-5
+						.AddSearchParameter "PhaseY", dPhaseYValue, dPhaseYValue*1e-5  ' tolerance is 1e-5
+					ElseIf ((nNumberOfMapParameters = 3) And (InStr(sListOfMapParameters, "Frequency") > 0) And (InStr(sListOfMapParameters, "Theta") > 0) And (InStr(sListOfMapParameters, "Phi") > 0)) Then
+						' 6/24/16 FSR: Currently, Theta and Phi should always have the same comvination of values in a result map
+						' Extract values from current solver settings
+						If Not (oSelectedSP.Boundary.GetUnitCellScanAngle(dThetaValue, dPhiValue, nTempValue)) Then
+							' fall back: read values from parameter list
+							dThetaValue = Evaluate(Mid(sListOfMapParameters, InStr(sListOfMapParameters, "Theta=")+7, IIf(InStr(InStr(sListOfMapParameters, "Theta=")+7, sListOfMapParameters, ";") > 0, InStr(InStr(sListOfMapParameters, "Theta=")+7, sListOfMapParameters, ";")-InStr(sListOfMapParameters, "Theta=")-7, Len(sListOfMapParameters))))
+							dPhiValue = Evaluate(Mid(sListOfMapParameters, InStr(sListOfMapParameters, "Phi=")+7, IIf(InStr(InStr(sListOfMapParameters, "Phi=")+7, sListOfMapParameters, ";") > 0, InStr(InStr(sListOfMapParameters, "Phi=")+7, sListOfMapParameters, ";")-InStr(sListOfMapParameters, "Phi=")-7, Len(sListOfMapParameters))))
+						End If
+						.AddSearchParameter "Frequency", dfreqValue, dfreqValue*1e-5  ' tolerance is 1e-5
+						.AddSearchParameter "Theta", dThetaValue, dThetaValue*1e-5  ' tolerance is 1e-5
+						.AddSearchParameter "Phi", dPhiValue, dPhiValue*1e-5  ' tolerance is 1e-5
+					End If
+					i = .FindItem
+
+					If 0 < i Then
+						.SelectItem i
+						nResultMapID = i
+					ElseIf ((nNumberOfMapParameters = 1) And (dvalue=0))Then
+						' If there is only 1 sample and dvalue = 0, which happens if the user did not select a specific frequency, take the existing sample
+						.SelectItem 1
+						nResultMapID = 1
+					Else
+						nResultMapID = 0 ' no match found in search
+					End If
+				Else
+					' FSR 11/04/2013: This warning should be omitted now, since freq sweeps for discrete monitors are supported
+					' ReportWarning sWarningTemplateName + "Result map is invalid, or none has been selected."
+				End If
+			End With
+		Case "time"
+			dTimeValue = dvalue*oSelectedSP.Units.GetTimeUnitToSI
+			With oSelectedSP.ResultMap("")
+				.LoadFrequencyList(oSelectedSP.ResultTree.GetFileFromTreeItem("2D/3D Results\"+ s2D3DField)) ' 12/6/2018 fsr: When called through an object, ResultMap needs this explicit Load call to initialize properly
+				If .IsValid Then
+					.BeginSearch
+					.AddSearchParameter "Time", dTimeValue, dTimeValue*1e-5  ' tolerance is 1e-5
+					i = .FindItem
+					If 0 < i Then
+						.SelectItem i
+						nResultMapID = i
+					ElseIf ((nNumberOfMapParameters = 1) And (dvalue=0))Then
+						' If there is only 1 sample and dvalue = 0, which happens if the user did not select a specific frequency, take the existing sample
+						.SelectItem 1
+						nResultMapID = 1
+					Else
+						nResultMapID = 0 ' no match found in search
+					End If
+				Else
+					' Field needs to be selected in this case
+					If Not oSelectedSP.GetSelectedTreeItem = "2D/3D Results\"+ s2D3DField Then
+						If (Not oSelectedSP.SelectTreeItem("2D/3D Results\"+ s2D3DField)) Then
+							ReportWarning sWarningTemplateName + "Result not available: 2D/3D Results\"+ s2D3DField
+							Set2D3DFreqOrTimeSample = False
+							Exit Function
+						End If
+					End If
+					oSelectedSP.Plot2D3D.SetTime dvalue
+					nResultMapID = -2 ' signal that this is a t3D plot
+				End If
+			End With
+	End Select
+	Set2D3DFreqOrTimeSample = True
+End Function
+
+
+Sub SelectSolids(aSolidArray_LIB() As String, nSolids_LIB As Integer)
+	' Wrapper for bwc
+	SelectSolids_LIB(aSolidArray_LIB(), nSolids_LIB)
+End Sub
+
+
+Sub SelectSolids_LIB(aSolidArray_LIB() As String, nSolids_LIB As Integer)
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	Dim cst_button     As Integer
+	Dim cst_Operation  As String
+	Dim bPreferShapes  As Boolean
+	Dim cst_index      As Long
+	Dim cst_iii        As Long
+	Dim lNumShapes     As Long
+	Dim lSelectIndex   As Long
+	Dim lUnSelectIndex As Long
+	Dim sCompBaseName  As String
+	Dim cst_solid      As String
+	Dim bSelected      As Boolean
+
+	Dim cst_solid_select_name()    As String
+	Dim cst_solid_unselect_name()  As String
+	Dim cst_solid_tree_selection() As String
+
+	ReDim cst_solid_select_name(0)
+	ReDim cst_solid_unselect_name(0)
+
+	sCompBaseName = "Components\"
+
+	For cst_index = 1 To oSelectedSP.Solid.GetNumberOfShapes()
+		cst_solid = oSelectedSP.Solid.GetNameOfShapeFromIndex(cst_index-1)
+		bSelected = False
+		For cst_iii = 1 To nSolids_LIB
+			If (cst_solid = aSolidArray_LIB(cst_iii-1)) Then
+				bSelected = True
+				Exit For
+			End If
+		Next cst_iii
+
+		If bSelected Then
+			' The entry at index "0" will not be used
+			ReDim Preserve cst_solid_select_name(UBound(cst_solid_select_name) + 1)
+			cst_solid_select_name(UBound(cst_solid_select_name)) = cst_solid
+		Else
+			' The entry at index "0" will not be used
+			ReDim Preserve cst_solid_unselect_name(UBound(cst_solid_unselect_name) + 1)
+			cst_solid_unselect_name(UBound(cst_solid_unselect_name)) = cst_solid
+		End If
+	Next
+	' fsr: A check
+	If (nSolids_LIB <> UBound(cst_solid_select_name)) Then ReportWarningToWindow("SelectSolids: inconsistent solid count (expected "+CStr(nSolids_LIB)+", found "+Cstr(UBound(cst_solid_select_name))+"), please contact support.")
+
+	Begin Dialog UserDialog 1350, 320, "Selected Solids" ',.SelectedSolidsDialogFunc ' %GRID:10,7,1,1
+		GroupBox      10,   7, 1330, 219, "Selection",               .GBSelection
+		Text          20,  23, 120,   14, "Unselected",              .LabelSource
+		ComboBox      20,  37, 600,  189, cst_solid_unselect_name(), .Unselect_box
+		PushButton   640,  65,  70,   28, "=====>",                  .AddAll
+		PushButton   640, 100,  70,   28, "----->",                  .Add
+		PushButton   640, 135,  70,   28, "<-----",                  .Remove
+		PushButton   640, 170,  70,   28, "<=====",                  .RemoveAll
+		Text         730,  23,  90,   14, "Selected",                .LabelTarget
+		ComboBox     730,  37, 600,  189, cst_solid_select_name(),   .Select_box
+
+		GroupBox      10, 226, 1330,  63, "Navigation tree options", .GBNavigationTree
+		Text          20, 242, 297,   14, "Copy over selection from Navigation Tree (NT):", .TSelectFromTree
+		PushButton   320, 239, 100,   21, "Copy from NT",            .CopyFromNT
+
+		'Text         400, 242, 218,   14, "In case of naming conflicts, prefer", .TNamingConflict
+		'OptionGroup                                                  .OGNamingConflict
+		'OptionButton 620, 242,  70,   14, "shapes",                  .OBNamingConflictShapes
+		'OptionButton 700, 242, 100,   14, "components",              .OBNamingConflictComponents
+
+		Text          20, 266, 297,   14, "Copy over selection to Navigation Tree (NT):",   .TSelectionToTree
+		PushButton   320, 263, 100,   21, "Copy to NT",              .CopyToNT
+
+		OKButton      20, 294,  90,   21
+		CancelButton 120, 294,  90,   21
+		PushButton   240, 205,   1,    1, "hiddenPB",                .hiddenPB
+	End Dialog
+	Dim dlg_Solid_CST As UserDialog
+
+	cst_Operation = ""
+
+	Do
+		cst_button = Dialog(dlg_Solid_CST,7)	' use button 7 (hiddenPB) as default, for double mouse click
+
+		Select Case cst_button
+			Case -1		' OK
+				cst_Operation = "OK"
+
+			Case 1		' ====> add all probes
+				If (UBound(cst_solid_unselect_name) = 0) Then
+					' Do nothing, nothing to add from
+				Else
+					ReDim Preserve cst_solid_select_name(UBound(cst_solid_select_name)+UBound(cst_solid_unselect_name))
+					For cst_iii = 1 To UBound(cst_solid_unselect_name)
+						cst_solid_select_name(UBound(cst_solid_select_name)-UBound(cst_solid_unselect_name)+cst_iii) = cst_solid_unselect_name(cst_iii)
+					Next
+					dlg_Solid_CST.Unselect_box = ""
+					ReDim cst_solid_unselect_name(0)
+				End If
+
+			Case 2		' ----> add only one probe
+				If (UBound(cst_solid_unselect_name) = 0) Then
+					' Do nothing, nothing to add from
+				ElseIf(dlg_Solid_CST.Unselect_box = "") Then
+					dlg_Solid_CST.Unselect_box = cst_solid_unselect_name(1)
+				Else
+					' expand "Select" array
+					ReDim Preserve cst_solid_select_name(UBound(cst_solid_select_name)+1)
+					cst_solid_select_name(UBound(cst_solid_select_name)) = dlg_Solid_CST.Unselect_box
+					For cst_iii = 1 To UBound(cst_solid_unselect_name)-1
+						' Once the matching item has been found, replace it and every following item by the next item in the array
+						If ((cst_solid_unselect_name(cst_iii) = dlg_Solid_CST.Unselect_box) Or (dlg_Solid_CST.Unselect_box="")) Then
+							cst_solid_unselect_name(cst_iii) = cst_solid_unselect_name(cst_iii+1)
+							dlg_Solid_CST.Unselect_box = ""
+						End If
+					Next
+					' chop "Unselect" array
+					ReDim Preserve cst_solid_unselect_name(UBound(cst_solid_unselect_name)-1)
+					dlg_Solid_CST.Unselect_box = ""
+				End If
+
+			Case 3	' <----
+				If (UBound(cst_solid_select_name) = 0) Then
+					' Do nothing, nothing to remove from
+				ElseIf(dlg_Solid_CST.Select_box = "") Then
+					dlg_Solid_CST.Select_box = cst_solid_select_name(1)
+				Else
+					' expand "unselect" array
+					ReDim Preserve cst_solid_unselect_name(UBound(cst_solid_unselect_name)+1)
+					cst_solid_unselect_name(UBound(cst_solid_unselect_name)) = dlg_Solid_CST.Select_box
+					For cst_iii = 1 To UBound(cst_solid_select_name)-1
+						' Once the matching item has been found, replace it and every following item by the next item in the array
+						If ((cst_solid_select_name(cst_iii) = dlg_Solid_CST.Select_box) Or (dlg_Solid_CST.Select_box="")) Then
+							cst_solid_select_name(cst_iii) = cst_solid_select_name(cst_iii+1)
+							dlg_Solid_CST.Select_box = ""
+						End If
+					Next
+					' chop "select" array
+					ReDim Preserve cst_solid_select_name(UBound(cst_solid_select_name)-1)
+					dlg_Solid_CST.Select_box = ""
+				End If
+
+			Case 4	' <====
+				If (UBound(cst_solid_select_name) = 0) Then
+					' Do nothing, nothing to remove from
+				Else
+					ReDim Preserve cst_solid_unselect_name(UBound(cst_solid_unselect_name)+UBound(cst_solid_select_name))
+					For cst_iii = 1 To UBound(cst_solid_select_name)
+						cst_solid_unselect_name(UBound(cst_solid_unselect_name)-UBound(cst_solid_select_name)+cst_iii) = cst_solid_select_name(cst_iii)
+					Next
+					dlg_Solid_CST.Select_box = ""
+					ReDim cst_solid_select_name(0)
+				End If
+
+			Case 5	' Copy over selection from tree
+				' First of all, empty selection in preparation for copy process
+				If (UBound(cst_solid_select_name) = 0) Then
+					' Do nothing, nothing to remove from
+				Else
+					ReDim Preserve cst_solid_unselect_name(UBound(cst_solid_unselect_name)+UBound(cst_solid_select_name))
+					For cst_iii = 1 To UBound(cst_solid_select_name)
+						cst_solid_unselect_name(UBound(cst_solid_unselect_name)-UBound(cst_solid_select_name)+cst_iii) = cst_solid_select_name(cst_iii)
+					Next
+					dlg_Solid_CST.Select_box = ""
+					ReDim cst_solid_select_name(0)
+				End If
+				' At this point, selection has been cleared - now take over selection from navigation tree.
+				lNumShapes = GetAllSelectedShapes_LIB(cst_solid_tree_selection, bPreferShapes)
+
+				' prepare arrays etc.
+				lSelectIndex   = 0
+				lUnSelectIndex = 0
+				ReDim cst_solid_select_name(lNumShapes)
+				ReDim cst_solid_unselect_name(oSelectedSP.Solid.GetNumberOfShapes() - lNumShapes)
+
+				' assign shapes based on cst_solid_tree_selection
+				For cst_index = 1 To oSelectedSP.Solid.GetNumberOfShapes() Step 1
+					cst_solid = oSelectedSP.Solid.GetNameOfShapeFromIndex(cst_index-1)
+					bSelected = False
+					For cst_iii = 0 To UBound(cst_solid_tree_selection) Step 1
+						If cst_solid = cst_solid_tree_selection(cst_iii) Then
+							bSelected = True
+							Exit For
+						End If
+					Next cst_iii
+
+					If bSelected Then
+						lSelectIndex = lSelectIndex + 1 ' The entry at index "0" will not be used (for cst_solid_select_name)
+						cst_solid_select_name(lSelectIndex) = cst_solid
+					Else
+						lUnSelectIndex = lUnSelectIndex + 1 ' The entry at index "0" will not be used (for cst_solid_unselect_name)
+						cst_solid_unselect_name(lUnSelectIndex) = cst_solid
+					End If
+				Next cst_index
+
+			Case 6	' Copy selection over to tree
+				' No changes to cst_solid_select_name / cst_solid_unselect_name - just the selection in the tree...
+				If UBound(cst_solid_select_name) < 1 Then
+					' No shapes to select... Make sure nothing is selected...
+					oSelectedSP.Component.SelectTreeItem("Components", False)
+					oSelectedSP.Component.SelectTreeItem("Components", True)
+				Else
+					' Select first treeitem
+					cst_solid = cst_solid_select_name(1)
+					cst_solid = sCompBaseName & Replace(Replace(cst_solid, "/", "\"), ":", "\") ' switch naming scheme...
+					oSelectedSP.SelectTreeItem(cst_solid)
+					If UBound(cst_solid_select_name) > 1 Then
+						For cst_index = 2 To UBound(cst_solid_select_name) Step 1
+							cst_solid = cst_solid_select_name(cst_index)
+							cst_solid = sCompBaseName & Replace(Replace(cst_solid, "/", "\"), ":", "\") ' switch naming scheme...
+							oSelectedSP.SelectAdditionalTreeItem(cst_solid)
+						Next cst_index
+					End If
+				End If
+
+			Case 7 ' hidden button for double mouse click
+				If (dlg_Solid_CST.Unselect_box <> "") Then
+					If (UBound(cst_solid_unselect_name) = 0) Then
+						' Do nothing, nothing to add from
+					Else
+						' expand "Select" array
+						ReDim Preserve cst_solid_select_name(UBound(cst_solid_select_name)+1)
+						cst_solid_select_name(UBound(cst_solid_select_name)) = dlg_Solid_CST.Unselect_box
+						For cst_iii = 1 To UBound(cst_solid_unselect_name)-1
+							' Once the matching item has been found, replace it and every following item by the next item in the array
+							If ((cst_solid_unselect_name(cst_iii) = dlg_Solid_CST.Unselect_box) Or (dlg_Solid_CST.Unselect_box="")) Then
+								cst_solid_unselect_name(cst_iii) = cst_solid_unselect_name(cst_iii+1)
+								dlg_Solid_CST.Unselect_box = ""
+							End If
+						Next
+						' chop "Unselect" array
+						ReDim Preserve cst_solid_unselect_name(UBound(cst_solid_unselect_name)-1)
+						dlg_Solid_CST.Unselect_box = ""
+					End If
+				ElseIf (dlg_Solid_CST.Select_box <> "") Then
+					If (UBound(cst_solid_select_name) = 0) Then
+						' Do nothing, nothing to remove from
+					Else
+						' expand "unselect" array
+						ReDim Preserve cst_solid_unselect_name(UBound(cst_solid_unselect_name)+1)
+						cst_solid_unselect_name(UBound(cst_solid_unselect_name)) = dlg_Solid_CST.Select_box
+						For cst_iii = 1 To UBound(cst_solid_select_name)-1
+							' Once the matching item has been found, replace it and every following item by the next item in the array
+							If ((cst_solid_select_name(cst_iii) = dlg_Solid_CST.Select_box) Or (dlg_Solid_CST.Select_box="")) Then
+								cst_solid_select_name(cst_iii) = cst_solid_select_name(cst_iii+1)
+								dlg_Solid_CST.Select_box = ""
+							End If
+						Next
+						' chop "select" array
+						ReDim Preserve cst_solid_select_name(UBound(cst_solid_select_name)-1)
+						dlg_Solid_CST.Select_box = ""
+					End If
+				Else
+					' Do nothing
+				End If
+			Case Else		' Cancel
+				cst_Operation = "Quit"
+		End Select
+
+	Loop Until (cst_Operation <> "")
+
+	If cst_Operation = "OK" Then
+		' only update external solid-array, if OK is pressed, Cancel leaves array unchanged
+		nSolids_LIB = UBound(cst_solid_select_name)
+		If (nSolids_LIB > 0) Then
+			ReDim aSolidArray_LIB(nSolids_LIB-1)
+			For cst_iii = 1 To nSolids_LIB
+				aSolidArray_LIB(cst_iii-1) = cst_solid_select_name(cst_iii)
+			Next
+		End If
+	End If
+End Sub
+
+
+Sub SelectMaterials_LIB(aMaterialArray_LIB() As String, nMaterials_LIB As Integer)
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+	
+	Dim cst_button As Integer
+	Dim cst_Operation As String
+	Dim cst_index As Long
+	Dim cst_iii As Long
+
+	Dim cst_Material_select_name() As String
+	Dim cst_Material_unselect_name() As String
+
+	Dim cst_Material As String
+	Dim bSelected As Boolean
+
+	ReDim cst_Material_select_name(0)
+	ReDim cst_Material_unselect_name(0)
+
+	For cst_index = 1 To oSelectedSP.Material.GetNumberOfMaterials
+		cst_Material = oSelectedSP.Material.GetNameOfMaterialFromIndex (cst_index-1)
+		bSelected = False
+		For cst_iii = 1 To nMaterials_LIB
+			If (cst_Material = aMaterialArray_LIB(cst_iii-1)) Then
+				bSelected = True
+				Exit For
+			End If
+		Next cst_iii
+
+		If bSelected Then
+			' The entry at index "0" will not be used
+			ReDim Preserve cst_Material_select_name(UBound(cst_Material_select_name) + 1)
+			cst_Material_select_name(UBound(cst_Material_select_name)) = cst_Material
+		Else
+			' The entry at index "0" will not be used
+			ReDim Preserve cst_Material_unselect_name(UBound(cst_Material_unselect_name) + 1)
+			cst_Material_unselect_name(UBound(cst_Material_unselect_name)) = cst_Material
+		End If
+	Next
+	' fsr: A check
+	If (nMaterials_LIB <> UBound(cst_Material_select_name)) Then ReportWarningToWindow("SelectMaterials: inconsistent Material count (expected "+CStr(nMaterials_LIB)+", found "+Cstr(UBound(cst_Material_select_name))+"), please contact support.")
+
+	Begin Dialog UserDialog 550,238,"Selected Materials" ',.SelectedMaterialsDialogFunc ' %GRID:10,7,1,1
+		Text 20,7,120,14,"Unselected",.LabelSource
+		ComboBox 20,21,200,189,cst_Material_unselect_name(),.Unselect_box
+		PushButton 240,49,70,28,"=====>",.AddAll
+		PushButton 240,84,70,28,"----->",.Add
+		PushButton 240,119,70,28,"<-----",.Remove
+		PushButton 240,154,70,28,"<=====",.RemoveAll
+		Text 330,7,90,14,"Selected",.LabelTarget
+		ComboBox 330,21,200,189,cst_Material_select_name(),.Select_box
+		OKButton 20,210,90,21
+		CancelButton 120,210,90,21
+		PushButton 240,189,1,1,"hiddenPB",.hiddenPB
+	End Dialog
+	Dim dlg_Material_CST As UserDialog
+
+	cst_Operation = ""
+
+	Do
+		cst_button = Dialog(dlg_Material_CST,5)	' use button 5 (hiddenPB) as default, for double mouse click
+
+		Select Case cst_button
+			Case -1		' OK
+				cst_Operation = "OK"
+				'
+			Case 1		' ====> add all probes
+				If (UBound(cst_Material_unselect_name) = 0) Then
+					' Do nothing, nothing to add from
+				Else
+					ReDim Preserve cst_Material_select_name(UBound(cst_Material_select_name)+UBound(cst_Material_unselect_name))
+					For cst_iii = 1 To UBound(cst_Material_unselect_name)
+						cst_Material_select_name(UBound(cst_Material_select_name)-UBound(cst_Material_unselect_name)+cst_iii) = cst_Material_unselect_name(cst_iii)
+					Next
+					dlg_Material_CST.unselect_box = ""
+					ReDim cst_Material_unselect_name(0)
+				End If
+				'
+			Case 2		' ----> add only one probe
+				If (UBound(cst_Material_unselect_name) = 0) Then
+					' Do nothing, nothing to add from
+				ElseIf(dlg_Material_CST.unselect_box = "") Then
+					dlg_Material_CST.unselect_box = cst_Material_unselect_name(1)
+				Else
+					' expand "Select" array
+					ReDim Preserve cst_Material_select_name(UBound(cst_Material_select_name)+1)
+					cst_Material_select_name(UBound(cst_Material_select_name)) = dlg_Material_CST.Unselect_box
+					For cst_iii = 1 To UBound(cst_Material_unselect_name)-1
+						' Once the matching item has been found, replace it and every following item by the next item in the array
+						If ((cst_Material_unselect_name(cst_iii) = dlg_Material_CST.unselect_box) Or (dlg_Material_CST.Unselect_box="")) Then
+							cst_Material_unselect_name(cst_iii) = cst_Material_unselect_name(cst_iii+1)
+							dlg_Material_CST.unselect_box = ""
+						End If
+					Next
+					' chop "Unselect" array
+					ReDim Preserve cst_Material_unselect_name(UBound(cst_Material_unselect_name)-1)
+					dlg_Material_CST.unselect_box = ""
+				End If
+				'
+			Case 3	' <----
+				If (UBound(cst_Material_select_name) = 0) Then
+					' Do nothing, nothing to remove from
+				ElseIf(dlg_Material_CST.select_box = "") Then
+					dlg_Material_CST.select_box = cst_Material_select_name(1)
+				Else
+					' expand "unselect" array
+					ReDim Preserve cst_Material_unselect_name(UBound(cst_Material_unselect_name)+1)
+					cst_Material_unselect_name(UBound(cst_Material_unselect_name)) = dlg_Material_CST.select_box
+					For cst_iii = 1 To UBound(cst_Material_select_name)-1
+						' Once the matching item has been found, replace it and every following item by the next item in the array
+						If ((cst_Material_select_name(cst_iii) = dlg_Material_CST.select_box) Or (dlg_Material_CST.select_box="")) Then
+							cst_Material_select_name(cst_iii) = cst_Material_select_name(cst_iii+1)
+							dlg_Material_CST.select_box = ""
+						End If
+					Next
+					' chop "select" array
+					ReDim Preserve cst_Material_select_name(UBound(cst_Material_select_name)-1)
+					dlg_Material_CST.select_box = ""
+				End If
+				'
+			Case 4	' <====
+				If (UBound(cst_Material_select_name) = 0) Then
+					' Do nothing, nothing to remove from
+				Else
+					ReDim Preserve cst_Material_unselect_name(UBound(cst_Material_unselect_name)+UBound(cst_Material_select_name))
+					For cst_iii = 0 To UBound(cst_Material_select_name)
+						cst_Material_unselect_name(UBound(cst_Material_select_name)-UBound(cst_Material_unselect_name)+cst_iii) = cst_Material_select_name(cst_iii)
+					Next
+					dlg_Material_CST.select_box = ""
+					ReDim cst_Material_select_name(0)
+				End If
+				'
+			Case 5 ' hidden button for double mouse click
+				If (dlg_Material_CST.unselect_box <> "") Then
+					If (UBound(cst_Material_unselect_name) = 0) Then
+						' Do nothing, nothing to add from
+					Else
+						' expand "Select" array
+						ReDim Preserve cst_Material_select_name(UBound(cst_Material_select_name)+1)
+						cst_Material_select_name(UBound(cst_Material_select_name)) = dlg_Material_CST.Unselect_box
+						For cst_iii = 1 To UBound(cst_Material_unselect_name)-1
+							' Once the matching item has been found, replace it and every following item by the next item in the array
+							If ((cst_Material_unselect_name(cst_iii) = dlg_Material_CST.unselect_box) Or (dlg_Material_CST.Unselect_box="")) Then
+								cst_Material_unselect_name(cst_iii) = cst_Material_unselect_name(cst_iii+1)
+								dlg_Material_CST.unselect_box = ""
+							End If
+						Next
+						' chop "Unselect" array
+						ReDim Preserve cst_Material_unselect_name(UBound(cst_Material_unselect_name)-1)
+						dlg_Material_CST.unselect_box = ""
+					End If
+				ElseIf (dlg_Material_CST.select_box <> "") Then
+					If (UBound(cst_Material_select_name) = 0) Then
+						' Do nothing, nothing to remove from
+					Else
+						' expand "unselect" array
+						ReDim Preserve cst_Material_unselect_name(UBound(cst_Material_unselect_name)+1)
+						cst_Material_unselect_name(UBound(cst_Material_unselect_name)) = dlg_Material_CST.select_box
+						For cst_iii = 1 To UBound(cst_Material_select_name)-1
+							' Once the matching item has been found, replace it and every following item by the next item in the array
+							If ((cst_Material_select_name(cst_iii) = dlg_Material_CST.select_box) Or (dlg_Material_CST.select_box="")) Then
+								cst_Material_select_name(cst_iii) = cst_Material_select_name(cst_iii+1)
+								dlg_Material_CST.select_box = ""
+							End If
+						Next
+						' chop "select" array
+						ReDim Preserve cst_Material_select_name(UBound(cst_Material_select_name)-1)
+						dlg_Material_CST.select_box = ""
+					End If
+				Else
+					' Do nothing
+				End If
+			Case Else		' Cancel
+				cst_Operation = "Quit"
+		End Select
+	Loop Until (cst_Operation <> "")
+
+	If cst_Operation = "OK" Then
+		' only update external Material-array, if OK is pressed, Cancel leaves array unchanged
+		nMaterials_LIB = UBound(cst_Material_select_name)
+		If (nMaterials_LIB > 0) Then
+			ReDim aMaterialArray_LIB(nMaterials_LIB-1)
+			For cst_iii = 1 To nMaterials_LIB
+				aMaterialArray_LIB(cst_iii-1) = cst_Material_select_name(cst_iii)
+			Next
+		End If
+	End If
+End Sub
+
+
+Sub DrawXYZPickPoints (sFileCoordxyz As String, nMaxPicks As Long)
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	'Dim dStartTime As Double
+	'dStartTime = Timer()
+
+	If Dir$(sFileCoordxyz)="" Then Exit Sub
+
+	SelectTreeItem "Components"
+	oSelectedSP.SelectModelView
+	oSelectedSP.Plot.Wireframe True
+	oSelectedSP.Pick.ClearAllPicks
+	oSelectedSP.WCS.ActivateWCS "global"
+
+	Dim sFileContents As String, sFileContentsArray() As String, sLineBreakChar As String
+	Dim string_item(30) As String, cst_nitems As Integer
+	Dim i As Long, nStepSize As Long
+
+	Open sFileCoordxyz For Input As #11
+		sFileContents = Input(FileLen(sFileCoordxyz), 11)
+	Close #11
+
+	sFileContentsArray = Split(sFileContents, vbNewLine)
+
+	' check line break char
+	If UBound(sFileContentsArray)=0 Then ' Might be a linux machine, try Chr(10)=LF as separator
+		sFileContentsArray = Split(sFileContents, Chr(10))
+	End If
+
+	'
+	' --- now pick up to nMaxPicks points, always take first and last point
+	'
+	If (nMaxPicks < UBound(sFileContentsArray)+1) Then
+		ReportInformationToWindow("Draw points: downsampling by factor " + CStr(Round(UBound(sFileContentsArray)/nMaxPicks)) + " to limit total number of points to " + CStr(nMaxPicks))
+		nStepSize = Round(UBound(sFileContentsArray)/nMaxPicks)
+	Else
+		nStepSize = 1
+	End If
+
+	' Pick nMax-1 points
+	If (UBound(sFileContentsArray) > 0) Then
+		For i = 0 To UBound(sFileContentsArray)-1 STEP nStepSize
+			cst_nitems = CSTSplit(sFileContentsArray(i), string_item)
+			oSelectedSP.Pick.PickPointFromCoordinates string_item(0),string_item(1),string_item(2)
+		Next
+	End If
+	' pick last point
+	cst_nitems = CSTSplit(sFileContentsArray(UBound(sFileContentsArray)), string_item)
+	oSelectedSP.Pick.PickPointFromCoordinates string_item(0),string_item(1),string_item(2)
+
+	oSelectedSP.Plot.Update
+	'ReportInformationToWindow("DrawXYZPoints (NEW): " + CStr(Timer()-dStartTime) + " secs.")
+End Sub
+
+
+Sub LoadSignalFiles (lib_modfile As String, cst_runid As String)
+	Dim mysigname2 As String
+	Dim myfilepath$, myfilepattern$, myfilepath_short$, mysigname$, mysigname_short$
+	Dim mysigname_short_1$, mysigname_short_2$, mysigname_short_3$, mysigname_short_4$, mysigname_short_5$, mysigname_short_6$, mysigname_short_7$, mysigname_short_8$
+	Dim mysigname_short_12$, mysigname_short_13$
+	Dim myTreePath$, myXLabel$, imylength As Integer, bReady As Boolean, bSkipThisFile As Boolean, bOtherFile As Boolean
+	Dim normimp_filename As String, tmpstr As String	' For Smith chart
+	Dim normimp As Double
+	Dim ilen As Long, ileft As Long, bcomplex As Boolean
+
+	myfilepath    = lib_modfile+"\Result"
+	myfilepattern = "*.sig"
+
+	' Search for first sig file
+	mysigname = FindFirstFile(myfilepath , myfilepattern, False) 'See if a sig exist
+
+	While (mysigname <> "")
+
+		mysigname_short = mysigname
+		RemoveLastChars(mysigname_short,4)
+		imylength = Len(mysigname_short)
+
+		mysigname_short_1 = mysigname_short
+		mysigname_short_2 = mysigname_short
+		mysigname_short_3 = mysigname_short
+		mysigname_short_4 = mysigname_short
+		mysigname_short_5 = mysigname_short
+		mysigname_short_6 = mysigname_short
+		mysigname_short_7 = mysigname_short
+		mysigname_short_8 = mysigname_short
+
+		If imylength > 1 Then RemoveFirstChars(mysigname_short_1,1)
+		If imylength > 2 Then RemoveFirstChars(mysigname_short_2,2)
+		If imylength > 3 Then RemoveFirstChars(mysigname_short_3,3)
+		If imylength > 4 Then RemoveFirstChars(mysigname_short_4,4)
+		If imylength > 5 Then RemoveFirstChars(mysigname_short_5,5)
+		If imylength > 6 Then RemoveFirstChars(mysigname_short_6,6)
+		If imylength > 7 Then RemoveFirstChars(mysigname_short_7,7)
+		If imylength > 8 Then RemoveFirstChars(mysigname_short_8,8)
+
+		mysigname2 = myfilepath + "\" + mysigname
+
+		bSkipThisFile = False
+		bOtherFile = False
+		bReady = False
+		bcomplex = False
+
+		If (imylength > 2) Then
+			If ( Left(mysigname_short,2)="ac" Or Left(mysigname_short,2)="bc" ) Then
+
+				' these are internal full-deembedding files, not to be compared (^ac1(1)1(1).sig) (^bc1(1)1(1).sig)
+
+				bSkipThisFile = True
+				bReady = True
+			End If
+		End If
+
+		If (imylength > 12) Then
+			If ( Left(mysigname_short,12)="farfield (f=" ) Then
+
+				' this is an internal farfield file
+
+				bSkipThisFile = True
+				bReady = True
+			End If
+			If ( Left(mysigname_short,12)="cutofffrequ_" ) Then
+
+				' this is wg port cutoff frequ, skipped
+
+				bSkipThisFile = True
+				bReady = True
+			End If
+		End If
+
+		If (imylength > 9) Then
+			If ( Left(mysigname_short,9)="decaydist" ) Then
+
+				' this is wg port decay distance, skipped
+
+				bSkipThisFile = True
+				bReady = True
+			End If
+		End If
+
+		If (imylength > 5) Then
+			If ( Left(mysigname_short,5)="amr(#" ) Then
+
+				' this is an internal FD-TET adaptation file
+
+				bSkipThisFile = True
+				bReady = True
+			End If
+		End If
+
+
+		If (imylength > 4) Then
+			If ( Left(mysigname_short,4)="alph" ) Then
+
+				' full-deembedding alpha file, directly goto other...
+
+				bOtherFile = True
+				bReady = True
+			End If
+			If ( Left(mysigname_short,5)="adapt" ) Then
+
+				' adaptive meshing info file, directly goto other...
+
+				bOtherFile = True
+				bReady = True
+			End If
+			If ( Left(mysigname_short,5)="parti" ) Then
+
+				' particle studio current ...
+
+				bOtherFile = True
+				bReady = True
+			End If
+			If ( Left(mysigname_short,5)="all s" ) Then
+
+				' particle monitor "all sources" ...
+
+				bOtherFile = True
+				bReady = True
+			End If
+			If ( InStr(mysigname_short,"_eps_")<>0 Or InStr(mysigname_short,"_mu_")<>0 Or InStr(mysigname_short,"_mue_")<>0 ) Then
+
+				' material dispersion file ...
+
+				bOtherFile = True
+				bReady = True
+			End If
+		End If
+
+		If Not bReady Then
+			bReady = True
+			Select Case Left(mysigname_short,12)
+				Case "Farfield_lin"
+					mysigname_short_13 = Right$( BaseName(mysigname), imylength-13 )
+
+					' create farfield polar plot together with according angle-file *.ang
+
+					myTreePath = "Farfield\polar-linear\" + Replace(mysigname_short_13,"_","\",,2)
+					myXLabel   = "Angle / degree"
+					With Resulttree
+						.Reset
+						.Type "PolarPlot"
+						.Xlabel myXLabel
+						.Title myTreePath
+						.Name "1D Results\Comparison\" + myTreePath + "\" + cst_runid
+						.File mysigname2
+						.File2 myfilepath + "\" + Replace(mysigname,".sig",".ang")
+						.Add
+					End With
+					' change treepath for cartesian plot
+					myTreePath = "Farfield\cartesian-linear\" + Replace(mysigname_short_13,"_","\",,2)
+
+				Case "Farfield_dB_"
+					mysigname_short_12 = Right$( BaseName(mysigname), imylength-12 )
+
+					' create polar plot first together with according phase
+					myTreePath = "Farfield\polar-dB\" + Replace(mysigname_short_12,"_","\",,2)
+					myXLabel   = "Angle / degree"
+					With ResultTree
+						.Reset
+						.Type "PolarPlotDB"
+						.Xlabel myXLabel
+						.Title myTreePath
+						.Name "1D Results\Comparison\" + myTreePath + "\" + cst_runid
+						.File mysigname2
+						.File2 myfilepath + "\" + Replace(mysigname,".sig",".ang")
+						.Add
+					End With
+					' change treepath for cartesian plot
+					myTreePath = "Farfield\cartesian-dB\" + Replace(mysigname_short_12,"_","\",,2)
+
+				Case Else
+					bReady = False
+			End Select
+		End If
+
+		If Not bReady Then
+			bReady = True
+			Select Case Left(mysigname_short,8)
+				Case "zarcmplx"
+					myTreePath = "Z Matrix (AR)\Z" + mysigname_short_8
+					myXLabel   = "Frequency"
+					bcomplex = True
+				Case "yarcmplx"
+					myTreePath = "Y Matrix (AR)\Y" + mysigname_short_8
+					myXLabel   = "Frequency"
+					bcomplex = True
+				Case Else
+					bReady = False
+			End Select
+		End If
+
+		If Not bReady Then
+			bReady = True
+			Select Case Left(mysigname_short,7)
+				Case "vswr_ar"
+					myTreePath = "VSWR (AR)\VSWR" + mysigname_short_7
+					myXLabel   = "Frequency"
+				Case Else
+					bReady = False
+			End Select
+		End If
+
+		If Not bReady Then
+			bReady = True
+			Select Case Left(mysigname_short,6)
+				Case "zcmplx"
+					myTreePath = "Z Matrix\Z" + mysigname_short_6
+					myXLabel   = "Frequency"
+					bcomplex = True
+				Case "ycmplx"
+					myTreePath = "Y Matrix\Y" + mysigname_short_6
+					myXLabel   = "Frequency"
+					bcomplex = True
+				Case Else
+					bReady = False
+			End Select
+		End If
+
+		If Not bReady Then
+			bReady = True
+			Select Case Left(mysigname_short,5)
+				Case "ar^cS"
+					myTreePath = "S-Parameters (AR)\S" + mysigname_short_5
+					myXLabel   = "Frequency"
+					bcomplex = True
+				Case Else
+					bReady = False
+			End Select
+		End If
+
+		If Not bReady Then
+			bReady = True
+			Select Case Left(mysigname_short,4)
+				Case "vswr"
+					myTreePath = "VSWR\VSWR" + mysigname_short_4
+					myXLabel   = "Frequency"
+				Case Else
+					bReady = False
+			End Select
+		End If
+
+		If Not bReady Then
+			bReady = True
+			Select Case Left(mysigname_short,3)
+				Case "plw"
+					myTreePath = "Plane Wave\Time Signal"
+					myXLabel   = "Time"
+
+				Case "puc"
+					myTreePath = "Discrete Ports\Voltages\U complex\" + mysigname_short_3
+					myXLabel   = "Frequency"
+					bcomplex = True
+				Case "pus"
+					myTreePath = "Discrete Ports\Voltages\Signals\" + mysigname_short_3
+					myXLabel   = "Time"
+
+				Case "pic"
+					myTreePath = "Discrete Ports\Currents\I complex\" + mysigname_short_3
+					myXLabel   = "Frequency"
+					bcomplex = True
+				Case "pis"
+					myTreePath = "Discrete Ports\Currents\Signals\" + mysigname_short_3
+					myXLabel   = "Time"
+
+				Case "pzc"
+					myTreePath = "Discrete Ports\Impedances\" + mysigname_short_3
+					myXLabel   = "Frequency"
+					bcomplex = True
+
+				Case Else
+					bReady = False
+			End Select
+		End If
+
+		If Not bReady Then
+			bReady = True
+			Select Case Left(mysigname_short,2)
+				Case "cS"
+					myTreePath = "S-Parameters\S" + mysigname_short_2
+					myXLabel   = "Frequency"
+					bcomplex = True
+
+				Case "zc"
+					myTreePath = "Lumped Elements\Impedances\" + mysigname_short_2
+					myXLabel   = "Frequency"
+					bcomplex = True
+
+				Case "uc"
+					myTreePath = "Lumped Elements\Voltages\U complex\" + mysigname_short_2
+					myXLabel   = "Frequency"
+					bcomplex = True
+				Case "us"
+					myTreePath = "Lumped Elements\Voltages\Signals\" + mysigname_short_2
+					myXLabel   = "Time"
+
+				Case "ic"
+					myTreePath = "Lumped Elements\Currents\I complex\" + mysigname_short_2
+					myXLabel   = "Frequency"
+					bcomplex = True
+				Case "is"
+					myTreePath = "Lumped Elements\Currents\Signals\" + mysigname_short_2
+					myXLabel   = "Time"
+
+				Case Else
+					bReady = False
+			End Select
+		End If
+
+		If Not bReady Then
+			bReady = True
+			Select Case Left(mysigname_short,1)
+				Case "o"
+					myTreePath = "Port Signals\outcoming\o" + mysigname_short_1
+					myXLabel   = "Time"
+				Case "i"
+					myTreePath = "Port Signals\ingoing\i" + mysigname_short_1
+					myXLabel   = "Time"
+
+				Case Else
+					bReady = False
+			End Select
+		End If
+
+		If bOtherFile Or Not bReady Then
+			myTreePath = "other\" + mysigname_short
+			myXLabel   = ""
+		End If
+
+		If (Not bSkipThisFile) Then
+
+			Dim string_item(30) As String, sline_cst1 As String, iFileNum1 As Integer, i As Integer
+
+			iFileNum1 = FreeFile
+			Open mysigname2 For Input As #iFileNum1
+
+				For i = 1 To 4
+					' first 4 lines are header lines
+					Line Input #iFileNum1, sline_cst1
+				Next
+
+				If Not EOF(iFileNum1) Then
+					Line Input #iFileNum1, sline_cst1
+
+					If bcomplex Or CSTSplit(sline_cst1, string_item)=3 Then
+						' this seems to be a complex signal
+						Dim o1dc As Object
+						Set o1dc = Result1DComplex("")
+						o1dc.Load(mysigname2)
+						o1dc.Save(Replace(Replace(mysigname2, "\", "_"),":",""))
+						o1dc.AddToTree ( "1D Results\Comparison\" + myTreePath + "\" + cst_runid )
+					Else
+						With ResultTree
+							.Reset
+							.Type "XYSignal"
+							.Xlabel myXLabel
+							.Title myTreePath
+							.Name "1D Results\Comparison\" + myTreePath + "\" + cst_runid
+							.File mysigname2
+							.Add
+						End With
+					End If
+				End If
+
+			Close #iFileNum1
+		End If
+
+		mysigname = FindNextFile
+	Wend
+End Sub
+
+
+Sub LoadBalances (lib_modfile As String, cst_runid As String)
+	Dim MyResult$(4), MyFolder$(4), myXLabel$(4)
+
+		MyResult$(1)=".bil"
+		MyFolder$(1)="Balance"
+		myXLabel$(1)="Frequency"
+
+	Dim mysigname2 As String
+	Dim myres$, myfol$, myfilepath$, myfilepattern$, myfilepath_short$, myext$, myext2$, mysigname$, mysigname_short$
+	Dim iii As Integer
+
+	myfilepath    = lib_modfile+"\Result"
+	myfilepattern = "*" + MyResult$(1)
+
+	' Search for first sig file
+	mysigname = FindFirstFile(myfilepath , myfilepattern, False) 'See if a sig exist
+
+	While (mysigname <> "")
+		For iii = 1 To 1
+			mysigname_short = mysigname
+			RemoveLastChars(mysigname_short,4)
+
+			mysigname2 = myfilepath + "\" + mysigname_short +MyResult$(iii)
+
+			'Add all sig files to
+			With Resulttree
+					.Reset
+					.Type "XYSignal"
+					.Xlabel myXLabel$(iii)
+					.Title "Balance " + mysigname_short
+					.Name "1D Results\Comparison\Balance\" + "Balance " + mysigname_short +"\" + cst_runid
+					.File mysigname2
+					.Add
+			End With
+		Next iii
+
+		mysigname = FindNextFile
+	Wend
+End Sub
+
+
+Sub LoadEnergies (lib_modfile As String, cst_runid As String)
+	Dim MyResult$(4), MyFolder$(4), myXLabel$(4)
+
+		MyResult$(1)=".eng"
+		MyFolder$(1)="Energy"
+		myXLabel$(1)="Time"
+
+	Dim mysigname2 As String
+	Dim myres$, myfol$, myfilepath$, myfilepattern$, myfilepath_short$, myext$, myext2$, mysigname$, mysigname_short$
+	Dim iii As Integer
+
+	myfilepath    = lib_modfile+"\Result"
+	myfilepattern = "*" + MyResult$(1)
+
+	' Search for first sig file
+	mysigname = FindFirstFile(myfilepath , myfilepattern, False) 'See if a sig exist
+
+	While (mysigname <> "")
+		For iii = 1 To 1
+			mysigname_short = mysigname
+			RemoveLastChars(mysigname_short,4)
+
+			mysigname2 = myfilepath + "\" + mysigname_short +MyResult$(iii)
+
+			'Add all sig files to
+			With ResultTree
+					.Reset
+					.Type "XYSignal"
+					.Xlabel myXLabel$(iii)
+					.Title "Energy " + mysigname_short
+					.Name "1D Results\Comparison\Energy\" + "Energy " + mysigname_short +"\" + cst_runid
+					.File mysigname2
+					.Add
+			End With
+		Next iii
+
+		mysigname = FindNextFile
+	Wend
+End Sub
+
+
+Sub LoadVoltages (lib_modfile As String, cst_runid As String)
+	Dim myvoltagename2 As String
+	Dim MyResult$(4), MyFolder$(4), myXLabel$(4)
+
+		MyResult$(1)=".vra"
+		MyFolder$(1)="linear"
+		myXLabel$(1)="Frequency"
+
+		MyResult$(2)=".vrd"
+		MyFolder$(2)="dB"
+		myXLabel$(2)="Frequency"
+
+		MyResult$(3)=".vrp"
+		MyFolder$(3)="Phase"
+		myXLabel$(3)="Frequency"
+
+		MyResult$(4)=".vrs"
+		MyFolder$(4)="Signal"
+		myXLabel$(4)="Time"
+
+
+	Dim myres$, myfol$, myfilepath$, myfilepattern$, myfilepath_short$, myext$, myext2$, myvoltagename$, myvoltagename_short$
+	Dim iii As Integer
+
+	myfilepath    = lib_modfile+"\Result"
+	myfilepattern = "*" + MyResult$(1)
+
+	' Search for first voltage file
+	myvoltagename = FindFirstFile(myfilepath , myfilepattern, False) 'See if a voltage exist
+
+	While (myvoltagename <> "")
+		For iii = 1 To 4
+			myvoltagename_short = myvoltagename
+			RemoveLastChars(myvoltagename_short,4)
+
+			myvoltagename2 = myfilepath + "\" + myvoltagename_short +MyResult$(iii)
+
+			'Add all voltage files to
+			With Resulttree
+					.Reset
+					.Type "XYSignal"
+					.Xlabel myXLabel$(iii)
+					.Title "Voltage Monitor " + myvoltagename_short + " - " + MyFolder$(iii)
+					.Name "1D Results\Comparison\Voltage Monitors\" + myvoltagename_short +"\"+MyFolder$(iii)+"\"+ cst_runid
+					.File myvoltagename2
+					.Add
+			End With
+		Next iii
+
+		myvoltagename = FindNextFile
+	Wend
+End Sub
+
+
+Sub LoadProbes (lib_modfile As String, cst_runid As String)
+	Dim myprobename2 As String
+	Dim MyResult$(4), MyFolder$(4), myXLabel$(4)
+
+		MyResult$(1)=".pra"
+		MyFolder$(1)="linear"
+		myXLabel$(1)="Frequency"
+
+		MyResult$(2)=".prd"
+		MyFolder$(2)="dB"
+		myXLabel$(2)="Frequency"
+
+		MyResult$(3)=".prp"
+		MyFolder$(3)="Phase"
+		myXLabel$(3)="Frequency"
+
+		MyResult$(4)=".prs"
+		MyFolder$(4)="Signal"
+		myXLabel$(4)="Time"
+
+
+	Dim myres$, myfol$, myfilepath$, myfilepattern$, myfilepath_short$, myext$, myext2$, myprobename$, myprobename_short$
+	Dim iii As Integer
+
+	myfilepath    = lib_modfile+"\Result"
+	myfilepattern = "*" + MyResult$(1)
+
+	' Search for first probe file
+	myprobename = FindFirstFile(myfilepath , myfilepattern, False) 'See if a Probe exist
+
+	While (myprobename <> "")
+		For iii = 1 To 4
+			myprobename_short = myprobename
+			RemoveLastChars(myprobename_short,4)
+
+			myprobename2 = myfilepath + "\" +myprobename_short +MyResult$(iii)
+
+			'Add all probe files to
+			With ResultTree
+					.Reset
+					.Type "XYSignal"
+					.Xlabel myXLabel$(iii)
+					.Title "Probe " + myprobename_short + " - " + MyFolder$(iii)
+					.Name "1D Results\Comparison\Probes\" + myprobename_short +"\"+MyFolder$(iii)+"\"+ cst_runid
+					.File myprobename2
+					On Error Resume Next
+						.Add   ' some endings do not exist for rcs farfield probes (prp, prs)
+					On Error GoTo 0
+			End With
+		Next iii
+
+		myprobename = FindNextFile
+	Wend
+End Sub
+
+
+Sub Load_1D (lib_modfile As String, cst_runid As String)
+	Dim sResultName_tmp2 As String
+	Dim MyResult$(4), MyFolder$(4), myXLabel$(4)
+
+	MyResult$(1)=".rd1"
+	MyFolder$(1)="1D-Templates"
+	myXLabel$(1)=""
+
+	MyResult$(2)=".m1d"
+	MyFolder$(2)="MAFIA"
+	myXLabel$(2)=""
+
+	Dim myres$, myfol$, myfilepath$, myfilepattern$, myfilepath_short$, myext$, myext2$, sResultName_tmp$, sResultName_tmp_short$
+	Dim iii As Integer
+
+	For iii = 1 To 2
+		myfilepath    = lib_modfile+"\Result"
+		myfilepattern = "*" + MyResult$(iii)
+
+		' Search for first result file
+		sResultName_tmp = FindFirstFile(myfilepath , myfilepattern, False) 'See if a result exist
+
+		While (sResultName_tmp <> "")
+				sResultName_tmp_short = sResultName_tmp
+				RemoveLastChars(sResultName_tmp_short,4)
+				sResultName_tmp2= myfilepath + "\" + sResultName_tmp
+				'Add all result files to tree
+				With Resulttree
+						.Reset
+						.Type "XYSignal"
+						.Xlabel myXLabel$(iii)
+						.Title sResultName_tmp_short
+						.Name "1D Results\Comparison\" + MyFolder$(iii) + "\" + sResultName_tmp_short + "\" + cst_runid
+						.File sResultName_tmp2
+						.Add
+				End With
+			sResultName_tmp = FindNextFile
+		Wend
+	Next iii
+End Sub
+
+
+Function mwsversion4 As Boolean
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	If InStr(oSelectedSP.getmwsversion,"V 3") > 0 Then
+		mwsversion4 = False
+	Else
+		mwsversion4 = True
+	End If
+End Function
+
+
+Function MWS_Version As Double
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	MWS_Version = RealVal (Mid(Trim$(oSelectedSP.GetMWSVersion),3,3))
+End Function
+
+
+Function GetNormImpedance(sdsnfilename As String, spomo As String) As Double
+	On Error GoTo Imp_undefined
+	GetAttr(sdsnfilename)	' See if file exists; don't use Dir() !!
+	On Error GoTo 0
+
+	Dim spomo2 As String
+	spomo2 = Replace(spomo,"(",",")
+	spomo2 = Left(spomo2, Len(spomo2)-1)
+
+	Dim i1 As Integer
+	i1 = InStr(spomo2,",")
+
+	Dim strPort As String, strMode As String
+	strPort = "Portname: "  + Left(spomo2,i1-1) +"#"
+	strMode = "Modenumber: "+ Mid(spomo2,i1+1)  +"#"
+
+	Dim icount As Integer
+	icount = 0
+
+	Dim d_Zline As Double, d_Zref As Double
+	Dim cst_line As String
+	Dim cst_nitems As Integer
+	Dim string_item(99) As String
+
+	Dim cst_line_array(50) As String, cst_line1 As String, cst_line2 As String, cst_line3 As String
+	Dim nstr As Integer, istr	As Integer
+
+	Open sdsnfilename For  Input As #1
+
+		While Not EOF(1)
+			Line Input #1,cst_line1
+			If InStr(cst_line1+"#",strPort) > 0 Then
+				Line Input #1,cst_line2
+				If InStr(cst_line2+"#",strMode) > 0 Then
+					' pomo found, now read 4 more lines to get zref
+					'		Portname: 2
+					'		Modenumber: 1
+					'		Modetype: 0
+					'		Zwave: 6.726307e+002 0.000000e+000
+					'		Zline: 0.000000e+000 0.000000e+000
+					'		Zref: 0.000000e+000 0.000000e+000
+					Line Input #1,cst_line3
+					Line Input #1,cst_line3
+					Line Input #1,cst_line3
+					cst_nitems = CSTSplit (cst_line3, string_item)
+					d_Zline = RealVal(string_item(1))
+
+					Line Input #1,cst_line3
+					cst_nitems = CSTSplit (cst_line3, string_item)
+					d_Zref = RealVal(string_item(1))
+
+					If d_Zline = 0 Then
+						GetNormImpedance = -1
+					Else
+						If d_Zref = 0 Then
+							GetNormImpedance = d_Zline
+						Else
+							GetNormImpedance = d_Zref
+						End If
+					End If
+					Close #1
+					Exit Function
+				End If
+			End If
+		Wend
+	Close #1
+
+	Imp_undefined:
+		GetNormImpedance = -1
+End Function
+
+
+Sub Handle_0D_Results  (lib_action As String, lib_extension As String, lib_0Dtype As String, _
+						lib_targetdir1 As String, lib_modfile As String, lib_dXValue_now As Double, lib_cXLabelNow As String)
+	' this subroutine can be used to collect and plot arbitrary 0D Results, written in a file
+	' action=write  /  plot   available
+
+	'
+	' in this subroutine targetdir must not have a backslash at the end
+	'
+	Dim lib_targetdir As String
+	lib_targetdir = lib_targetdir1
+
+	If Right(lib_targetdir1,1)="\" Then lib_targetdir = Left(lib_targetdir1,Len(lib_targetdir1)-1)
+
+	Dim s0Dtargetmain As String, istartname As Integer, ilenpattern As Integer
+	Dim lib_searchpath As String, lib_searchpattern As String, lib_dummy As String
+	Dim mysigname As String, sm0dfile As String, iLenM0dfile As Integer, s0DName As String
+
+	s0Dtargetmain = lib_targetdir + "\0D_" + lib_0Dtype + "_"
+
+	'
+	' define parameters for file search
+	'
+	Select Case lib_action
+
+		Case "write"
+
+			lib_searchpath = lib_modfile + "\Result"
+			lib_searchpattern = "*" + lib_extension
+			istartname = Len(lib_searchpath) + 2
+
+		Case "plot"
+
+			lib_searchpath = DirName(s0Dtargetmain)
+			lib_searchpattern = ShortName(s0Dtargetmain) + "*.txt"
+			istartname = Len(s0Dtargetmain) + 1
+
+	End Select
+
+	ilenpattern = Len(lib_searchpath) + Len(lib_searchpattern)
+
+	mysigname = FindFirstFile(lib_searchpath , lib_searchpattern, False)
+
+	While (mysigname <> "")
+
+		sm0dfile = lib_searchpath + "\" + mysigname
+		iLenM0dfile = Len(sm0dfile)
+
+		s0DName = Mid(sm0dfile, istartname, iLenM0dfile-ilenpattern)
+
+		Select Case lib_action
+			Case "write"
+				Open s0Dtargetmain + s0DName + ".txt" For Append As #12
+					lib_dummy = ""
+					Open sm0dfile For Input As #44
+						Line Input #44, lib_dummy
+					Close #44
+					Print #12, CStr(lib_dXValue_now) + "   " +  lib_dummy
+				Close #12
+
+			Case "plot"
+				With ResultTree
+					.Reset
+					.Type "XYSignal"
+					.Xlabel lib_cXLabelNow
+					.Title s0DName
+					.Title "" ' otherwise no multiplot possible
+					.Name "0D Results\" + lib_0Dtype + "\" + s0DName
+					.File sm0dfile
+					.Add
+				End With
+		End Select
+		mysigname = FindNextFile
+	Wend
+End Sub
+
+
+Sub Prepare_Step_File
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	oSelectedSP.SelectTreeItem "Components"
+	oSelectedSP.SelectModelView
+	With oSelectedSP.STEP
+		.Reset
+		.ExportAttributes (True)
+		.FileName GetProjectPath("ModelCache") + "example.stp"
+		On Error GoTo no_step_license
+		.WriteAll
+	End With
+
+	Dim sfile As String
+	sfile = GetProjectPath("ModelCache") + "example.stp"
+
+	Dim cst_line As String
+	cst_line = GrepFirstPattern(sfile, sfile)
+	If (cst_line <> "") Then
+		StoreGlobalDataValue ("Step\Chk1", "11")
+	End If
+
+	Dim stree As String
+	stree = Resulttree.GetFirstChildName("Components")
+	RemoveFirstChars(stree,11)
+
+	cst_line = GrepFirstPattern(sfile, stree)
+	If (cst_line <> "") Then
+		StoreGlobalDataValue ("Step\Chk2", "23")
+	End If
+
+	Exit Sub
+	no_step_license:
+		MsgBox "Step License not available.",vbCritical
+End Sub
+
+
+Function SolidPointCoordinatesSTEP(sName As String, index As String, x As Double, y As Double, z As Double) As Boolean
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	If ( oSelectedSP.Solid.GetPointCoordinates(sName, index, x, y, z) ) Then
+		SolidPointCoordinatesSTEP = True
+	Else
+		SolidPointCoordinatesSTEP = False
+	End If
+
+	' If RestoreGlobalDataValue("Step\Chk1") <> "11" Then	SolidPointCoordinatesSTEP = False
+End Function
+
+
+Function CurvePointCoordinatesSTEP(cName As String, index As String, x As Double, y As Double, z As Double) As Boolean
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	If ( oSelectedSP.Curve.GetPointCoordinates(cName, index, x, y, z) ) Then
+		CurvePointCoordinatesSTEP = True
+	Else
+		CurvePointCoordinatesSTEP = False
+	End If
+
+	' If RestoreGlobalDataValue("Step\Chk2") <> "23" Then CurvePointCoordinatesSTEP = False
+End Function
+
+
+Function GetMaterialFoldersAndNames_LIB(Optional sLocatedInMaterialFolder As String, Optional sMaterialType As String) As Variant
+	' oSelectedSP is determined here again in addition to the calls in Evaluate0D/1D/...
+	' This ensures that the lib remains compatible with old templates that do not store a script setting "SPName"
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	' This function parses all material entries and returns the folders as well as the materials it found
+	' The user may restrict the materials listed to materials in a certain folder or of a certain type
+
+	' Inputs:
+	'	Optional sLocatedInMaterialFolder As String	:	Only materials in this folder will be included in sMaterialList;
+	'													if no folder is given, this value defaults to "" and only materials in the main
+	'													material folder will be listed. Use "CST_ALLFOLDERS" to list all materials in all folders
+	'	Optional sMaterialType As String			:	If this string is not empty, only materials of the given type will be listed;
+	'													if no type is given, this value defaults to "" and all materials will be listed.
+	' Output/Return values:
+	'	GetMaterialFoldersAndNames_LIB As Variant	:	An array of two elements, first element is a string array containing the folder list,
+	'													second element is a string array containing the list of material names
+
+	Dim nMaterials As Long, i As Long, j As Long
+	Dim sMaterialList() As String, sMaterialFolderList() As String
+	Dim sSplitMaterialEntry() As String, sFoundMaterialName As String, sFoundMaterialFolder As String, sFoundMaterialType As String
+
+	If ((sLocatedInMaterialFolder="<Main folder>") Or (sLocatedInMaterialFolder = "")) Then
+		sLocatedInMaterialFolder = ""
+	' Append "/" if none at the end
+	ElseIf (Mid(sLocatedInMaterialFolder, Len(sLocatedInMaterialFolder),1) = "/") Then
+		sLocatedInMaterialFolder = sLocatedInMaterialFolder
+	Else
+		sLocatedInMaterialFolder = sLocatedInMaterialFolder + "/"
+	End If
+
+	ReDim sMaterialFolderList(0)
+	sMaterialFolderList(0) = "<Main folder>"
+	ReDim sMaterialList(0)
+	nMaterials = oSelectedSP.Material.GetNumberOfMaterials
+	For i = 0 To nMaterials-1
+		sSplitMaterialEntry = Split(oSelectedSP.Material.GetNameOfMaterialFromIndex(i),"/")
+		sFoundMaterialName = sSplitMaterialEntry(UBound(sSplitMaterialEntry))
+		sFoundMaterialType = oSelectedSP.Material.GetTypeOfMaterial(oSelectedSP.Material.GetNameOfMaterialFromIndex(i))
+		If (((sMaterialType<>"") And (sFoundMaterialType<>sMaterialType)) _
+			Or (sFoundMaterialName = "air_0")) Then
+			' Do nothing if type is no match or if material is "air_0"
+		Else
+			' Determine material folder and go from there
+			sFoundMaterialFolder = ""
+			If (UBound(sSplitMaterialEntry) > 0) Then
+				For j = 0 To UBound(sSplitMaterialEntry)-1
+					sFoundMaterialFolder = sFoundMaterialFolder + sSplitMaterialEntry(j) + IIf(j=UBound(sSplitMaterialEntry),"","/")
+				Next j
+				' See if folder is already in list
+				For j = 0 To UBound(sMaterialFolderList)
+					If sFoundMaterialFolder = sMaterialFolderList(j) Then Exit For
+				Next j
+				If j = UBound(sMaterialFolderList)+1 Then ' loop above finished, a new folder was found
+					ReDim Preserve sMaterialFolderList(UBound(sMaterialFolderList)+1)
+					sMaterialFolderList(UBound(sMaterialFolderList)) = sFoundMaterialFolder
+				End If
+			End If
+
+			' If the current folder matched sLocatedInMaterialFolder or if all folder are selected, add material to list
+			If ((sLocatedInMaterialFolder = "CST_ALLFOLDERS") _
+				Or (sLocatedInMaterialFolder = sFoundMaterialFolder))Then
+				ReDim Preserve sMaterialList(UBound(sMaterialList)+1)
+				sMaterialList(UBound(sMaterialList)) = sFoundMaterialName
+			End If
+
+		End If
+	Next
+
+	GetMaterialFoldersAndNames_LIB = Array(sMaterialFolderList,sMaterialList)
+End Function
+
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' Function GetAllSelectedShapes_LIB
+' Returns number of selected shapes and fills dynamic string array 
+' "sSelectedShapes" with names of selected shapes (according to solid
+' object convention)
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Function GetAllSelectedShapes_LIB(sSelectedShapes() As String, Optional bPreferShapes As Boolean = True) As Long
+	' oSelectedSP is determined here again...
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	' Declare...
+	Dim lRunInd1       As Long
+	Dim lRunInd2       As Long
+	Dim lNumSelShapes  As Long
+	Dim lNumSelEntries As Long
+	Dim sShapes()      As String
+	Dim sComponents()  As String
+	Dim sCurrSelection As String
+	Dim sCurrShape     As String
+	Dim bComponents    As Boolean
+	Dim lShapeIndex    As Long
+	Dim lCompIndex     As Long
+	Dim sCompBaseDir   As String
+
+	' Initialize
+	bComponents    = False  ' Starting assumption - no components are selected...
+	lNumSelEntries = oSelectedSP.GetNumberOfSelectedTreeItems()
+	ReDim sShapes(oSelectedSP.Solid.GetNumberOfShapes())
+	ReDim sComponents(lNumSelEntries)
+	lShapeIndex  = 0
+	lCompIndex   = 0
+	sCompBaseDir = "Components"
+
+	If lNumSelEntries = 0 Then
+		ReDim sShapes(0)
+		ReDim sComponents(0)
+	ElseIf lNumSelEntries = 1 Then
+		sCurrSelection = oSelectedSP.GetSelectedTreeItem()
+		' Check special case that components base directory is selected (this means there is only one tree selection...)
+		If sCurrSelection = sCompBaseDir then
+			' all shapes should be selected...
+			lShapeIndex = oSelectedSP.Solid.GetNumberOfShapes()
+			For lRunInd1 = 0 To lShapeIndex-1 Step 1
+				sShapes(lRunInd1) = oSelectedSP.Solid.GetNameOfShapeFromIndex(lRunInd1)
+			Next lRunInd1
+		Else
+			lRunInd2       = ShapeComponentOrOther_LIB(sCurrSelection)
+			If lRunInd2 = 0 Then
+				' Selection is a shape...
+				ReDim sShapes(0)
+				sShapes(0)  = Convert2ShapeName_LIB(sCurrSelection)
+				lShapeIndex = 1
+			ElseIf lRunInd2 = 1 Then
+				ReDim sComponents(0)
+				sComponents(0) = Convert2ComponentName_LIB(sCurrSelection)
+				bComponents = True
+				lCompIndex  = 1
+			ElseIf lRunInd2 = 2 Then
+				If bPreferShapes Then ' in case of naming conflict, take shape
+					ReDim sShapes(0)
+					sShapes(0)  = Convert2ShapeName_LIB(sCurrSelection)
+					lShapeIndex = 1
+				Else
+					ReDim sComponents(0)
+					sComponents(0) = Convert2ComponentName_LIB(sCurrSelection)
+					bComponents = True
+					lCompIndex  = 1
+				End If
+			End If
+		End If
+	Else
+		' There is more then one tree entry selected / go through selection in tree...
+		' First selected treeitem
+		sCurrSelection = oSelectedSP.GetSelectedTreeItem()
+		lRunInd2       = ShapeComponentOrOther_LIB(sCurrSelection)
+		If lRunInd2 = 0 Then
+			sShapes(lShapeIndex) = Convert2ShapeName_LIB(sCurrSelection)
+			lShapeIndex          = lShapeIndex + 1
+		ElseIf lRunInd2 = 1 Then
+			sComponents(lCompIndex) = Convert2ComponentName_LIB(sCurrSelection)
+			lCompIndex              = lCompIndex + 1
+			bComponents             = True
+		ElseIf lRunInd2 = 2 Then
+			If bPreferShapes Then ' in case of naming conflict, take shape
+				sShapes(lShapeIndex) = Convert2ShapeName_LIB(sCurrSelection)
+				lShapeIndex          = lShapeIndex + 1
+			Else
+				sComponents(lCompIndex) = Convert2ComponentName_LIB(sCurrSelection)
+				lCompIndex              = lCompIndex + 1
+				bComponents             = True
+			End If
+		End If
+
+		' Now take care of the rest of the selected treeitems
+		For lRunInd1 = 2 To lNumSelEntries STEP 1
+			sCurrSelection = oSelectedSP.GetNextSelectedTreeItem()
+			lRunInd2       = ShapeComponentOrOther_LIB(sCurrSelection)
+			If lRunInd2 = 0 Then
+				sShapes(lShapeIndex) = Convert2ShapeName_LIB(sCurrSelection)
+				lShapeIndex          = lShapeIndex + 1
+			ElseIf lRunInd2 = 1 Then
+				sComponents(lCompIndex) = Convert2ComponentName_LIB(sCurrSelection)
+				lCompIndex              = lCompIndex + 1
+				bComponents             = True
+			ElseIf lRunInd2 = 2 Then
+				If bPreferShapes Then ' in case of naming conflict, take shape
+					sShapes(lShapeIndex) = Convert2ShapeName_LIB(sCurrSelection)
+					lShapeIndex          = lShapeIndex + 1
+				Else
+					sComponents(lCompIndex) = Convert2ComponentName_LIB(sCurrSelection)
+					lCompIndex              = lCompIndex + 1
+					bComponents             = True
+				End If
+			End If
+		Next lRunInd1
+	End If
+
+	' At this point all selected treeitems of interest have been assigned to either sShapes or sComponents
+	' Next, go through all shapes and check if they are part of the selected components
+	' Shapes cannot come up twice, since selecting a component in the tree containing a shape will automatically remove the explicit selection of that shape...
+	If bComponents Then
+		' First, trim components array
+		ReDim Preserve sComponents(lCompIndex-1)
+		For lRunInd1 = 0 To oSelectedSP.Solid.GetNumberOfShapes()-1 STEP 1
+			sCurrShape = oSelectedSP.Solid.GetNameOfShapeFromIndex(lRunInd1)
+			For lRunInd2 = 0 To UBound(sComponents) STEP 1
+				If Left(sCurrShape, Len(sComponents(lRunInd2))) = sComponents(lRunInd2) Then
+					' shape must be part of component - add to array, increase index and exit for loop
+					sShapes(lShapeIndex) = sCurrShape
+					lShapeIndex          = lShapeIndex + 1
+					Exit For
+				End If
+			Next lRunInd2
+		Next lRunInd1
+	End If
+
+	' At this point all selected shapes should have been processed - trim shape array
+	If lShapeIndex > 0 Then
+		ReDim Preserve sShapes(lShapeIndex-1)
+		ReDim sSelectedShapes(lShapeIndex-1)
+		For lRunInd1 = 0 To UBound(sShapes) STEP 1
+			sSelectedShapes(lRunInd1) = sShapes(lRunInd1)
+		Next lRunInd1
+	Else
+		ReDim sSelectedShapes(0)
+	End If
+
+	GetAllSelectedShapes_LIB = lShapeIndex
+End Function
+
+
+'''''''''''''''''''''''''''''''''''''''''''''''''''''
+' Function ShapeComponentOrOther_LIB
+' Accepts treeitem (in ResultTree style) and returns:
+' 0 if shape exists with that name but no component
+' 1 if component exists with that name, but no shape
+' 2 if a shape and a component with that name exist
+' 3 otherwise.
+'''''''''''''''''''''''''''''''''''''''''''''''''''''
+Private Function ShapeComponentOrOther_LIB(sTreeSelection As String) As Integer
+	' oSelectedSP is determined here again...
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	Dim lReturnvalue   As Integer
+	Dim sCompBaseName  As String
+	Dim sShapeName     As String
+	Dim sComponentName As String
+	Dim bIsComponent   As Boolean
+	Dim bIsShape       As Boolean
+	Dim lRunIndex      As Long
+
+	sCompBaseName = "Components\"
+	bIsComponent  = False
+	bIsShape      = False
+
+	' Initialize...
+	lReturnvalue = 3
+
+	If Len(sTreeSelection) > Len(sCompBaseName) then
+		If Left(sTreeSelection, Len(sCompBaseName)) = sCompBaseName then
+			' Treeitem present in Components section of tree.
+			' Switch to naming convention that would be used for components
+			sComponentName = Replace(Right(sTreeSelection, Len(sTreeSelection)-Len(sCompBaseName)), "\", "/")
+			If oSelectedSP.Component.DoesExist(sComponentName) Then
+				bIsComponent = True
+			End if
+			' Switch to naming convention as used in the Solid object...
+			lRunIndex = InStrRev(sComponentName, "/")
+			If lRunIndex > 0 Then
+				sShapeName = Mid(sComponentName, 1, lRunIndex - 1) & Replace(sComponentName, "/", ":", lRunIndex)
+				If oSelectedSP.Solid.DoesExist(sShapeName) Then
+					bIsShape = True
+				End If
+			End If
+			If bIsComponent And bIsShape Then
+				lReturnvalue = 2
+			ElseIf bIsComponent Then
+				lReturnvalue = 1
+			ElseIf bIsShape Then
+				lReturnvalue = 0
+			End If
+		End If
+	End If
+
+	ShapeComponentOrOther_LIB = lReturnvalue
+End Function
+
+
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' Function Convert2ShapeName_LIB
+' Converts string to a format consistent with the Solid object,
+' assuming a tree item in a format consisten with the
+' ResultTree object.
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Private Function Convert2ShapeName_LIB(sTreeName As String) As String
+	' oSelectedSP is determined here again...
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	' Declare...
+	Dim sCompBaseName  As String
+	Dim sShapeName     As String
+	Dim lRunIndex      As Long
+
+	' Initialize...
+	sCompBaseName = "Components\"
+
+	sShapeName = Replace(Right(sTreeName, Len(sTreeName)-Len(sCompBaseName)), "\", "/")
+	lRunIndex = InStrRev(sShapeName, "/")
+	sShapeName = Mid(sShapeName, 1, lRunIndex - 1) & Replace(sShapeName, "/", ":", lRunIndex)
+
+	Convert2ShapeName_LIB = sShapeName
+End Function
+
+
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' Function Convert2ComponentName_LIB
+' Converts string to a format consistent with the Component object,
+' assuming a tree item in a format consisten with the ' ResultTree
+' object.
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Private Function Convert2ComponentName_LIB(sTreeName As String) As String
+	' oSelectedSP is determined here again...
+	Dim sSelectedSPName As String
+	sSelectedSPName = GetScriptSetting("SPName", "")
+	If oSelectedSP Is Nothing Then Set oSelectedSP = GetSimulationProjectByName_LIB(sSelectedSPName)
+
+	' Declare...
+	Dim sCompBaseName  As String
+	Dim sComponentName As String
+
+	' Initialize...
+	sCompBaseName = "Components\"
+
+	sComponentName = Replace(Right(sTreeName, Len(sTreeName)-Len(sCompBaseName)), "\", "/")
+	Convert2ComponentName_LIB = sComponentName
+End Function

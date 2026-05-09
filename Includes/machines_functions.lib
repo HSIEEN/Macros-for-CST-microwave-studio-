@@ -1,0 +1,843 @@
+'------------------------------------------------------------------------------------------------------------------------------------------------------
+' Useful VBA procedures and functions for electrical machines
+'------------------------------------------------------------------------------------------------------------------------------------------------------
+' Copyright 2021-2025 Dassault Systemes Deutschland GmbH
+'------------------------------------------------------------------------------------------------------------------------------------------------------
+' History of Changes
+'====================
+' 22-Jul-2025 ckr: Add functions is_just_template_LIB and get_files_in_dir_LIB
+' 13-Jun-2023 ckr: Rewriting of the delete functions making them faster and more reliable
+' 06-Mar-2023 ckr: Fix a bug in "get_solid_info_LIB" when global coordinate system is used
+' 27-Jan-2023 ckr: Fix a bug in "print_winding_info_LIB"
+' 25-May-2022 ckr: Add function "delete_all_under_contactprop_LIB"
+' 04-Feb-2022 ckr: Rewrite of asm_fundamental_period to deal correctly with corner cases
+' 04-Feb-2022 ckr: gcd and lcm are now able to work with negative integers (signs are ignored and results are always positive)
+' 06-Dec-2021 ckr: Fix bug in subvolume calculation
+' 27-Sep-2021 ckr: correct typo
+' 20-Jul-2021 ckr: bug fix in function get_basic_wdt_LIB
+' 30-Jun-2021 ckr: initial development
+
+Function is_int_LIB(ByVal n1 As Variant, Optional ByVal unsign As Boolean = False) As Long
+    Dim iN1 As Long
+    Dim dN1 As Double
+    iN1 = CLng(n1)
+    dN1 = CDbl(n1)
+    If abs( dN1 - CDbl(iN1) ) < 1e-14 Then
+        If unsign Then
+            is_int_LIB = Abs(iN1)
+        Else
+            is_int_LIB = iN1
+        End If
+    Else
+        is_int_LIB = 0
+    End If
+End Function
+
+
+Function is_posint_LIB(ByVal n1 As Variant) As Long
+    Dim iN1 As Long
+    iN1 = is_int_LIB(n1)
+    If iN1 > 0 Then
+        is_posint_LIB = iN1
+    Else
+        is_posint_LIB = 0
+    End If
+End Function
+
+
+Function is_evenposint_LIB(ByVal n1 As Variant) As Long
+    Dim iN1 As Long
+    iN1 = is_posint_LIB(n1) 
+    If iN1 > 0 and (iN1 Mod 2)=0 Then
+        is_evenposint_LIB = iN1
+    Else
+        is_evenposint_LIB = 0
+    End If
+End Function
+
+
+Function is_oddposint_LIB(ByVal n1 As Variant) As Long
+    Dim iN1 As Long
+    iN1 = is_posint_LIB(n1) 
+    If iN1 > 0 and (iN1 Mod 2)=1 Then
+        is_oddposint_LIB = iN1
+    Else
+        is_oddposint_LIB = 0
+    End If
+End Function
+
+
+Function gcd_LIB(ByVal n1 As Variant, ByVal n2 As Variant) As Long
+    ' greatest common divisor
+    Dim i As Long, iN1 As Long, iN2 As Long
+    iN1 = is_int_LIB(n1,True) 
+    iN2 = is_int_LIB(n2,True) 
+    If iN1 > 0 and iN2 > 0 Then
+        If iN1 <= iN2 Then
+            i = iN1
+        Else
+            i = iN2
+        End If
+        If i = 0 Then
+            gcd_LIB = IIf(iN1>iN2,iN1,iN2)
+        Else
+            While ( (iN1 Mod i)<>0 Or (iN2 Mod i)<>0 )
+                i = i-1
+            Wend
+            gcd_LIB = i
+        End If
+    Else
+        gcd_LIB = 0
+    End If
+End Function
+
+
+Function lcm_LIB(ByVal n1 As Variant, ByVal n2 As Variant) As Long
+    ' least common multiple
+    Dim iN1 As Long, iN2 As Long
+    iN1 = is_int_LIB(n1,True)
+    iN2 = is_int_LIB(n2,True)
+    If iN1 > 0 and iN2 > 0 Then
+        lcm_LIB = (iN1*iN2) / gcd_LIB(iN1,iN2)
+    Else
+        lcm_LIB = 0
+    End If
+ End Function
+
+
+Function dec2frac_LIB(ByVal f As Double, Optional ByVal denom_max As Long = 100 ) As Long()
+    ' dec2frac converts decimal values into fractions
+    ' with optional argument denom_max one can define the accuracy
+    Dim outputArray(0 To 2) As Long
+    Dim intPart As Long
+    intPart = Int(f)
+    Dim dRest As Double
+    dRest = f - Cdbl(intPart)
+    Dim df As Double
+    Dim lUpperPart As Long
+    Dim lLowerPart As Long
+    lUpperPart = 1
+    lLowerPart = 1
+    df = lUpperPart / lLowerPart
+    While (abs(df - dRest) > 0.001/denom_max and lLowerPart < denom_max)
+        If (df < dRest) Then
+            lUpperPart = lUpperPart + 1
+        Else
+            lLowerPart = lLowerPart + 1
+            lUpperPart = dRest * lLowerPart
+        End If
+        df = lUpperPart / lLowerPart
+    Wend
+    If lLowerPart = denom_max Then
+        ReportWarning("Library function 'dec2frac_LIB': Difference between decimal and fraction is " + CStr(abs(df - dRest)))
+    End If
+    outputArray(0) = intPart
+    outputArray(1) = lUpperPart
+    outputArray(2) = lLowerPart
+    dec2frac_LIB = outputArray
+End Function
+
+
+Function dec2frac_roundeddec_LIB( ByVal f As Double, Optional ByVal denom_max As Long = 100 ) As Double
+    Dim frac() As Long
+    frac = dec2frac_LIB( f, denom_max )
+    dec2frac_roundeddec_LIB = frac(0) + frac(1) / frac(2)
+End Function
+
+
+Private Function get_winding_config_private(ByVal Qs As Variant, ByVal P As Variant, ByVal m As Variant, ByVal layers As Variant) As Long()
+    Dim outArray(0 To 3) As Long
+    'ReDim outArray(0 To 3)
+    outArray(0) = is_posint_LIB(Qs)
+    outArray(1) = is_posint_LIB(P)
+    outArray(2) = is_posint_LIB(m)
+    outArray(3) = is_posint_LIB(layers)
+    get_winding_config_private = outArray
+End Function
+
+
+Function get_winding_config_LIB(ByVal Qs As Variant, ByVal P As Variant, ByVal m As Variant, ByVal layers As Variant) As Long()
+    ' out(0) = 1 if winding is feasible
+    ' out(1) = Qc = number of coils
+    ' out(2) = qn = numerator of reduced improper fraction, number of slots per pole per phase
+    ' out(3) = qd = denominator of reduced improper fraction, number of slots per pole per phase
+    ' out(4) = qcn = numerator of reduced improper fraction, number of coils per pole per phase
+    ' out(5) = qcd = denominator of reduced improper fraction, number of coils per pole per phase
+    ' out(6) = int(yp) = full pitch
+    ' out(7) = t = num basic windings
+    ' out(8) = minimum number of poles for subvolume, >0 --> periodic, <0 --> antiperiodic
+    Dim outArray(0 To 8) As Long
+    Dim winding_config_input() As Long
+    winding_config_input = get_winding_config_private( Qs, P, m, layers )
+    Dim fracOut() As Long
+    Dim dQ As Double, dQc As Double, dYp As Double
+    Dim iQc As Long, iQn As Long, iQd As Long, iQcn As Long, iQcd As Long, iYp As Long
+    dQ = winding_config_input(0) / ( winding_config_input(1)*winding_config_input(2) )
+    dYp = winding_config_input(0) / ( winding_config_input(1) )
+    iYp = Int( dYp )
+    iQc = winding_config_input(3) * winding_config_input(0) / 2
+    dQc = iQc / ( winding_config_input(1)*winding_config_input(2) )
+    If is_winding_feasible_private(winding_config_input) Then
+        outArray(0) = 1
+        outArray(1) = iQc
+        fracOut = dec2frac_LIB( dQ )
+        If fracOut(1) = 0 Then
+            iQn = fracOut(0)
+            iQd = 1
+        Else
+            iQn = fracOut(0) * fracOut(2) + fracOut(1)
+            iQd = fracOut(2)
+        End If
+        fracOut = dec2frac_LIB( dQc )
+        If fracOut(1) = 0 Then
+            iQcn = fracOut(0)
+            iQcd = 1
+        Else
+            iQcn = fracOut(0) * fracOut(2) + fracOut(1)
+            iQcd = fracOut(2)
+        End If
+        outArray(2) = iQn
+        outArray(3) = iQd
+        outArray(4) = iQcn
+        outArray(5) = iQcd
+        outArray(6) = iYp
+        outArray(7) = gcd_LIB( iQc, winding_config_input(1) / 2 )
+        If is_evenposint_LIB(iQd) > 0 Then
+            outArray(8) = iQd
+        Else
+            outArray(8) = -iQd
+        End If
+    End If
+    get_winding_config_LIB = outArray
+End Function
+
+
+Private Function is_winding_feasible_private(ByVal winding_config As Variant) As Boolean
+    Dim check As Boolean
+    check = True
+    Dim pp As Long
+    Dim t As Long
+    pp = is_evenposint_LIB( winding_config(1) )
+    If pp = 0 Then
+        check = False
+        ReportWarning("Winding not feasible: Number of Poles has to be even!")
+    End If
+    Dim Qc As Long
+    If winding_config(3) = 1 Then
+        Qc = is_posint_LIB( winding_config(0) / 2 )
+        If Qc = 0 Then
+            check = False
+            ReportWarning("Winding not feasible: Single layer winding not feasible!")
+        End If
+    ElseIf winding_config(3) = 2 Then
+        Qc = winding_config(0)
+    Else
+        check = False
+        ReportWarning("Winding not feasible: Number of layers has to be 1 or 2!")
+    End If
+    If check Then
+        t = gcd_LIB( Qc,  pp/2 )
+        If ( ( winding_config(0) / t) Mod winding_config(2) ) <> 0 Then
+            check = False
+        End If
+    End If
+    If Not(check) Then
+        ReportWarning("Winding not feasible: Creating a balanced winding is not possible!")
+    End If
+    is_winding_feasible_private = check
+End Function
+
+
+Function is_winding_feasible_LIB(ByVal Qs As Variant, ByVal P As Variant, ByVal m As Variant, ByVal layers As Variant) As Boolean
+    Dim winding_config() As Long
+    winding_config = get_winding_config_private( Qs, P, m, layers )
+    is_winding_feasible_LIB = is_winding_feasible_private( winding_config )
+End Function
+
+
+Function print_winding_info_LIB( ByVal Qs As Variant, ByVal P As Variant, ByVal m As Variant, _
+    ByVal layers As Variant, Optional ByVal pitch As Variant = 0 ) As Boolean
+    Dim wc() As Long
+    wc = get_winding_config_LIB( Qs, P, m, layers )
+    ' out(0) = 1 if winding is feasible
+    ' out(1) = Qc = number of coils
+    ' out(2) = qn = numerator of reduced improper fraction, number of slots per pole per phase
+    ' out(3) = qd = denominator of reduced improper fraction, number of slots per pole per phase
+    ' out(4) = qcn = numerator of reduced improper fraction, number of coils per pole per phase
+    ' out(5) = qcd = denominator of reduced improper fraction, number of coils per pole per phase
+    ' out(6) = int(yp) = full pitch
+    ' out(7) = t = num basic windings
+    ' out(8) = minimum number of poles for subvolume, >0 --> periodic, <0 --> antiperiodic
+    Dim yd As Long, yp As Double
+    yp = Qs / P
+    If is_posint_LIB(layers) = 1 Then
+        yd = wc(6)
+    ElseIf is_posint_LIB(pitch) > 0 Then
+        yd = is_posint_LIB(pitch)
+    Else
+        yd = wc(6)
+    End If  
+    If wc(0) = 1 Then
+        ReportInformation("Number of slots per pole per phase q = " + CStr( wc(2) )+"/"+CStr( wc(3) ) )
+        ReportInformation("Number of coils per pole per phase qc = " + CStr( wc(4) )+"/"+CStr( wc(5) ) )
+        ReportInformation("Full pitch = " + CStr( wc(6) ) )
+        ReportInformation("Number of basic windings = " + CStr( wc(7) ) )
+        ReportInformation("Number of poles in subvolume = " + CStr( wc(8) ) )
+        If yd = 1 Then
+            ReportInformation("--- Non-overlapping ---")
+        Else
+            ReportInformation("--- Overlapping ---")
+        End If
+        If is_posint_LIB(layers) = 1 Then
+            ReportInformation("--- Single layer ---")
+        Else
+            ReportInformation("--- Double layer ---")
+        End If
+        If Abs(yd - yp) < 1e-14 Then
+            ReportInformation("--- Full-pitch ---")
+        Else
+            ReportInformation("--- Fractional pitch ---")
+        End If
+        If wc(3) = 1 Then
+            ReportInformation("--- Integral slot ---")
+        Else
+            ReportInformation("--- Fractional slot ---")
+        End If
+        If wc(4) = 1 Then
+            ReportInformation("--- Concentrated ---")
+        Else
+            ReportInformation("--- Distributed ---")
+        End If
+        print_winding_info_LIB = True
+    Else
+        'ReportInformation("Creating a balanced winding is not possible!")
+        print_winding_info_LIB = False
+    End If
+End Function
+
+
+Function get_basic_wdt_LIB( ByVal Qs As Variant, ByVal P As Variant, ByVal m As Variant, ByVal layers As Variant, Optional ByVal pitch As Variant = -1 ) As Long()
+    Dim wdt() As Long
+    Dim wdt2() As Long
+    Dim wdtFull() As Long
+    Dim wdt_copy As Variant
+    Dim MM() As Long
+    Dim pp As Long, N As Long, n_lay As Long, n_wc As Long, n_phases As Long, iPitch As Long, z As Long, tprim As Long
+    Dim q As Double
+    pp = CLng(P/2)
+    N = CLng(Qs)
+    n_lay = CLng(layers)
+    n_phases = CLng(m)
+    n_wc = n_lay*N/(2*CLng(n_phases))
+    q = N / (2*pp*n_phases)
+    z = n_wc - n_lay*pp*Int(q)
+    If z>0 Then
+        tprim = gcd_LIB( z, pp )
+    Else
+        tprim = pp
+    End If
+    N = N/tprim
+    pp = pp/tprim
+    n_wc = n_wc/tprim
+    Dim i As Long, j As Long, k As Long, ind As Long
+    ReDim wdt(1 To n_phases, 1 To (2/n_lay)*n_wc )
+    ReDim wdt2(1 To n_phases, 1 To (2/n_lay)*n_wc )
+    ReDim wdtFull(1 To 2, 1 To n_phases, 1 To (2/n_lay)*n_wc )
+    Dim approxHalf As Long, xi As Long
+    Dim iTmp As Long
+    If is_winding_feasible_LIB(Qs, P, m, layers) Then
+        iPitch = Int( N / (2*pp)) 
+        If CLng(pitch) > 0 Then
+            iPitch = CLng(pitch)
+        End If
+        ReDim MM(1 To N)
+        i = 1
+        While i <= N
+            ind = ( pp*(i-1)+1 ) Mod N
+            If ind = 0 Then
+                ind = N
+            End If
+            While MM(ind) <> 0
+                ind = ind + 1
+            Wend
+            MM(ind) = i
+            i = i+1
+            ind = ind+1
+        Wend
+        For i = 1 To n_phases
+            for j = 1 To UBound(wdt,2)
+                wdt(i,j) = MM( (2/n_lay)*n_wc*(i-1) + j )
+            Next j
+        Next i
+        wdt_copy = wdt
+        approxHalf = IIf( is_evenposint_LIB( (2/n_lay)*n_wc ) > 0, CLng((1/n_lay)*n_wc), 1 + CLng((1/n_lay)*n_wc) )
+        xi = IIf( is_evenposint_LIB( n_phases ) > 0, CLng( (n_phases/2) - 1), CLng((n_phases-1)/2) )
+        For i = 1 To n_phases
+            For j = approxHalf + 1 To UBound(wdt,2)
+                k = i-xi
+                If k < 1 Then
+                    k = n_phases+k
+                End If
+                wdt(k,j) = -wdt_copy( i,j )
+            Next j
+        Next i  
+        If n_lay = 2 Then
+            For i = LBound(wdt,1) To UBound(wdt,1)
+                For j = LBound(wdt,2) To UBound(wdt,2)
+                    iTmp = Abs(wdt(i,j)) + iPitch
+                    If iTmp <= UBound(wdt,2)*n_phases Then
+                        wdt2(i,j) = -1*Sgn(wdt(i,j))*( iTmp )
+                    Else
+                        iTmp = (iTmp Mod UBound(wdt,2)*n_phases)
+                        wdt2(i,j) = -1*Sgn(wdt(i,j))*( iTmp )
+                    End If
+                Next j
+            Next i
+        End If
+    End If
+    For i = LBound(wdt,1) To UBound(wdt,1)
+        For j = LBound(wdt,2) To UBound(wdt,2)
+            wdtFull(1,i,j) = wdt(i,j)
+            wdtFull(2,i,j) = wdt2(i,j)
+        Next j
+    Next i
+    get_basic_wdt_LIB = wdtFull
+End Function
+
+
+Function asm_fundamental_period_LIB( ByVal s As Variant, ByVal f As Variant, Optional ByVal denom_max As Long = 100 ) As Double()
+    Dim period As Double
+    period = 1/f
+    Dim out() As Double
+    ReDim out(1 To 2)
+    Dim s_frac() As Long
+    Dim s_frac1() As Long
+    ReDim s_frac1(1 To 2)
+    Dim s_frac2() As Long
+    ReDim s_frac2(1 To 2)
+    s_frac = dec2frac_LIB( CDbl(s), denom_max )
+    s_frac1(1) = s_frac(0)*s_frac(2) + s_frac(1)
+    s_frac1(2) = s_frac(2)
+    s_frac2(1) = s_frac1(2) - s_frac1(1)
+    s_frac2(2) = s_frac1(2)
+    If s_frac1(1) = 0 Then
+        out(1) = period
+    ElseIf s_frac2(1) = 0 Then
+        out(1) = period
+    Else
+        Dim num As Long
+        Dim denom As Long
+        num = lcm_LIB( s_frac1(2), s_frac2(2)  )
+        denom = gcd_LIB( s_frac1(1), s_frac2(1) )
+        out(1) = period * num/denom
+    End If
+    out(2) = s_frac1(1) / s_frac1(2)
+    asm_fundamental_period_LIB = out
+End Function
+
+
+Function get_solid_info_LIB( ByVal solid_name As String, Optional ByVal wcs_name As String = "", Optional ByVal debugOut As Boolean = False ) As Double()
+    Dim out() As Double
+    Dim x0 As Double, y0 As Double, z0 As Double
+    Dim xn As Double, yn As Double, zn As Double
+    Dim xu As Double, yu As Double, zu As Double
+    Dim x As Double, y As Double, z As Double
+    Dim u As Double, v As Double, w As Double
+    Dim r As Double, phi As Double
+    Dim rmin As Double, rmax As Double
+    Dim phimin As Double, phimax As Double
+    Dim zmin As Double, zmax As Double
+    Dim globalwcs As Boolean
+    Dim check As Boolean
+    Dim nPoints As Long
+    Dim nFaces As Long
+    Dim i As Long, iTmp As Long
+    Dim sTmp As String
+    Dim ids() As Long
+
+    ReDim out(1 To 14)
+    For i = LBound(out) To UBound(out)
+        out(i) = -1
+    Next i
+
+    Resulttree.UpdateTree()
+
+    globalwcs = False
+
+    If WCS.IsWCSActive() = "global" Then
+        WCS.ActivateWCS ("local")
+        WCS.AlignWCSWithGlobalCoordinates()
+        globalwcs = True
+    End If
+
+    Solid.UpdateAllBodyTypes()
+    If Solid.DoesExist( solid_name ) Then
+        If debugOut Then 
+            ReportInformation("Solid '" + solid_name +"' exists!" )
+        End If
+        If wcs_name = "" Then
+            If globalwcs Then
+                If debugOut Then 
+                    ReportInformation("Global Coordinate System is used." )
+                End If
+                WCS.Store ("lib_wcs")
+            Else
+                If debugOut Then 
+                    ReportInformation("Current WCS is used." )
+                End If
+                WCS.Store ("lib_wcs")
+            End If
+        Else
+            If WCS.DoesExist( wcs_name ) And debugOut Then
+                ReportInformation("WCS '" + wcs_name +"' is used!" )
+            End If
+        End If
+
+        ' in global coordinates
+        WCS.GetOrigin(wcs_name, x0,y0,z0)
+        WCS.GetNormal(wcs_name, xn,yn,zn)
+        WCS.GetUVector(wcs_name, xu,yu,zu)
+
+        nPoints = Solid.GetNumberOfPoints( solid_name )
+
+        For i = 1 To nPoints
+            ' in global coordinates
+            Solid.GetPointCoordinates(solid_name, i, x,y,z)
+            If wcs_name = "" Then
+                WCS.GetWCSPointFromGlobal ( "lib_wcs", u, v, w, x, y, z )
+            Else
+                WCS.GetWCSPointFromGlobal ( wcs_name, u, v, w, x, y, z )
+            End If
+
+            r = Sqr( u^2 + v^2 )
+            phi = ATn2D( v, u )
+            If Sgn(phi) < 0 Then
+                phi = phi + 360
+            End If
+            z = w
+
+            If i = 1 Then
+                rmin = r
+                rmax = r
+                phimin = phi
+                phimax = phi
+                zmin = z
+                zmax = z
+            End If
+
+            If r > rmax Then
+                rmax = r
+            ElseIf r < rmin Then
+                rmin = r
+            End If
+            If phi > phimax Then
+                phimax = phi
+            ElseIf phi < phimin Then
+                phimin = phi
+            End If
+            If z > zmax Then
+                zmax = z
+            ElseIf z < zmin Then
+                zmin = z
+            End If
+        Next i
+
+        out(1) = rmin
+        out(2) = rmax
+        out(3) = phimin
+        out(4) = phimax
+        out(5) = zmin
+        out(6) = zmax
+
+        Pick.ClearAllPicks()
+
+        WCS.ActivateWCS ("global")
+        Pick.ClearAllPicks
+        Pick.PickFaceFromPoint ( solid_name, 0, 0, 0 )
+        Pick.GetPickedFaceByIndex(0, iTmp)
+
+        Pick.PickFaceChainFromId (solid_name, iTmp)
+        nFaces = Pick.GetNumberOfPickedFaces
+        ReDim ids(0 To nFaces-1)
+        For i = 0 To nFaces-1
+            sTmp = Pick.GetPickedFaceByIndex(i, iTmp)
+            ids(i) = iTmp
+        Next i
+
+        For i = 0 To nFaces-1
+            Pick.ClearAllPicks
+            Pick.PickCenterpointFromId(solid_name, ids(i) )
+            check = False
+            check = Pick.GetPickpointCoordinatesByIndex ( 0, x, y, z )
+            If wcs_name = "" Then
+                WCS.GetWCSPointFromGlobal ( "lib_wcs", u, v, w, x, y, z )
+            Else
+                WCS.GetWCSPointFromGlobal ( wcs_name, u, v, w, x, y, z )
+            End If
+            If check Then
+                If Abs(w - zmin) < 1e-9 Then
+                    If debugOut Then 
+                        ReportInformation("Planar face at zmin")
+                    End If
+                    out(7) = Sqr( u^2 + v^2 )
+                    phi = ATn2D( v, u )
+                    If Sgn(phi) < 0 Then
+                        phi = phi + 360
+                    End If
+                    out(8) = phi
+                    Pick.PickFaceFromPoint ( solid_name, x, y, z )
+                    out(11) = Pick.GetPickedFaceAreaByIndex ( 0 )
+                    out(13) = ids(i)
+                End If
+                If Abs(w - zmax) < 1e-9 Then
+                    If debugOut Then 
+                        ReportInformation("Planar face at zmax")
+                    End If
+                    out(9) = Sqr( u^2 + v^2 )
+                    phi = ATn2D( v, u )
+                    If Sgn(phi) < 0 Then
+                        phi = phi + 360
+                    End If
+                    out(10) = phi
+                    Pick.PickFaceFromPoint ( solid_name, x, y, z )
+                    out(12) = Pick.GetPickedFaceAreaByIndex ( 0 )
+                    out(14) = ids(i)
+                End If
+            End If
+        Next i
+
+        If Not(globalwcs) Then
+            WCS.ActivateWCS ("local")
+        End If
+        If wcs_name = "" Then
+            WCS.Delete ("lib_wcs")
+        End If
+        If debugOut Then
+            ReportInformation("-------------------------")
+            ReportInformation("DEBUG: rmin = " + CStr(out(1)))
+            ReportInformation("DEBUG: rmax = " + CStr(out(2)))
+            ReportInformation("DEBUG: phi_min = " + CStr(out(3)))
+            ReportInformation("DEBUG: phi_max = " + CStr(out(4)))
+            ReportInformation("DEBUG: z_min = " + CStr(out(5)))
+            ReportInformation("DEBUG: z_max = " + CStr(out(6)))
+            ReportInformation("DEBUG: r_phaseCenter_zmin = " + CStr(out(7)))
+            ReportInformation("DEBUG: phi_phaseCenter_zmin = " + CStr(out(8)))
+            ReportInformation("DEBUG: r_phaseCenter_zmax = " + CStr(out(9)))
+            ReportInformation("DEBUG: phi_phaseCenter_zmax = " + CStr(out(10)))
+            ReportInformation("DEBUG: area_zmin = " + CStr(out(11)))
+            ReportInformation("DEBUG: area_zmax = " + CStr(out(12)))
+            ReportInformation("DEBUG: faceid_zmin = " + CStr(out(13)))
+            ReportInformation("DEBUG: faceid_zmax = " + CStr(out(14)))
+            ReportInformation("-------------------------")
+        End If
+        If out(13) <= 0 Then
+            ReportWarning("No planar surface perpendicular to z-axis is detected at 'z_min'. Please check your inputs.")
+        End If
+        If out(14) <= 0 Then
+            ReportWarning("No planar surface perpendicular to z-axis is detected at 'z_man'. Please check your inputs.")
+        End If        
+    Else
+        ReportError("solid '" + solid_name +"' does not exist!")
+    End If
+        Pick.ClearAllPicks
+        get_solid_info_LIB = out
+End Function
+
+
+Sub stack_push_LIB( ByRef inData() As String, ByVal added As String )
+    ReDim Preserve inData(0 To UBound(inData) + 1)
+    inData(UBound(inData)) = added
+End Sub
+
+
+Sub stack_pop_LIB ( ByRef inData() As String, ByRef item As String )
+    Dim iLen As Long
+    iLen = UBound(inData)
+    If iLen >= 1 Then
+        item = inData( UBound(inData) )
+        ReDim Preserve inData(0 To UBound(inData) - 1)
+    Else
+        item = ""
+    End If
+End Sub
+
+
+Sub get_recursive_treepaths_LIB(ByVal root As String, ByRef pathList As Variant, Optional ByVal bGlobalName As Boolean = True)
+    Dim curr As String
+    Dim nDim As Integer
+    Dim stack() As String
+
+    ReDim stack(0 To 0)
+    curr = root
+    ResultTree.UpdateTree
+    Do While True
+        While curr <> ""
+            stack_push_LIB(stack,curr)
+            curr = ResultTree.GetFirstChildName( curr )
+        Wend
+        If UBound(stack) = 0 Then
+            Exit Do
+        End If
+        stack_pop_LIB(stack, curr )
+        If ResultTree.GetFirstChildName( curr ) = "" Then
+            nDim = UBound(pathList) - LBound(pathList)
+            ReDim Preserve pathList(nDim + 1)
+            If bGlobalName Then
+                pathList(nDim + 1) = GetGlobalNameFromTreeName( curr )
+            Else
+                pathList(nDim + 1) = curr
+            End If
+        End If
+        curr = ResultTree.GetNextItemName( curr )
+    Loop
+End Sub
+
+
+Function delete_all_under_coils_LIB() As Boolean
+    Dim sNT_root_item As String
+    sNT_root_item = "Coils"
+    Dim slNT_path() As String
+    ReDim slNT_path(0 To 0)
+    get_recursive_treepaths_LIB(ResultTree.GetFirstChildName(sNT_root_item), slNT_path, False)
+    Dim i As Long, sCoil As String
+    delete_all_under_coils_LIB = False
+    If UBound(slNT_path) >= 1 Then
+        On Error Resume Next
+        For i = 1 To UBound(slNT_path)
+            sCoil = Right(slNT_path(i), Len(slNT_path(i))-(Len(sNT_root_item)+1))
+            CoilGroup.Delete( sCoil )
+            Coil.Delete( sCoil )
+        Next i
+        On Error GoTo 0
+        delete_all_under_coils_LIB = True
+    End If
+    ResultTree.UpdateTree
+End Function
+
+
+Function delete_all_under_contactprop_LIB() As Boolean
+    Dim sNT_root_item As String
+    sNT_root_item = "Contact Properties"
+    Dim slNT_path() As String
+    ReDim slNT_path(0 To 0)
+    get_recursive_treepaths_LIB(ResultTree.GetFirstChildName(sNT_root_item), slNT_path, False)
+    Dim i As Long, sContactProp As String
+    delete_all_under_contactprop_LIB = False
+    If UBound(slNT_path) >= 1 Then
+        For i = 1 To UBound(slNT_path)
+            sContactProp = Right(slNT_path(i), Len(slNT_path(i))-(Len(sNT_root_item)+1))
+            ContactProperties.Delete( sContactProp )
+        Next i
+        delete_all_under_contactprop_LIB = True
+    End If
+    ResultTree.UpdateTree
+End Function
+
+
+Function delete_all_under_magnets_LIB() As Boolean
+    Dim sNT_root_item As String
+    sNT_root_item = "Permanent Magnets"
+    Dim slNT_path() As String
+    ReDim slNT_path(0 To 0)
+    get_recursive_treepaths_LIB(ResultTree.GetFirstChildName(sNT_root_item), slNT_path, False)
+    Dim i As Long, sMagnet As String
+    delete_all_under_magnets_LIB = False
+    If UBound(slNT_path) >= 1 Then
+        For i = 1 To UBound(slNT_path)
+            sMagnet = Right(slNT_path(i), Len(slNT_path(i))-(Len(sNT_root_item)+1))
+            Magnet.Delete( sMagnet )
+        Next i
+        delete_all_under_magnets_LIB = True
+    End If
+    ResultTree.UpdateTree
+End Function
+
+
+Function add_coils_recursive_to_meshgroup_LIB( ByVal meshgroup As String ) As Boolean
+    Dim sNT_root_item As String, curr As String
+    Dim slNT_path_to_coil() As String
+    Dim i As Long
+    sNT_root_item = "Coils"
+    ReDim slNT_path_to_coil(0)
+    get_recursive_treepaths_LIB ( ResultTree.GetFirstChildName( sNT_root_item ), slNT_path_to_coil )
+    add_coils_recursive_to_meshgroup_LIB = False
+    If UBound(slNT_path_to_coil) > 0 Then
+        For i = LBound(slNT_path_to_coil) + 1 To UBound(slNT_path_to_coil)
+            Group.AddItem slNT_path_to_coil(i), meshgroup
+        Next i
+        add_coils_recursive_to_meshgroup_LIB = True
+    End If
+    ResultTree.UpdateTree
+End Function
+
+
+Function is_just_template_LIB() As Boolean
+    Dim nSolids As Long, i As Long, sSolid As String, sSolid_rel As String
+    Dim icnt As Long
+    ResultTree.UpdateTree()
+    nSolids = Solid.GetNumberOfShapes
+    icnt = 0
+    For i = 0 To nSolids - 1
+        sSolid = Solid.GetNameOfShapeFromIndex ( i )
+        sSolid_rel = Left(sSolid, 9)
+        If sSolid_rel = "template:" Or sSolid_rel = "template\" Or sSolid_rel = "template/" Then
+            icnt = icnt + 1
+        End If
+    Next i
+    If icnt = nSolids Then
+        is_just_template_LIB = True
+    Else
+        is_just_template_LIB = False
+    End If
+End Function
+
+
+Function get_files_in_dir_LIB(ByVal sPath As String, _
+    Optional ByVal sFilter As String) As String()
+
+    'dynamic array for names
+    Dim aFileNames() As String
+    ReDim aFileNames(0)
+
+    Dim sFile As String
+    Dim nCounter As Long
+
+    If Right(sPath, 1) <> "\" Then
+        sPath = sPath & "\"
+    End If
+
+    If sFilter = "" Then
+        sFilter = "*.*"
+    End If
+
+    'call with path "initializes" the dir function and returns the first file
+    sFile = Dir(sPath & sFilter)
+
+    nCounter = 0
+    'call it until there is no filename returned
+    Do While sFile <> ""
+
+        'store the file name in the array
+        aFileNames(nCounter) = sFile
+
+        'subsequent calls without param return next file
+        sFile = Dir
+
+        'make sure your array is large enough for another
+        nCounter = nCounter + 1
+        If nCounter > UBound(aFileNames) Then
+            'preserve the values and grow by reasonable amount for performance
+            ReDim Preserve aFileNames(UBound(aFileNames) + 255)
+        End If
+
+    Loop
+
+    'truncate the array to correct size
+    If nCounter < UBound(aFileNames) Then
+        ReDim Preserve aFileNames(0 To nCounter - 1)
+    End If
+
+    'return the array of file names
+    get_files_in_dir_LIB = aFileNames()
+
+End Function

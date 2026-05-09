@@ -1,0 +1,799 @@
+
+' ================================================================================================
+' Copyright 2016-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================
+' History of Changes
+' ------------------------------------------------------------------------------------------------
+' 01-Jun-2018 imu: Correction in the display formatting of the CTLE settings
+' 19-Apr-2018 imu: Cleaning up CTLE-related code, mostly debug code
+' 13-Nov-2017 imu: Corrections in LFE and DFE to deal with very short signals. Added CTLE equalization.
+' 15-Mar-2017 ube: dialogue cosmetics
+' 11-Mar-2017 imu: correction in equalizedPulse_FFE  to deal with negative tap for the main cursor
+' 17-Feb-2017 imu: added optional parameters related to the x-axis shift to the equalization functions (LFE, DFE)
+' 02-Jan-2017 imu,ube: moved equalization related definitions and dialog routines into the lib
+' 19-May-2016 imu: Changed uses to include, added additional parameters for the functions, for use as global lib
+' 10-May-2016 imu: Added setting of sett_DFE.ntaps  and  sett_LFE.ntaps (only nonzero after they have been calculated once)
+' 08-May-2016 imu: eliminated the plotting of the equalized signal - it can be done in the calling routine. It is otherwise very confusing, since it was always saved under the same name
+
+' Type of equalization
+Const EQTypesArray = Array("CTLE", "Transmitter_LFE", "Receiver_LFE", "Receiver_DFE")
+Public Enum EqualizTypesEnum
+	CTLE
+	Trans_FFE
+	Rec_LFE
+	Rec_DFE
+End Enum
+
+Public Type eq_CTLE_settings
+	isOn As Byte
+	CTLE_Type As String
+	R1 As Double
+	R2 As Double
+	R3 As Double
+	C1 As Double
+	C2 As Double
+	Adc As Double
+	fz As Double
+	fp1 As Double
+	fp2 As Double
+	isAuto As Byte
+End Type
+
+Public Type eq_LFE_DFE_settings
+	isOn As Byte
+	npre As Long
+	npost As Long
+	method As String
+	ntaps As Long
+	taps() As Double
+End Type
+
+' Variables for equalization
+Public EQ_Type As EqualizTypesEnum
+Public sett_CTLE As eq_CTLE_settings
+Public sett_LFE As eq_LFE_DFE_settings
+Public sett_DFE As eq_LFE_DFE_settings
+
+Function equalizedPulse_DFE(o1 As Object, pulse_len As Long, ByRef sett_DFE As eq_LFE_DFE_settings, Optional ByRef initshift As Double) As Object
+	' An approximate version of DFE.
+	Dim o2 As Object
+	Dim iii As Long, jjj As Long
+	Dim mat() As Double, sig_init() As Double
+
+	Dim ntaps As Long, taps() As Double, tappos() As Long
+	Dim npre As Long, npost As Long
+	Dim matcurs() As Double, ycurs() As Double
+	Dim tmpl As Long
+	Dim dt As Double
+	Dim nshifts As Long, tap As Long, k As Long
+	Dim crtbit As Double
+	Dim shift As Double
+
+	shift = o1.gety(0)	' This could be a parameter, or initshift could be used instead of o1.gety(0)
+
+	Dim cursor As Long
+	cursor = o1.GetGlobalMaximum
+	If (o1.getN - cursor) / o1.getN < 0.1 Then
+		MsgBox "The input signal does not look like an appropriate pulse response. Please check your settings"
+		Exit All
+	End If
+
+' ======= THIS SHOULD BE ENTERED BY THE USER
+	npre = 0
+	npost = sett_DFE.npost
+	ntaps = npre+npost
+' ======= THIS SHOULD BE ENTERED BY THE USER
+
+	'zero_forcing(npre, npost, o1, pulse_len, taps)
+
+	ReDim taps(0 To ntaps-1)
+	ReDim matcurs(1 To ntaps, 1 To ntaps)
+	ReDim ycurs(1 To ntaps)
+	For iii = -npre+1 To npost
+		tmpl = cursor + iii*pulse_len
+		ycurs(ntaps-(iii+npre)+1)=o1.GetY(tmpl)-shift
+	Next
+
+	ReDim sett_DFE.taps(0 To ntaps-1)
+	For iii = 0 To ntaps-1
+		taps(iii) = ycurs(ntaps-iii)
+		sett_DFE.taps(iii) = taps(iii)
+	Next
+	sett_DFE.ntaps = ntaps
+
+	' ==============================
+	Dim n As Long, m As Long, mn As Long
+
+	Set o2 = o1.copy
+
+
+	n = o1.getN-1
+	m = ntaps	'actually, not needed here, the matrix gets too long. I only need a length of n
+	mn = n'+m*pulse_len
+
+	ReDim      mat(0 To mn)
+	ReDim sig_init(0 To n)	'	ReDim sig_init(0 To mn)	' As in determine_eyeunwrapped_superposition
+
+' Only for DFE
+	' Initialize the matrix
+	dt = o1.GetX(1)-o1.GetX(0)
+	For iii = 0 To n
+		sig_init(iii) = o1.GetY(iii)
+		mat(iii) = sig_init(iii)'*taps(0)
+	Next
+
+	k = cursor + pulse_len/2
+	For tap = 0 To ntaps-1
+		crtbit = taps(tap)	'getABit(digseq, bits+1)
+		For iii = k To min(k+pulse_len-1, o1.GetN-1)	' Now go through all time steps, but only until the end of the signal!
+			mat(iii) = sig_init(iii)-crtbit       '*mat(iii) * sig_init(iii-k)
+		Next
+		k = k+pulse_len
+		nshifts = nshifts+1
+	Next
+
+	Set o2 = o1.copy	'Result1D("")
+	For iii = 0 To o1.GetN-1	'mn-1
+		o2.SetXYDouble(iii, iii*dt, mat(iii))
+	Next
+
+	Set equalizedPulse_DFE = o2.Copy
+
+	' Trick to estimate the shift due to the fact that this is only an approximate value of the DFE
+	Dim tmpd As Double
+	k = cursor + pulse_len/2*3
+	If k<o1.GetN Then	' Make sure we do not go further than the length of the signal (could happen for short signals)
+		If mat(k-1) < shift Then
+			tmpd = mat(k-1)
+		End If
+	End If
+	initshift = tmpd
+
+End Function
+
+Function equalizedPulse_FFE(o1 As Object, pulse_len As Long, ByRef sett_LFE As eq_LFE_DFE_settings, Optional ByRef initshift As Double) As Object
+	' Use as follows: if the signal starts at zero, but only because a y-shift has been subtracted before, provide initshift as the signal's shift.
+	'	After the execution of the routine, initshift will contain the scaled shift
+	Dim o2 As Object
+	Dim iii As Long, jjj As Long
+	Dim mat() As Double, sig_init() As Double
+	Dim shift As Double
+
+
+	Dim ntaps As Long, taps() As Double, tappos() As Long
+	Dim npre As Long, npost As Long
+	Dim matcurs() As Double, ycurs() As Double
+	Dim tmpl As Long
+
+	Dim cursor As Long
+
+' ======= THIS SHOULD BE ENTERED BY THE USER
+	npre = sett_LFE.npre
+	npost = sett_LFE.npost
+	ntaps = npre+npost+1
+' ======= THIS SHOULD BE ENTERED BY THE USER
+
+	shift = -o1.gety(0)	' IMU 17.2.2017
+
+	If sett_LFE.method = "ZFS" Then
+		zero_forcing(npre, npost, o1, pulse_len, taps, shift)
+	Else
+		MMSE_taps(npre, npost, o1, pulse_len, taps, shift)
+	End If
+
+	If taps(npre) < 0 Then	' If the tap for the main cursor is negative, pulse would be inverted. Change signs of all taps
+		For iii = 0 To ntaps-1
+			taps(iii) = -taps(iii)
+		Next
+	End If
+
+	ReDim sett_LFE.taps(0 To ntaps-1)
+	For iii = 0 To ntaps-1
+		sett_LFE.taps(iii) = taps(iii)
+	Next
+	sett_LFE.ntaps = ntaps
+
+	Dim n As Long, m As Long, mn As Long
+
+	Set o2 = o1.copy
+
+	n = o1.getN-1
+	m = ntaps	'4	'cst_seq_length-1
+	mn = n+m*pulse_len
+
+	ReDim      mat(0 To mn)
+	ReDim sig_init(0 To n)	'	ReDim sig_init(0 To mn)	' As in determine_eyeunwrapped_superposition
+
+	' Initialize the matrix
+	For iii = 0 To n
+		sig_init(iii) = o1.GetY(iii)
+		mat(iii) = sig_init(iii)*taps(0)
+'		mat(iii) = sig_init(iii)*taps(ntaps-1)
+	Next
+
+	' Iterate for all taps
+	Dim nshifts As Long, tap As Long, k As Long
+	Dim crtbit As Double
+
+	nshifts = 1
+	For tap = 1 To ntaps-1
+		crtbit = taps(tap)	'getABit(digseq, bits+1)
+'		crtbit = taps(ntaps-1-tap)	'getABit(digseq, bits+1)
+		k = nshifts*pulse_len
+'		For iii = k To k+n'(n_UIs)*pulse_len	'(n_UIs-5)*pulse_len	'n	'mn	'pulse_len*(bits-1) To n	' Now go through all time steps
+		For iii = 0 To k+n	' Now go through all time steps
+			Dim iiik As Long
+			iiik = iii-k
+			If iiik < 0 Then iiik = n-iiik-k
+			mat(iii) = mat(iii) + crtbit * sig_init(iiik)
+		Next
+		nshifts = nshifts+1
+	Next
+
+	' Calculate the shift
+	Dim tmpshift As Double, myval As Double
+	tmpshift = initshift *taps(0)
+	For tap=1 To ntaps-1
+		iiik = n-tap-1
+		If Abs(o1.getY(0)) < 1e-15 Then
+			myval = o1.getY(iiik)+initshift
+		Else
+			myval = o1.getY(iiik)
+		End If
+		tmpshift = tmpshift+ taps(tap)*(myval)
+	Next
+	initshift = tmpshift
+
+	Dim dt As Double
+	dt = o1.GetX(1)-o1.GetX(0)
+
+	Set o2 = Result1D("")
+	o2.Initialize(n+1)	'mn)
+	For iii = 0 To n	'mn-1
+		o2.SetXYDouble(iii, iii*dt, mat(iii))
+	Next
+
+	Set equalizedPulse_FFE = o2.Copy
+
+End Function
+
+Sub zero_forcing(npre As Long, npost As Long, o1 As Object, pulse_len As Long, taps() As Double, Optional shift As Double)
+	' Determine the taps through the zero forcing solution (ZFS) method
+	' Own implementation based on explanations from the book ADVANCED SIGNAL INTEGRITY For HIGH-SPEED DIGITAL DESIGNS, by STEPHEN H. HALL and HOWARD L. HECK, John Wiley, 2009
+
+	Dim matcurs() As Double, ycurs() As Double
+	Dim iii As Long, jjj As Long
+	Dim ntaps As Long
+	Dim tmpl As Long
+	Dim cursor As Long
+
+	ntaps = npre + npost +1
+
+	' Determine position of the maximum - this is the cursor
+	cursor = o1.GetGlobalMaximum
+
+	ReDim taps(0 To ntaps-1)
+	ReDim matcurs(1 To ntaps, 1 To ntaps)
+	ReDim ycurs(1 To ntaps)
+
+	' Generate input samples matrix
+	For iii = -npre To npost
+		tmpl = cursor + iii*pulse_len
+		ycurs(ntaps-(iii+npre))=o1.GetY(tmpl)+shift
+	Next
+
+	For jjj = 1 To ntaps
+		matcurs(npost+1, jjj) = ycurs(jjj)
+	Next
+	For iii = npost To 1 Step -1
+		For jjj = 1 To iii+1
+			If jjj+1 <= ntaps Then matcurs(iii, jjj) = matcurs(iii+1,jjj+1)
+		Next
+	Next
+
+	For iii = npost+2 To ntaps
+		For jjj = iii-npost To ntaps
+			matcurs(iii, jjj) = matcurs(iii-1,jjj-1)
+		Next
+	Next
+
+	If IS_DEBUG = True Then
+		Dim tmpstr As String
+		tmpstr = ""
+		For iii = 1 To ntaps
+			For jjj = 1 To ntaps
+				tmpstr = tmpstr + cstr(matcurs(iii,jjj)) + vbTab
+			Next
+			tmpstr = tmpstr + vbCrLf
+		Next
+		MsgBox tmpstr
+		'display_real_mat(matcurs, ntaps, "matcurs ZFE" )
+	End If
+
+	Dim ytarget() As Double, cz_tmp() As Double, cz() As Double
+	ReDim ytarget(1 To ntaps)
+	ReDim cz_tmp(1 To ntaps)
+
+	ytarget(npre+1) = 1
+	If shift <> 0 Then ytarget(npre+1) = shift
+
+	invmat (ntaps, matcurs)
+	matrix_vector_mult(ntaps, matcurs, ytarget, cz_tmp)
+
+	' Prepare normalization of coefficients
+	Dim sumc As Double
+	sumc = 0
+	For iii = 1 To ntaps
+		sumc = sumc + Abs(cz_tmp(iii))
+	Next
+	For iii = 0 To ntaps-1
+		taps(iii) = cz_tmp(iii+1)/sumc
+	Next
+End Sub
+
+Sub MMSE_taps(npre As Long, npost As Long, o1 As Object, pulse_len As Long, taps() As Double, Optional shift As Double)
+	' Determine the taps through the Minimum mean square error (MMSE) method
+	' Own implementation based on explanations from the book ADVANCED SIGNAL INTEGRITY For HIGH-SPEED DIGITAL DESIGNS, by STEPHEN H. HALL and HOWARD L. HECK, John Wiley, 2009
+
+	Dim matcurs() As Double, ycurs() As Double
+	Dim iii As Long, jjj As Long
+	Dim ntaps As Long
+	Dim tmpl As Long
+	Dim cursor As Long
+	Dim ytarget() As Double, cz_tmp() As Double, cz() As Double
+
+	ntaps = npre + npost +1
+
+	' Determine position of the maximum - this is the cursor
+	cursor = o1.GetGlobalMaximum
+
+
+	ReDim taps(0 To ntaps-1)
+	ReDim matcurs(1 To ntaps, 1 To ntaps)
+	ReDim ycurs(1 To ntaps)
+
+	' Generate input samples matrix
+	For iii = -npre To npost
+		tmpl = cursor + iii*pulse_len
+		ycurs(ntaps-(iii+npre))=o1.GetY(tmpl)+shift
+	Next
+
+	For jjj = 1 To ntaps
+		matcurs(npost+1, jjj) = ycurs(jjj)
+	Next
+	For iii = npost To 1 Step -1
+		For jjj = 1 To iii+1
+			If jjj +1 <= ntaps Then matcurs(iii, jjj) = matcurs(iii+1,jjj+1)
+		Next
+	Next
+
+	For iii = npost+2 To ntaps
+		For jjj = iii-npost To ntaps
+			matcurs(iii, jjj) = matcurs(iii-1,jjj-1)
+		Next
+	Next
+		If IS_DEBUG = True Then display_real_mat(matcurs, ntaps, "matcurs MMSE" )
+
+	Dim y() As Double
+	ReDim y(1 To o1.GetN)
+	For iii = 1 To o1.GetN
+		y(iii) = o1.GetY(iii-1)
+	Next
+
+	Dim Rxx() As Double, Rxz() As Double
+	ReDim Rxx(1 To ntaps, 1 To ntaps)
+	ReDim Rxz(1 To ntaps, 1 To o1.GetN)
+	Dim matcurs_T() As Double
+	ReDim matcurs_T(1 To ntaps, 1 To ntaps)
+
+	' Calculate x^T
+	matrix_transpose(ntaps, ntaps, matcurs, matcurs_T)
+		If IS_DEBUG Then display_real_mat(matcurs_T, ntaps, "matcurs_T" )
+
+	' Calculate Rxx = x^t * x
+	matrix_matrix_mult(ntaps, matcurs_T, matcurs, Rxx)
+	' Calculate Rxz = ycurs = x^t * y
+	ReDim ytarget(1 To ntaps)
+	ReDim cz_tmp(1 To ntaps)
+	ytarget(npre+1) = 1
+	If shift <> 0 Then ytarget(npre+1) = shift
+
+	matrix_vector_mult(ntaps, matcurs_T, ytarget, y)
+		If IS_DEBUG Then display_real_mat(Rxx, ntaps, "Rxx" )
+
+	invmat (ntaps, Rxx)
+	matrix_vector_mult(ntaps, Rxx, y, cz_tmp)
+	' Prepare normalization of coefficients
+	Dim sumc As Double
+	sumc = 0
+	For iii = 1 To ntaps
+		sumc = sumc + Abs(cz_tmp(iii))
+	Next
+	For iii = 0 To ntaps-1
+		taps(iii) = cz_tmp(iii+1)/sumc
+	Next
+
+End Sub
+
+Sub Equalization_OLD(o1 As Object, pulse_t As Long, UseEqualization As Boolean, sett_CTLE As eq_LFE_DFE_settings, sett_LFE As eq_LFE_DFE_settings, sett_DFE As eq_LFE_DFE_settings, ParentTreeName As String)
+
+	Dim dt As Double, pulse_len As Long
+	Dim o1init As Object
+	Dim maxinit As Double, mininit As Double
+
+	Set o1init = o1.copy
+	maxinit = o1.GetY(o1.GetGlobalMaximum)
+	mininit = o1.GetY(o1.GetGlobalMinimum)
+
+
+
+		' Deal with the equalization
+	' ============================
+	If 1 = 1 Then
+	dt = o1.GetX(1) -o1.getX(0)
+	pulse_len = pulse_t / dt
+
+	' Make sure dt fits to the pulse length
+	Dim nsamples As Long
+	'nsamples = o1.GetN / pulse_len
+	'dt = pulse_t / pulse_len
+	'o1.Resample To
+	If UseEqualization = True Then
+		If sett_CTLE.isOn = 0 And sett_LFE.isOn = 0 And sett_DFE.isOn = 0 Then
+			ReportInformationToWindow "Equalization is on, but no equalization type has been selected. Continuing without equalization."
+			UseEqualization = False
+		End If
+
+		If sett_CTLE.isOn = 1 Then
+			' Code for CTLE
+		End If
+
+		If sett_LFE.isOn = 1 Then 	'EQ_Type = Trans_FFE Then
+			' Transform the pulse response such that it contains the equalized pulse response
+			Set o1 = equalizedPulse_FFE(o1, pulse_len, sett_LFE)
+			If IS_DEBUG Then
+				o1.Save ("pulseResponse_new_eq_FFE")
+				o1.addToTree(ParentTreeName + "\Pulse Response - Time signals\pulseResponse_new equalized")
+			End If
+		End If
+
+		If sett_DFE.isOn = 1 Then	'	EQ_Type = Rec_DFE Then
+			' Transform the pulse response such that it contains the equalized pulse response
+			Set o1 = equalizedPulse_DFE(o1, pulse_len, sett_DFE)
+			If IS_DEBUG Then
+				o1.Save ("pulseResponse_new_eq_DFE")
+				o1.addToTree(ParentTreeName + "\Pulse Response - Time signals\pulseResponse_new equalized DFE")
+			End If
+		End If
+	End If
+	End If
+
+	'If zero_lev <> 0 Then	' Update the zero level		' Commented out on 19.05.2016, for use as global function
+		Dim maxfin As Double, minfin As Double, amplinit As Double, amplfin As Double, zerolev_diff As Double
+		maxfin = o1.GetY(o1.GetGlobalMaximum)
+		minfin = o1.GetY(o1.GetGlobalMinimum)
+
+		amplinit = maxinit - mininit
+		amplfin = maxfin-minfin
+
+		zerolev_diff = (amplinit - amplfin) * 2	' Supposition that it is like this. IMU 21 Jul 2015
+'		zero_lev = - zerolev_diff
+
+	'End If
+
+End Sub
+
+Function DialogFunction_Equalize(DlgItem$, Action%, SuppValue?) As Boolean
+    Select Case Action%
+    Case 1 ' Dialog box initialization
+ '   	DlgSetPicture "Picture1",MacroDir + "\CTLE_Passive.bmp",0
+ '   	DlgSetPicture "Picture1",MacroDir + "\CTLE_Active.bmp",0
+
+
+    	DlgVisible "eqtypes", False	' Initial simple implementation, not used anymore
+    	DlgVisible "Eq_Method", False	' Initial simple implementation, not used anymore
+
+		'DlgEnable "CTLE", True
+    	' While CTLE options not implemented
+		DlgVisible "CTLE_Options", False
+		DlgVisible "CTLE_Passive", False
+		DlgVisible "CTLE_Active", False
+		DlgValue ("CTLE_Options", 0)
+
+		DlgVisible "CTLE_Auto", False
+		DlgEnable "CTLE_Auto", False
+
+
+		'DlgVisible "R1", False
+		'DlgVisible "R2", False
+		'DlgVisible "R3", False
+		'DlgVisible "C1", False
+		'DlgVisible "C2", False
+
+		'DlgVisible "Text5", False
+		'DlgVisible "Text6", False
+		'DlgVisible "Text7", False
+		'DlgVisible "Text8", False
+		'DlgVisible "Text9", False
+
+		' When CTLE will be implemented
+		If DlgValue("CTLE") = 0 Then
+			'DlgEnable "CTLE_Options", False
+
+			'DlgEnable "R1", False: DlgEnable "R2", False: DlgEnable "R3", False: DlgEnable "C1", False:	DlgEnable "C2", False
+		End If
+
+		DlgEnable "npre", True
+		DlgEnable "npost_LFE", True
+		DlgEnable "npost_DFE", True
+		DlgEnable "LFE", True
+		DlgEnable "DFE", True
+
+		DlgVisible "Picture1", False
+
+    Case 2 ' Value changing or button pressed
+    	If DlgItem$ = "CTLE" Or DlgItem$ = "CTLE_Options" Then
+    		If DlgValue("CTLE") = 1 Then
+  				'DlgVisible "Picture1", True
+				'DlgEnable "CTLE_Options", True
+	  			'DlgEnable "R1", True: DlgEnable "R2", True: DlgEnable "R3", True: DlgEnable "C1", True:	DlgEnable "C2", True
+				If DlgValue("CTLE_Options") = 0 Then
+    '				DlgSetPicture "Picture1",MacroDir + "\CTLE_Passive.bmp",0
+    			Else
+    '				DlgSetPicture "Picture1",MacroDir + "\CTLE_Active.bmp",0
+    			End If
+    		Else
+				'DlgVisible "Picture1", False
+				'DlgEnable "CTLE_Options", False
+				'DlgEnable "R1", False: DlgEnable "R2", False: DlgEnable "R3", False: DlgEnable "C1", False:	DlgEnable "C2", False
+    		End If
+    	End If
+    Case 4 ' Focus changed
+ '       Debug.Print "DlgFocus="""; DlgFocus(); """"
+    Case 6 ' Function key
+ '       If SuppValue? And &H100 Then Debug.Print "Shift-";
+ '       Debug.Print "F" & (SuppValue And &HFF)
+    End Select
+End Function
+
+Sub Read_Equalization_Settings()
+
+	Dim methods_array(0 To 1) As String
+	methods_array(0) = "ZFS"	'"Zero forcing solution (ZFS)"
+	methods_array(1) = "MMSE"	'"Minimum mean square error (MMSE)"
+
+	Begin Dialog UserDialog 850,287,"Equalization",.DialogFunction_Equalize ' %GRID:10,7,1,1
+		Text 30,14,130,14,"Equalization method",.Eq_Method
+		DropListBox 200,14,170,28,EQTypesArray(),.eqtypes
+		OKButton 30,252,90,21
+		CancelButton 130,252,90,21
+		Text 30,49,390,14,"Equalization to be applied (will be applied in this order)",.Text10
+
+		Text 30,77,160,14,"Transmitter equalization",.Text1
+		' LFE
+		Text 30,98,20,14,"1)",.Text13
+		CheckBox 70,98,90,14,"Dig LFE",.LFE
+		Text 220,98,50,14,"Npre",.Text2
+		Text 380,98,50,14,"Npost",.Text3
+		TextBox 260,98,90,21,.npre
+		TextBox 420,98,90,21,.npost_LFE
+		Text 530,98,60,14,"Method",.Text15
+		DropListBox 590,98,180,28,methods_array(),.LFE_Method
+
+		Text 40,133,160,14,"Receiver equalization",.Text4
+		' CTLE
+		Text 30,154,20,14,"2)",.Text12
+		CheckBox 70,154,100,14,"CTLE (beta)",.CTLE
+		OptionGroup .CTLE_Options
+			OptionButton 750,154,70,14,"Passive",.CTLE_Passive
+			OptionButton 750,168,70,14,"Active",.CTLE_Active
+		'Text 320,154,30,14,"R1",.Text5
+		'Text 320,175,30,14,"C1",.Text7
+		'Text 470,175,30,14,"C2",.Text8
+		'Text 470,154,30,14,"R2",.Text6
+		'Text 630,154,30,14,"R3",.Text9
+		'TextBox 350,154,90,21,.R1
+		'TextBox 350,175,90,21,.C1
+		'TextBox 500,175,90,21,.C2
+		'TextBox 500,154,90,21,.R2
+		'TextBox 660,154,90,21,.R3
+
+		Text 240,154,50,14,"DC gain",.Text5_1
+		Text 240,175,40,14,"f_zero",.Text7_1
+		Text 440,154,50,14,"f_pole1",.Text6_1
+		Text 440,175,50,14,"f_pole2",.Text8_1
+		'Text 630,154,30,14,"R3",.Text9_1
+		TextBox 280,154,90,21,.Adc
+		TextBox 280,175,90,21,.fz
+		TextBox 490,154,90,21,.fp1
+		TextBox 490,175,90,21,.fp2
+		Text 372,154,40,21,Units.GetUnit("Frequency")
+		Text 372,175,40,21,Units.GetUnit("Frequency")
+		Text 580,154,40,21,Units.GetUnit("Frequency")
+		Text 580,175,40,21,Units.GetUnit("Frequency")
+		CheckBox 670,161,60,14,"Auto",.CTLE_Auto
+
+		' DFE
+		Text 30,210,20,14,"3)",.Text14
+		CheckBox 70,210,90,14,"DFE",.DFE
+		Text 220,210,50,14,"Npost",.Text11
+		TextBox 260,210,90,21,.npost_DFE
+
+
+		Picture 420,203,300,49,"Picture1",0,.Picture1
+'		MultiListBox 220,56,90,70,EQTypesArray(),.MultiListBox1
+	End Dialog
+
+	Dim dlg As UserDialog
+
+	dlg.eqtypes = EQ_Type
+	'dlg.R1 = CStr(sett_CTLE.R1)	'"1"
+	'dlg.R2 = CStr(sett_CTLE.R2)	'"1"
+	'dlg.R3 = CStr(sett_CTLE.R3)	'"1"
+	'dlg.C1 = Format(sett_CTLE.C1, "0.0000E+00")	'"1e-12"
+	'dlg.C2 = Format(sett_CTLE.C2, "0.0000E+00")	'"1e-12"
+	dlg.npre = CStr(sett_LFE.npre)	'"1"
+	dlg.npost_LFE = CStr(sett_LFE.npost)	'"2"
+	dlg.npost_DFE = CStr(sett_DFE.npost)	'"2"
+
+	dlg.Adc = CStr(sett_CTLE.Adc)
+	dlg.fz  = Replace(Format$(sett_CTLE.fz,  "#.000e+00;-#.000e+00;0.000"), ",", ".")
+	dlg.fp1 = Replace(Format$(sett_CTLE.fp1,  "#.000e+00;-#.000e+00;0.000"), ",", ".")
+	dlg.fp2 = Replace(Format$(sett_CTLE.fp2,  "#.000e+00;-#.000e+00;0.000"), ",", ".")
+
+	If sett_CTLE.isOn = False Then 	dlg.ctle = 0 Else dlg.CTLE = 1 'End If
+	If sett_LFE.isOn = False Then 	dlg.LFE = 0  Else dlg.LFE = 1 'End If
+	If sett_DFE.isOn = False Then 	dlg.DFE = 0  Else dlg.DFE = 1 'End If
+
+	If sett_CTLE.CTLE_Type = "Passive" Then dlg.CTLE_Options = 0 Else dlg.CTLE_Options = 1 'End If
+
+	If sett_LFE.method = "ZFS" Then dlg.LFE_Method = 0
+	If sett_LFE.method = "MMSE" Then dlg.LFE_Method = 1
+
+
+	If Dialog (dlg) = 0 Then Exit Sub
+
+	EQ_Type = dlg.eqtypes
+	sett_CTLE.isOn = dlg.CTLE
+	sett_CTLE.isAuto = dlg.CTLE_Auto
+	If dlg.CTLE_Options = 0 Then sett_CTLE.CTLE_Type = "Passive" Else sett_CTLE.CTLE_Type = "Active"
+	sett_CTLE.Adc = RealVal(dlg.Adc)
+	sett_CTLE.fz = RealVal(dlg.fz)
+	sett_CTLE.fp1 = RealVal(dlg.fp1)
+	sett_CTLE.fp2 = RealVal(dlg.fp2)
+
+	sett_LFE.isOn = dlg.LFE
+	sett_DFE.isOn = dlg.DFE
+	'sett_CTLE.R1 = Val(dlg.R1)
+	'sett_CTLE.R2 = Val(dlg.R2)
+	'sett_CTLE.R3 = Val(dlg.R3)
+	'sett_CTLE.C1 = Val(dlg.C1)
+	'sett_CTLE.C2 = Val(dlg.C2)
+	sett_LFE.npre = Val(dlg.npre)
+	sett_LFE.npost = Val(dlg.npost_LFE)
+	sett_DFE.npost = Val(dlg.npost_DFE)
+	sett_LFE.method = methods_array(dlg.LFE_Method)
+End Sub
+
+' ======================
+Function CTLE_dig_filter(i1 As Object, a() As Double, b() As Double) As Object
+	' i1: input signal
+	' a: filter coefficients for the denominator
+	' b: filter coefficients for the numerator
+	' a and b must have the same dimensions, going from 1 to n+1, where n is the order of the filter
+
+	Dim n As Long	' Order of the filter + 1
+	Dim z() As Double	' At the beginning of each sample, contains the previous values of z. Gets updated to the new values in the current iteration
+						' (Old values are overwritten)
+	Dim o1 As Object	' Output
+	Dim x As Double, y As Double	' Current input and output
+
+
+	Dim iii As Long, jjj As Long
+
+	If UBound(a) <> UBound(b) Then
+		ReportError "Inconsistent digital filter coefficients!"
+		Exit All
+	End If
+
+	n = UBound(a)
+	ReDim z(1 To n-1)
+
+	Set o1 = i1.Copy
+
+
+	For iii = 0 To i1.GetN-1
+		x = i1.GetY(iii)
+
+		y = b(1) * x +z(1)
+		o1.SetY(iii, y)
+		For jjj = 1 To n-2
+			z(jjj) = b(jjj+1) * x + z(jjj+1) - a(jjj+1) * y	' 2nd order: z(1) = b(2) * x + z(2) - a(2) * y
+		Next
+
+		z(n-1) = b(n) * x - a(n) * y	' 2nd order: z(2) = b(3) * x - a(3) * y
+	Next
+
+	Set CTLE_dig_filter = o1.Copy
+
+End Function
+
+
+Sub CTLE_determine_dig_Coeffs(a() As Double, b() As Double, i1 As Object, dt As Double)
+	' Calculate the coefficients of the digital filter from the transfer function information
+
+	Dim iii As Long
+
+	Dim fz As Double, fp1 As Double, fp2 As Double, Adc As Double
+	Dim om_z As Double, om_p1 As Double, om_p2 As Double, K As Double
+
+	fz = sett_CTLE.fz '3.183098862E-01
+	fp1 = sett_CTLE.fp2	'7.840735518E-01
+	fp2 = sett_CTLE.fp1	'9.821030105E+01
+	Adc = sett_CTLE.Adc	'0.328947368
+
+
+	Dim myfact As Double	' Frequency factor
+	myfact = Units.GetFrequencyUnitToSI	'1e9
+	om_z = fz * myfact*2*pi()
+	om_p1 = fp1 * myfact*2*pi()
+	om_p2 = fp2 * myfact*2*pi()
+
+	K = Adc * om_p1 * om_p2 / om_z
+
+	ReDim a(1 To 3)
+	ReDim b(1 To 3)
+
+	' Sampling rate
+	Dim fs As Double
+	fs = 1/dt
+
+	' Cutoff
+	Dim fc As Double
+	fc = fp2
+
+	' Prewarping, not used right now
+If 1 = 0 Then
+	Dim CW As Double
+	CW = fs/pi() * Tan(pi()*fc/fs)
+
+	dt = 6.4e-12	' Good for the model CTLE_DS_tests_Hz
+
+	dt = 1/fc
+	dt = 1/fc/10
+
+	i1.ResampleTo(i1.GetX(0), i1.GetX(i1.GetN-1), Round(i1.GetX(i1.GetN-1)/dt))
+
+	dt = dt*2*pi()
+End If
+CW = 1
+
+	Dim Vn As Double
+	Vn = 2/dt
+
+	' Coefficients for H(z)
+	' Denominator
+	a(1) = Vn^2 + Vn*(om_p1 + om_p2) + om_p1 * om_p2
+	a(2) = -2*Vn^2 + 2*om_p1 * om_p2
+	a(3) = Vn^2 - Vn*(om_p1 + om_p2) + om_p1 * om_p2
+
+	' Numerator
+	b(1) = (Vn + om_z)*K
+	b(2) = 2*om_z*K
+	b(3) = (om_z-Vn)*K
+
+	Dim a1 As Double
+
+	b(1) = b(1) / CW^2
+	b(2) = b(2) / CW
+	a(1) = a(1) / CW^2
+	a(2) = a(2) / CW
+
+	a1 = a(1)
+	For iii = 1 To 3
+		a(iii) = a(iii) / a1
+		b(iii) = b(iii) / a1
+	Next
+
+End Sub
+

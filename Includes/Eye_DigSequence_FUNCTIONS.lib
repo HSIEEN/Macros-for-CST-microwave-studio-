@@ -1,0 +1,595 @@
+
+' ================================================================================================
+' Copyright 2016-2023 Dassault Systemes Deutschland GmbH
+' ================================================================================================
+' History of Changes
+' ------------------------------------------------------------------------------------------------
+' 19-Apr-2018 imu: Improved readability, some cleaning up
+' 26-May-2016 imu: Added warning and exit sub in the calculation of autocorrelation if the bit seq length is too long (otherwise the calc. of autocorr. takes forever)
+' 19-May-2016 imu: Added cst_seq_length_Remaining as parameter for the "partial" functions - not really used yet
+' 02-Apr-2016 imu: Commented out selectTreeItem, it makes the macro execution much too long
+
+Function getABit (digseq() As Byte, pos As Integer) As Integer
+	getABit = digseq(pos)
+	Exit Function
+
+
+	If Mid$(digseq,pos,1) = "0" Then
+		getABit = 0
+	Else
+		getABit = 1
+	End If
+End Function
+
+Function bitSeq_gen_Random (cst_seq_length As Long) As Byte()
+	Dim II As Long
+	Dim digseq() As Byte, tmp As Double
+
+'	Randomize(3888464412)
+	ReDim digseq(1 To cst_seq_length)
+	For II = 1 To cst_seq_length
+		tmp = Rnd():
+		If tmp >0.5 Then
+			tmp = 1:
+		Else
+			tmp = 0:
+		End If
+		digseq(II) = tmp
+	Next II
+	bitSeq_gen_Random = digseq
+End Function
+
+Function bitSeq_gen_Random_partial (cst_seq_length As Long,     cst_seq_length_crt As Long, ByRef nbits As Long, ByRef cst_seq_length_Remaining As Long) As Byte()
+	Dim II As Long
+	Dim digseq() As Byte, tmp As Double
+
+'	Randomize(3888464412)
+
+	If cst_seq_length_Remaining < cst_seq_length_crt Then
+		cst_seq_length_crt = cst_seq_length_Remaining
+	End If
+
+	ReDim digseq(1 To cst_seq_length_crt)
+	For II = 1 To cst_seq_length_crt
+		tmp = Rnd():
+		If tmp >0.5 Then
+			tmp = 1:
+		Else
+			tmp = 0:
+		End If
+		digseq(II) = tmp
+	Next II
+	bitSeq_gen_Random_partial = digseq
+	nbits = cst_seq_length_crt
+	cst_seq_length_Remaining = cst_seq_length_Remaining - nbits
+End Function
+
+Function bitSeq_read_from_file (cst_filename As String) As Byte()
+	Dim II As Long
+	Dim digseq_str As String
+	Dim digseq() As Byte
+	Dim tmp As Double
+	Dim tmpstr As String, iLineCounter As Long
+	Dim nn As Long
+
+	tmpstr  = Dir$(cst_filename)
+	If tmpstr = "" Then
+		MsgBox "Wrong input file for reading the bit sequence. Macro stops"
+		Exit All
+	End If
+
+	digseq_str = ""
+
+	Open cst_filename For Input As #99
+		While Not EOF(99)
+			Line Input #99, tmpstr
+			iLineCounter = iLineCounter + 1
+			tmpstr = CST_elim_string(tmpstr, " ")
+			digseq_str = digseq_str + tmpstr
+		Wend
+    Close #99
+
+    nn = Len(digseq_str)
+    ReDim digseq(1 To nn)
+    For II = 1 To nn
+    	digseq(II) = Val(Mid$(digseq_str, II, 1))
+    Next
+
+
+	bitSeq_read_from_file = digseq
+End Function
+
+Function bitSeq_user_def (digseq_str As String) As Byte()
+	Dim II As Long
+	Dim digseq() As Byte
+	Dim tmp As Double
+	Dim tmpstr As String, iLineCounter As Long
+	Dim nn As Long
+
+    nn = Len(digseq_str)
+    ReDim digseq(1 To nn)
+    For II = 1 To nn
+    	digseq(II) = Val(Mid$(digseq_str, II, 1))
+    Next
+
+
+	bitSeq_user_def = digseq
+End Function
+
+
+Function bitSeq_gen_PRBS (n As Integer, randombits As Boolean) As Byte()
+	Dim ng As Integer, g(5) As Byte, norm_name As String
+	Dim i As Long, j As Long
+	Dim bits() As Byte
+	Dim kkk As Long
+	Dim q As Byte
+
+	ReDim bits(1 To 2^n-1)
+
+	' Get maximal-length-PRBS taps
+	PRBS_init_params (n, ng, g, norm_name)
+	If ng = 0 Then			' This should never happen, since we previously tested this condition in dialogfunc1
+		MsgBox "This value for n is not yet implemented!" + vbCrLf + "Please contact the technical support", vbCritical, "Function bitSeq_gen_PRBS"
+		Exit All
+	End If
+
+	' Generate randomly the initial n bits
+	Dim sum As Integer
+	sum = 0
+	For i = 1 To n
+		If randombits Then
+			bits(i) = Rnd: bits(i) = Round(bits(i))
+		Else
+			bits(i) = 1
+		End If
+		sum = sum + bits(i)
+	Next i
+	If sum = 0 Then bits(1) = 1		' Avoid starting vector of all zeros
+
+	' Generate PRBS
+	' bits = PRBS(init, g, n, ng)
+	' Avoid one more function call - put the code directly here
+
+	kkk = n
+	For i= (n+1) To (2^n-1)
+		q=bits(i-g(1))
+		For j=2 To ng
+			q= q Xor bits(i-g(j))
+		Next j
+		kkk = kkk+1
+		bits(kkk)=q
+	Next i
+	If (kkk-(2^n-1)) <> 0 Then
+		MsgBox "Subroutine PRBS generated a wrong number of bits! " + vbCrLf + "Please contact the technical support.", vbCritical, "PRBS"
+		Exit All
+	End If
+
+	bitSeq_gen_PRBS = bits
+	Exit Function
+
+	Dim txt As String
+	txt = ""
+	For i = 1 To 2^n-1
+		txt = txt + CStr(bits(i))
+	Next i
+		'MsgBox(txt)
+	'bitSeqLen = 2^n-1
+	bitSeq_gen_PRBS = txt
+End Function
+
+Function PRBS(init() As Byte,x() As Byte, n As Integer, nx As Integer) As Byte()
+' 2^n-1-bit PRBS based on initial bit vector 'init'
+' Taps prescribed by a polynomial with all coefficients equal to 1 or 0, represented by vector x (e.g., x=(3,2) => x^3+x^2+1).
+' Number of nonzero coefficients in the polynomial: nx
+Dim bits() As Byte
+Dim kkk As Long,i As Long, q As Byte,j As Long
+
+ReDim bits(1 To 2^n-1)
+
+For i = 1 To n
+	bits(i) = init(i)
+Next i
+
+kkk = n
+For i= (n+1) To (2^n-1)
+	q=bits(i-x(1))
+	For j=2 To nx
+		q= q Xor bits(i-x(j))
+	Next j
+	kkk = kkk+1
+	bits(kkk)=q
+Next i
+If (kkk-(2^n-1)) <> 0 Then
+	MsgBox "Subroutine PRBS generated a wrong number of bits! " + vbCrLf + "Please contact the technical support.", vbCritical, "PRBS"
+	Exit All
+End If
+PRBS = bits
+End Function
+
+
+Function PRBS_partial(init() As Byte,x() As Byte, n As Integer, nx As Integer,        zdigseq1() As Byte, cst_seq_length As Long, cst_seq_length_crt As Long, ByRef nbits As Long, ByRef cst_seq_length_Remaining As Long) As Byte()
+' TO CHECK: cst_seq_length ByRef???
+'  bits=prbs(init,g)
+' 2^n-1-bit PRBS based on initial String 'init'
+' Taps prescribed by a polynomial with all coefficients equal to 1 or 0, represented by vector x (e.g., x=(3,2) => x^3+x^2+1).
+' Number of nonzero coefficients in the polynomial: nx
+Dim bits() As Byte
+Dim kkk As Long,i As Long, q As Byte,j As Integer
+Dim jjj As Long, nd As Long
+
+ReDim bits(0 To cst_seq_length_crt+n)
+If cst_seq_length_crt < n Then ReDim bits(0 To n)
+
+On Error GoTo NOT_INITIALIZED
+If IsArray(zdigseq1) Then nd = UBound(zdigseq1)
+NOT_INITIALIZED:
+On Error GoTo 0
+
+Dim Start As Long
+Start = (cst_seq_length - cst_seq_length_Remaining+n) Mod n
+' Finished with the "old" bits. Now generate the new ones
+
+If nd <> 0 Then
+	Start = nd-n
+	For i = 1 To n
+		bits(i) = zdigseq1(i+Start)
+	Next i
+Else
+	For i = 1 To n
+		bits(i) = init(i)
+	Next i
+End If
+
+kkk = n
+For i= (n+1) To cst_seq_length_crt+n	' Generate n more bits
+	q=bits(i-x(1))
+	For j=2 To nx
+		q= q Xor bits(i-x(j))
+	Next j
+	kkk = kkk+1
+	bits(kkk)=q
+Next i
+
+If nd <> 0 Then
+	For i = 1 To cst_seq_length_crt
+		bits(i) = bits(i+n)
+	Next
+	ReDim Preserve bits(0 To cst_seq_length_crt)
+End If
+	If (kkk-(2^n-1)) <> 0 Then
+'	MsgBox "Subroutine PRBS generated a wrong number of bits! " + vbCrLf + "Please contact the technical support.", vbCritical, "PRBS"
+'	Exit All
+End If
+PRBS_partial = bits
+End Function
+
+Function PRBS_init_params(n As Integer, ng As Integer, g() As Byte, norm_name As String)
+' Generate PRBS tap positions ensuring maximal length, for a polynomial of order 2^n-1
+' ITU and CCITT are the norms prescribing some of the tap positions
+	norm_name = ""
+	Select Case n
+		'Case 1
+		'Case 2
+		Case 3
+			ng = 2: g(1) = 3: g(2) = 2
+		Case 4
+			ng = 2: g(1) = 4: g(2) = 3
+		Case 5
+			ng = 2: g(1) = 5: g(2) = 3
+		Case 6
+			'ng = 2:	g(1) = 6: g(2) = 5
+			ng = 4: g(1) = 6: g(2) = 5: g(3) = 3: g(4) = 2: norm_name = "ITU-T V.29"
+		Case 7
+			ng = 2
+			g(1) = 7: g(2) = 6
+		Case 8
+			ng = 4
+			g(1) = 8: g(2) = 7: g(3) = 3: g(4) = 2
+		Case 9
+			ng = 2:
+			g(1) = 9: g(2) = 5
+			norm_name = "CCITT 0.153 / ITU-T V.52"
+		Case 10
+			ng = 2:
+			g(1) = 10: g(2) = 7
+			norm_name = "CCITT 0.152 / ITU-T 0.152"
+		Case 11
+			ng = 2:
+			g(1) = 11: g(2) = 9
+		Case 12
+			ng = 4
+			g(1) = 12: g(2) = 9: g(3) = 8: g(4) = 5
+		Case 13
+			ng = 4:	g(1) = 13: g(2) = 12: g(3) = 10: g(4) = 9
+		Case 14
+			ng = 4
+			g(1) = 14: g(2) = 13: g(3) = 3: g(4) = 2
+		Case 15
+			ng = 2
+			g(1) = 15: g(2) = 14
+			norm_name = "CCITT 0.151 / ITU-T 0.151"
+		Case 16
+			ng = 4
+			g(1) = 16: g(2) = 14: g(3) = 13: g(4) = 11
+		' Following cases may be too slow to simulate in VBA; cases 23 and 31 have practical importance (used in standards)
+		Case 17
+			ng = 2: g(1) = 17: g(2) = 14
+		Case 18
+			ng = 2: g(1) = 18: g(2) = 11
+		Case 19
+			ng = 4: g(1) = 19: g(2) = 18: g(3) = 14: g(4) = 13
+		Case 20
+			ng = 2: g(1) = 20: g(2) = 17
+		Case 21
+			ng = 2: g(1) = 21: g(2) = 19
+		Case 22
+			ng = 2: g(1) = 22: g(2) = 21
+		Case 23
+			ng = 2: g(1) = 23: g(2) = 18		: norm_name = "CCITT 0.151 / ITU-T 0.151"
+		Case 31
+'			ng = 2: g(1) = 31: g(2) = 28
+		Case Else
+			ng = 0		' Not implemented yet
+	End Select
+End Function
+
+Function bitSeq_gen_K28_5(inverted As Boolean) As Byte()
+Dim z(1 To 21) As Byte, iii As Integer
+
+' Generate K28.5 sequence  1100 0001 0100 1111 1010.
+
+z(1)=1: z(2) = 1
+For iii = 3 To 7
+	z(iii) = 0
+Next iii
+z(8)= 1: z(9)=0: z(10)=1: z(11)=0: z(12) = 0
+For iii = 13 To 17
+	z(iii) = 1
+Next iii
+z(18)=0: z(19)=1: z(20)=0
+
+If inverted Then
+	For iii = 1 To 20
+		z(iii) =(256-z(iii)) Mod 255
+	Next iii
+End If
+
+If 1 = 0 Then
+	Dim txt As String
+	txt = ""
+	For iii = 1 To 20
+		txt = txt + CStr(z(iii))
+	Next iii
+End If
+		'MsgBox(txt)
+	'bitSeqLen = 2^n-1
+'	bitSeq_gen_K28_5 = txt
+	bitSeq_gen_K28_5 = z
+
+End Function
+
+
+Function Display_bitSeq_autocorr(bits() As Byte, seqname As String, bDS As Boolean, ParentTreeName As String)
+	Dim bitSeqLen As Long, crtbit1 As Byte, crtbit2 As Byte, i As Long, j As Long, i1 As Long, i2 As Long
+	Dim mean As Double, stdev2 As Double
+
+	bitSeqLen = UBound(bits)
+
+	If bitSeqLen > 2^7 Then
+		ReportWarningToWindow "Bit sequence length too large for calculating autocorrelation."
+		Exit Function
+	End If
+
+	Dim bitobj As Object
+If bDS Then		'Or mybDS Then		' Corrected on 19-may-2016, for usage as a global function
+	Set bitobj = DS.Result1D("")
+Else
+	Set bitobj = Result1D("")
+End If
+
+	bitobj.initialize(bitSeqLen)
+
+	For i = 1 To bitSeqLen
+		crtbit1 = bits(i)	'Val (Mid(bits,i,1))
+		bitobj.SetXYDouble (i-1, i, crtbit1)
+	Next i
+	bitobj.Save "^bit_seq_"+seqname+".sig"
+
+	' Calculate autocorrelation
+	mean = bitobj.GetMeanValue
+	stdev2 = (bitobj.GetSigma)^2*bitSeqLen
+
+	mean = 0: stdev2 = 1		' do not normalize
+
+	Dim bit_acor As Object, autocor As Double
+If bDS Then	'Or mybDS Then			' Corrected on 19-may-2016, for usage as a global function
+	Set bit_acor = DS.Result1D("")
+Else
+	Set bit_acor = Result1D("")
+End If
+	bit_acor.initialize(bitSeqLen)
+
+	For i = 1 To bitSeqLen
+		autocor = 0
+		For j = 1 To bitSeqLen - i
+'		For j = i To bitSeqLen - (i)
+			i1 = j: i2 = j+i:
+			If i2> bitSeqLen Then
+				i2 = i2-bitSeqLen
+			End If
+			crtbit1 = bits(i1)	'Val (Mid(bits,i1,1))
+			crtbit2 = bits(i2)	'Val (Mid(bits,i2,1))
+			autocor = autocor + (crtbit1-mean)*(crtbit2-mean)
+		Next j
+		bit_acor.SetXYDouble(i-1,i,autocor/stdev2)
+	Next i
+	bit_acor.Save "^bit_seq_autocorr_"+seqname+".sig"
+	'bitobj.Type
+
+	' Now display the two sequences
+If bDS Then		'Or mybDS Then		' Corrected on 19-may-2016, for usage as a global function
+	bitobj.AddToTree ParentTreeName + "\Bit sequences\"+seqname
+	'ResultTree.RefreshView
+	bit_acor.AddToTree ParentTreeName + "\Bit sequences\"+seqname+"acorr"
+
+	SelectTreeItem ParentTreeName + "\Bit sequences\"+seqname+"acorr"
+
+Else
+	bitobj.AddToTree ParentTreeName + "\Bit sequences\"+seqname
+	bit_acor.AddToTree ParentTreeName + "\Bit sequences\"+seqname+"acorr"
+
+	'If bDS Then	On Error Resume Next	' mybDS Then	On Error Resume Next			' Corrected on 19-may-2016, for usage as a global function
+	'CSTResultTree.RefreshView			' Corrected on 19-may-2016, for usage as a global function, CSTResultTree not known
+	'On Error GoTo 0
+	SelectTreeItem ParentTreeName + "\Eye Diagram\Bit sequences\"
+End If
+
+
+End Function
+
+Function Display_bitSeq_final_params(bits() As Byte)
+	Dim blen As Long, mark_dens As Double, trans_dens As Double, median As Double, stdev As Double
+	Dim iii As Long
+	Dim prev As Byte, no_ones As Long, no_trans As Long	' No. of 1's, no. of transitions
+	Dim max_consec As Byte, no_consec As Byte		' Maximum and current no. of consecutive identical bits
+	Dim crtbit As Byte
+
+	blen = UBound(bits)
+	no_ones = 0: no_trans = 0
+	no_consec=0: max_consec=0
+	prev = bits(1)	'Val(Mid(bits,1,1))
+	median = 0.0
+
+	For iii = 1 To blen
+		crtbit = bits(iii)	'Val (Mid(bits,iii,1))
+		If crtbit = 1 Then
+			no_ones = no_ones + 1
+			median = median + 1
+		End If
+		If crtbit <> prev Then
+			no_trans = no_trans+1
+			no_consec=0
+		Else
+			no_consec = no_consec+1
+			If no_consec > max_consec Then max_consec = no_consec
+		End If
+		prev = crtbit
+	Next iii
+
+	mark_dens  = no_ones /blen * 100
+	trans_dens = no_trans/blen * 100
+	'max_consec = max_consec+1
+
+	median = median/blen
+
+	stdev = 0.0
+	For iii = 1 To blen
+		stdev = stdev + (Val(  Mid(bits,iii,1))-median)^2
+	Next iii
+	stdev = Sqr(stdev/blen)
+
+	MsgBox "Mark density: " + CStr( Round(mark_dens,2)) + "%" + vbCrLf + _
+	    	"Transition density: "+ CStr( Round(trans_dens,2)) + "%"+ vbCrLf + _
+	    	"Max. no. of consecutive identical digits: " + CStr(max_consec)+ vbCrLf +vbCrLf + _
+	    	"Median: " + CStr(Round(median,2))+ vbCrLf + _
+	    	"Std. deviation: " + CStr(Round(stdev,2)), vbInformation, "Bit sequence properties"
+
+End Function
+
+Function bitSeq_gen_PRBS_partial_byte (n As Integer, randombits As Boolean,     zdigseq1() As Byte, cst_seq_length As Long, cst_seq_length_crt As Long, ByRef nbits As Long, ByRef cst_seq_length_Remaining As Long) As Byte()
+	' digseq1 is the previous digital sequence; its length MUST be >= n
+	Dim ng As Integer, g(5) As Byte, norm_name As String
+	Dim i As Integer, init() As Byte
+	Dim bits() As Byte
+
+
+	ReDim init(n+1)
+	ReDim bits(cst_seq_length_crt+1)
+
+	If cst_seq_length_crt < n Then
+		MsgBox "Number of positions cst_seq_length_crt (" + cstr(cst_seq_length_crt) + ") in function bitSeq_gen_PRBS_partial   is too low, should be at least " + cstr(n) + "."
+		Exit All
+	End If
+	' Get maximal-length-PRBS taps
+	PRBS_init_params (n, ng, g, norm_name)
+	If ng = 0 Then			' This should never happen, since we previously tested this condition in dialogfunc1
+		MsgBox "This value for n is not yet implemented!" + vbCrLf + "Please contact the technical support", vbCritical, "Function bitSeq_gen_PRBS"
+		Exit All
+	End If
+
+	' Generate randomly the initial n bits
+	Dim sum As Integer
+	sum = 0
+	For i = 1 To n
+		If randombits Then
+			init(i) = Rnd: init(i) = Round(init(i))
+		Else
+			init(i) = 1
+		End If
+		sum = sum + init(i)
+	Next i
+	If sum = 0 Then init(1) = 1		' Avoid starting vector of all zeros
+
+	' Generate PRBS
+	bits = PRBS_partial(init, g, n, ng,   zdigseq1, cst_seq_length, cst_seq_length_crt, nbits, cst_seq_length_Remaining)
+
+	If cst_seq_length_Remaining < cst_seq_length_crt Then
+		cst_seq_length_crt = cst_seq_length_Remaining
+	End If
+
+	Dim txt As String
+				If 1 = 0 Then
+					txt = ""
+				'	For i = 1 To 2^n-1
+					For i = 1 To cst_seq_length_crt
+						txt = txt + CStr(bits(i))
+						zdigseq1(i) = bits(i)
+					Next i
+						'MsgBox(txt)
+				End If
+	'bitSeqLen = 2^n-1
+	bitSeq_gen_PRBS_partial_byte = bits
+	nbits = cst_seq_length_crt
+	cst_seq_length_Remaining = cst_seq_length_Remaining - nbits
+End Function
+
+' === STRING FUNCTIONS
+
+Function CST_elim_string (s1 As String, s2 As String) As String
+
+	' this function is searching for all occurances of s2 within s1 and eliminates them
+
+	Dim i0 As Integer, i1 As Integer, islength As Integer, ilast As Integer
+	Dim s3 As String
+	Dim bReplace As Boolean
+
+	i0=1
+	islength = Len(s1)
+	ilast = 0
+	s3 = ""
+	i1=InStr(i0,s1,s2)
+		If (i1 = 0) Then
+			s3 = s1
+		End If
+
+	While True
+		i1=InStr(i0,s1,s2)
+		If (i1 = 0) Then
+			Exit While
+		End If
+
+		bReplace = True
+		If (bReplace) Then
+			s3 = s3 + Mid$(s1,ilast+1,i1-ilast-1) '+ "_cst_tmp"
+			ilast = i1
+		End If
+		i0=i1+1
+	Wend
+
+'	If (ilast < islength) Then
+'		s3 = s3 + Mid$(s1,ilast+1,islength-ilast-1)
+'	End If
+
+	CST_elim_string = s3
+
+End Function
