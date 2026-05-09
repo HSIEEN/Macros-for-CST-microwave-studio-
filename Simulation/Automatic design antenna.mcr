@@ -4,6 +4,11 @@ Option Explicit
 
 '#include "vba_globals_all.lib"
 '#include "vba_globals_3D.lib"
+'#include "Optenni_coros.lib"
+'#include "mws_ports.lib"
+'#include "complex.lib"
+'#Include "OptenniLibrary.lib"
+'#Include "OptenniLibrary_MWS.lib"
 '#Uses "AntennaElement.CLS"
 '#Uses "Antenna.CLS"
 Public antElem_arr() As AntennaElement
@@ -28,7 +33,6 @@ Sub Main
 	Dim feedSolid As String
 	Dim feed As AntennaElement
 	Dim tgtLength As Double
-	Dim deltaX As Double, deltaY As Double, deltaZ As Double
 	Dim resFreq As Double
 	Dim Q As Double, totEffi As Double, radEffi As Double
 	Dim ifSuccess As Boolean
@@ -202,13 +206,15 @@ Sub Main
 	'For monitorIndex = 0 To
 	ReportinformationTowindow "$Main: open file #"&CStr(fileNumber)&" for constructing"
    	Open logFile For Output As #fileNumber
-   	ReportInformationToWindow "**********Rebuilding the model at " + CStr(Now) +"************"
-   	Print #fileNumber, "************Rebuilding the model at " + CStr(Now) +"****************"
+   	ReportInformationToWindow "**********Saving the model at " + CStr(Now) +"************"
+   	Print #fileNumber, "************Saving the model at " + CStr(Now) +"****************"
 
    	'Rebuild
    	save
 	ReportInformationToWindow "***********Initializing of antenna begins at " + CStr(Now) +"*************"
    	Print #fileNumber, "************Initializing of antenna begins at " + CStr(Now) +"****************"
+   	'INITIALIZE########################################################################################
+   	'########################################################################################
 	antennaDesign_initialize(True)
 	ReportInformationToWindow "**********Initializing of antenna finishes at " + CStr(Now) +"************"
 	Print #fileNumber, "************Initializing of antenna finishes at " + CStr(Now) +"************"
@@ -238,7 +244,8 @@ Sub Main
 	If Dialog(dlg,-2) = 0 Then
 		Exit All
 	End If
-
+	'Optenni *.msc file settings
+	EnsureSettingsFile()
 	Dim length_factor As Double
 
 	tgtFreq = CDbl(dlg.Freq)
@@ -259,6 +266,7 @@ Sub Main
 
 	Dim x As Integer
 	Dim y As Integer
+	Dim deltaX As Double, deltaY As Double, deltaZ As Double
 	Dim initialTgtLength As Double
 	'***************Add a choice to recover antenna routing from the progress log*********************
 	If feed.getDimensions(deltaX,deltaY,deltaZ)=False Then
@@ -358,6 +366,16 @@ Sub Main
 				If False Then	'MsgBox("Go on?",vbOkCancel,"Notice")<>vbOK Then
 					Exit Do
 				Else
+					'Matching using Optenni Lab
+					Dim res As Boolean
+				    res = OptenniTransfer()
+				    If res Then
+				        ' 将结果添加到结果树
+				        Call AddResultsToTree()
+				        'MsgBox "Optenni匹配电路优化完成！", vbOkOnly, "完成"
+				    Else
+				        MsgBox "Optenni处理失败，请检查错误信息", vbOkOnly, "错误"
+				    End If
 					'Q = getQ()(0)
 					totEffi = getEfficiencyAtFrequency(tgtFreq, True)
 					radEffi = getEfficiencyAtFrequency(tgtFreq, False)
@@ -815,9 +833,8 @@ Function getEfficiencyAtFrequency(f As Double, totOrRad As Boolean) As Double
 	Dim effiFile As String
 	Dim currentItem As String
 
-    effiPath = "1D Results\Efficiencies"
-    effiItem = ResultTree.GetFirstChildName(effiPath)
-
+    effiPath = "1D Results\Matched Results"
+	effiItem = ResultTree.GetFirstChildName(effiPath)
     If effiItem = "" Then
    	  MsgBox("No Efficiency results found!",vbCritical,"Warning")
    	  Exit All
@@ -828,22 +845,22 @@ Function getEfficiencyAtFrequency(f As Double, totOrRad As Boolean) As Double
 		Dim EffiType As String, FileName As String
 		Dim nPoints As Long, n As Integer, dBValue As Double, x As Double, y As Double
 		Dim O As Object
-		EffiType = Mid(currentItem,Len(effiPath)+2,InStr(currentItem,"[")-Len(effiPath)-2)
+		'EffiType = Mid(currentItem,Len(effiPath)+2,InStr(currentItem,"[")-Len(effiPath)-2)
 
 		If totOrRad=False Then
-			If InStr(EffiType, "Rad")<>0 Then
+			If InStr(currentItem, "Radiation")<>0 Then
 				GoTo getValue
 			End If
 		Else
-			If InStr(EffiType, "Tot")<>0 Then
+			If InStr(currentItem, "Total")<>0 Then
 			getValue:
         		FileName = ResultTree.GetFileFromTreeItem(currentItem)
-        		Set O = Result1DComplex(FileName)
+        		Set O = Result1D(FileName)
         		nPoints = O.GetN
 
     			For n = 0 To nPoints-2
     				If O.GetX(n)<= f And O.GetX(n+1)>=f Then
-    					y = (O.GetYRe(n+1)-O.GetYRe(n))/(O.GetX(n+1)-O.GetX(n))*(f-O.GetX(n))+O.GetYRe(n)
+    					y = (10^(O.GetY(n+1)/10)-10^(O.GetY(n)/10))/(O.GetX(n+1)-O.GetX(n))*(f-O.GetX(n))+10^(O.GetY(n)/10)
     					Exit For
     				End If
     			Next

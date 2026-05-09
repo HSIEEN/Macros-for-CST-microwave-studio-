@@ -142,11 +142,11 @@ Private Function DialogFunction(DlgItem$, Action%, SuppValue?) As Boolean
 			Dim ChildItem As String
 			Select Case componentValue
 		   	Case 0
-				DirName = "CP directivity\@"+FrequencyStr+"GHz"
+				DirName = "CP directivity\@"+FrequencyStr+"GHz"+ "["+PortStr+"]"
 			Case 1
-				DirName = "CP gain\@"+FrequencyStr+"GHz"
+				DirName = "CP gain\@"+FrequencyStr+"GHz"+ "["+PortStr+"]"
 			Case 2
-				DirName = "CP realized gain\@"+FrequencyStr+"GHz"
+				DirName = "CP realized gain\@"+FrequencyStr+"GHz"+ "["+PortStr+"]"
 		   	End Select
 
 			If ResultTree.DoesTreeItemExist("1D Results\"+DirName) Then

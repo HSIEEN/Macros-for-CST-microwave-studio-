@@ -264,15 +264,17 @@ solidySize As Double, solidzSize As Double) As Boolean
 		'estimate all available elements for all neighbors and then pick one meeting the target available elements
 
 		'The third element stores the information of the m-th elements
-		ReDim neighborAvailableElementsStr(3)
-		ReDim neighborAvailableElementsNum(3)
-		ReDim neighborAvailableElementsLogic(3)
+		ReDim neighborAvailableElementsStr(2)
+		ReDim neighborAvailableElementsNum(2)
+		ReDim neighborAvailableElementsLogic(2)
 
 		'Random pick one of appropriate non metal face neighbors to be used as an antenna element
 		If n_validFaceNeighbors>0 And ant.length<tgtLength Then
 			needReEstimatingAvailableElements=False
 			If ant.length > tgtLength*0.2 Then
 				If n_validFaceNeighbors>1 Then
+					'Check if need to estimate all available elements for all neighbors when going forward since the trace can only use
+					'available elements belonging to one of them
 					needReEstimatingAvailableElements = _
 					needToReEstimateAvailableElementsOnGoingForward(tempStr)
 				End If
@@ -289,7 +291,7 @@ solidySize As Double, solidzSize As Double) As Boolean
 					ReportInformationToWindow "$Constructor: Target available antenna Elements is " & CInt((tgtLength-length)*maxSize*2.6)
 					availableNum=0
 					availableStr = ""
-					'get the number ID of the face neighbor that uses the same connection string by the tailElement
+					'get the number ID of the face neighbor that uses the same connection logic by the tailElement
 					For i=0 To n_validFaceNeighbors-1
 						If StrComp(tempStr(i), Right(conLogics,2))=0 Then
 							m=i
@@ -299,6 +301,7 @@ solidySize As Double, solidzSize As Double) As Boolean
 					Next
 					neighborAvailableElementsNum(2)=0
 					neighborAvailableElementsLogic(2)= tempStr(m)
+					'get all available elements for the straight neighbor
 					If Not tempObj(m).getFaceNeighborFromString(tempStr(m), False) Is Nothing Then
 						If tempObj(m).getFaceNeighborFromString(tempStr(m), False).isPureNonMetal()=True Then
 							neighborAvailableElementsNum(2)= _
@@ -329,6 +332,7 @@ solidySize As Double, solidzSize As Double) As Boolean
 									End If
 								End If
 							End If
+							'get all available elements for side neighbors in opposite direction
 							If InStr(tempStr(i),"n")<>0 Then
 								invStr = Left(tempStr(i),1) & "p"
 							Else
@@ -1207,9 +1211,9 @@ End Function
 Public Function needToReEstimateAvailableElementsOnGoingForward(validNeighborsStr() As String) As Boolean
 	Dim i As Integer
 	Dim neighborsStr As String
-	neighborsStr=""
 	Dim nElement As AntennaElement
 
+	neighborsStr=""
 	For i=0 To UBound(validNeighborsStr)-1
 		neighborsStr = neighborsStr & validNeighborsStr(i)
 	Next

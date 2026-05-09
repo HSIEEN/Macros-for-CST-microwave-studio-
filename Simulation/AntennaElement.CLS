@@ -544,7 +544,7 @@ End Function
 Public Sub defineVertices(iniVertices As Variant)
 	ReDim vertices(8,3)
 	Dim eps As Double
-	eps = 1e-6
+	eps = 1e-3
     Dim i As Integer, j As Integer, xn As Double, xp As Double, yn As Double, yp As Double
     Dim zGroups(0 To 3, 0 To 1) As Double ' 4组x/y组合的z值（每组2个）
 
@@ -567,6 +567,11 @@ Public Sub defineVertices(iniVertices As Variant)
             If j >= 2 Then Exit For
         End If
     Next i
+    'Not Enough valid Z points
+    'If j< 2 Then
+	'	ReportInformationToWindow "Coordinates Invalids!"
+	'	Exit All
+    'End If
 
     ' 组1：xn+yp的z值
     j = 0
@@ -577,7 +582,11 @@ Public Sub defineVertices(iniVertices As Variant)
             If j >= 2 Then Exit For
         End If
     Next i
-
+    'Not Enough valid Z points
+    'If j< 2 Then
+	'	ReportInformationToWindow "Coordinates Invalids!"
+	'	Exit All
+    'End If
     ' 组2：xp+yn的z值
     j = 0
     For i = 0 To 7
@@ -587,7 +596,11 @@ Public Sub defineVertices(iniVertices As Variant)
             If j >= 2 Then Exit For
         End If
     Next i
-
+    'Not Enough valid Z points
+    'If j< 2 Then
+	'	ReportInformationToWindow "Coordinates Invalids!"
+	'	Exit All
+    'End If
     ' 组3：xp+yp的z值
     j = 0
     For i = 0 To 7
@@ -597,7 +610,11 @@ Public Sub defineVertices(iniVertices As Variant)
             If j >= 2 Then Exit For
         End If
     Next i
-
+    'Not Enough valid Z points
+    'If j< 2 Then
+	'	ReportInformationToWindow "Coordinates Invalids!"
+	'	Exit All
+    'End If
     ' 排序每组z值（n=小，p=大）
     For i = 0 To 3
         If zGroups(i, 0) > zGroups(i, 1) Then

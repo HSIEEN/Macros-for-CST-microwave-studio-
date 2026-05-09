@@ -8,13 +8,13 @@ Dim spectrum As Object
 Sub Main ()
 	Dim Spath As String
 	Dim FirstItem As String
-	Spath = "1D Results\S-Parameters"
+	Spath = "1D Results\Z Matrix"
 	FirstItem = ResultTree.GetFirstChildName(Spath)
 
 	'Debug.Print FirstItem
 	'Debug.Clear
     If FirstItem = "" Then
-	   	 MsgBox("No S-parameter results found!",vbCritical,"Error")
+	   	 MsgBox("No Z-parameter results found!",vbCritical,"Error")
 	   	 Exit All
     End If
 
@@ -54,6 +54,7 @@ Sub Main ()
 			'Dim spectrum As Object
 			Dim nRes As Long
 			Dim fileType As String
+			Dim spectrum_copy As Object
 
 			'Dim calcQ As Double
 			'EffiType = Mid(currentItem,Len(Spath)+2,InStr(currentItem,"[")-Len(Spath)-2)
@@ -63,34 +64,30 @@ Sub Main ()
 			fileType =  GetFileType(FileName)
 			If fileType = "complex" Then
 				Set spectrum = Result1DComplex(FileName)
-				Set spectrum = spectrum.Magnitude
+				Set spectrum = spectrum.Imaginary
+				Set spectrum_copy = Result1D("")
 			End If
-
-			'Convert linear format to log format
+			Dim ii As Integer
+			'Get resonance frequency
 			With spectrum
-				For i = 0 To .GetN-1
-					If .GetY(i)>0 Then
-						.SetXYDouble(i,.GetX(i),20.0*Log(.GetY(i))/Log(10))
-					Else
-						.SetXYDouble(i,.GetX(i),-120.0)
+				For ii = 10 To .GetN-1
+
+					X = spectrum.GetX(ii)
+					Y = spectrum.GetY(ii)
+					spectrum_copy.Appendxy(X,Abs(Y))
+					If Abs(Y)<1e-1 Then
+
+						Print #1,"F"+CStr(i)+"=" + CStr(Round(X,2))' + vbNewLine + "Q"+CStr(i)+"=" + CStr(Round(calcQ,2))
+						Exit For
 					End If
 				Next
+				'No points meet the resonance conditions in last part
+				If ii=.GetN Then
+					ii=spectrum_copy.GetGlobalMinimum
+					X = spectrum_copy.GetX(ii)
+					Print #1,"F"+CStr(i)+"=" + CStr(Round(X,2))' + vbNewLine + "Q"+CStr(i)+"=" + CStr(Round(calcQ,2))
+				End If
 			End With
-
-			nRes = spectrum.GetGlobalMinimum
-			i = 1
-				'While nRes <> -1
-			X = spectrum.GetX(nRes)
-			Y = spectrum.GetY(nRes)
-			calcQ = CalculateQ(nRes)
-			'nRes = spectrum.GetNextMinimum(0.5)
-			'i = i+1
-			'If calcQ > 5 Then
-			Print #1, "F"+CStr(i)+"=" + CStr(Round(X,2)) + vbNewLine + "Q"+CStr(i)+"=" + CStr(Round(calcQ,2))
-					'Else
-					'	i=i-1
-					'End If
-
 		End If
 		currentItem = ResultTree.GetNextItemName(currentItem)
     Wend

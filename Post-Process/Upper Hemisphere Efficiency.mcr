@@ -160,6 +160,7 @@ Sub Main ()
 
 
         Dim UHTotEffi As Double, dBTotal As Double
+        Dim UHRPRatio As Double, dBRatio As Double
 
         Dim UHRHCPTotEffi As Double, dBRight As Double
 
@@ -168,6 +169,10 @@ Sub Main ()
         'efficiency calculation, if combined results found, the efficiencies are in system type, instead of 3d simulation
 
         UHTotEffi = UHTRP/StimPower
+
+        UHRPRatio = UHTRP/TRP
+
+		dBRatio = 10*CST_Log10(UHRPRatio)
 
         dBTotal = 10*CST_Log10(UHTotEffi)'Log(UHTotEffi)/Log(10)*10
 
@@ -183,9 +188,10 @@ Sub Main ()
         'Print information to the message window
 
         ReportInformationToWindow( _
-        "上半球总效率f="+FrequencyStr+"GHz@Port"+PortStr+": "+Left(Cstr(UHTotEffi*100),InStr(Cstr(UHTotEffi*100),".")+2)+"% ("+Left(Cstr(dBTotal),InStr(Cstr(dBTotal),".")+2)+ "dB)"+vbCrLf+ _
-        "上半球右旋效率f="+FrequencyStr+"GHz@Port"+PortStr+": "+Left(Cstr(UHRHCPEffi*100),InStr(Cstr(UHRHCPEffi*100),".")+2)+"% ("+Left(Cstr(dBRight),InStr(Cstr(dBRight),".")+2)+ "dB)"+ vbCrLf+ _
-        "上半球左旋效率f="+FrequencyStr+"GHz@Port"+PortStr+": "+Left(Cstr(UHLHCPEffi*100),InStr(Cstr(UHLHCPEffi*100),".")+2)+"% ("+Left(Cstr(dBLeft),InStr(Cstr(dBLeft),".")+2)+ "dB)")
+        "上半球总效率 f="+FrequencyStr+"GHz@Port"+PortStr+": "+CStr(Round(UHTotEffi*100,2))+"% ("+CStr(Round(dBTotal,2))+ "dB)"+vbCrLf+ _
+        "上半球占比 f="+FrequencyStr+"GHz@Port"+PortStr+": "+CStr(Round(UHRPRatio*100,2))+"% ("+Cstr(Round(dBRatio, 2))+ "dB)"+vbCrLf+ _
+        "上半球右旋效率 f="+FrequencyStr+"GHz@Port"+PortStr+": "+CStr(Round(UHRHCPEffi*100,2))+"% ("+Cstr(Round(dBRight, 2))+ "dB)"+ vbCrLf+ _
+        "上半球左旋效率 f="+FrequencyStr+"GHz@Port"+PortStr+": "+CStr(Round(UHLHCPEffi*100,2))+"% ("+Cstr(Round(dBLeft, 2))+ "dB)")
 
     End If
 

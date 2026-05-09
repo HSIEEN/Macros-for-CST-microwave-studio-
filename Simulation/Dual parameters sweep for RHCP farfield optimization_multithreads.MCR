@@ -1,8 +1,9 @@
-'sweep single parameter to meet the target
+'sweep dual parameter to meet the target
 '2023-01-10 By Shawn
-'#include "vba_globals_all.lib"
-'#include "vba_coros_all.lib"
+'#Include "vba_globals_all.lib"
+'#Include "vba_coros_all.lib"
 Option Explicit
+Public Const lib_rundef = -1.2345678e27
 Public startTime As String, parameter1 As String, parameter2 As String, portStr As String, componentNames() As String
 Public cutPlaneValue As Integer, farfieldComponentValue As Integer, cutAngle As Double, threads As Integer
 Public TE As Double, RE As Double
@@ -1102,3 +1103,10 @@ Sub processDirectivityData(sheet As Object, Columns As String)
 	ReportInformationToWindow "%%%Processing is done......"
 End Sub
 
+Function CST_Log10(value As Double) As Double
+	If value <= 0 Then
+		CST_Log10 = lib_rundef
+	Else
+		CST_Log10 = Log(value)/Log(10)
+	End If
+End Function
