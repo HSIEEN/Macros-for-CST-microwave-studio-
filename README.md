@@ -31,6 +31,10 @@ Some functions are as follows:
 
 *Import and formating test data from GTS test system
 
+*Automatically design planar antennas and sort them by matched total efficiency
+
+*Matching a single port antenna using Optenni Lab but without openning it manually
+
 
 ## About the author
 The author now is with Guangdong COROS as an antenna engineer. Any quesions or requirements please contact at utshixw@163.com
